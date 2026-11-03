@@ -14,6 +14,16 @@ from .conditions import has_files, has_http
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 
+def find_client_report_envelope(httpserver_log):
+    """The session's start update goes out right before the discarded item,
+    so the client report rides on whichever envelope is serialized next."""
+    for req, _resp in httpserver_log:
+        envelope = Envelope.deserialize(req.get_data())
+        if any(item.headers.get("type") == "client_report" for item in envelope):
+            return envelope
+    assert False, "no envelope carries a client report"
+
+
 def test_client_report_none(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
@@ -41,8 +51,8 @@ def test_client_report_before_send(cmake, httpserver):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    # The event is discarded by before_send. The session envelope sent at
-    # shutdown acts as a carrier for the client report.
+    # The event is discarded by before_send. A session envelope acts as a
+    # carrier for the client report.
     run(
         tmp_path,
         "sentry_test_integration",
@@ -50,8 +60,9 @@ def test_client_report_before_send(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    # the session's start update and its end
+    assert len(httpserver.log) == 2
+    envelope = find_client_report_envelope(httpserver.log)
 
     assert_session(envelope)
     assert_client_report(
@@ -68,6 +79,7 @@ def test_client_report_ratelimit(cmake, httpserver):
     # during serialization, but their session updates still pass through (not
     # rate-limited). Each subsequent envelope carries client report discards
     # incrementally, so we aggregate across all envelopes.
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", headers={"X-Sentry-Rate-Limits": "60:error:organization"}
     )
@@ -90,7 +102,8 @@ def test_client_report_ratelimit(cmake, httpserver):
         env=env,
     )
 
-    # First envelope: event + session (before rate limit).
+    # First envelope: the session's start update. Second: event + session
+    # (before rate limit).
     # No event items in subsequent envelopes (rate-limited), but session
     # updates still go through.
     assert len(httpserver.log) >= 2
@@ -116,10 +129,12 @@ def test_client_report_ratelimit(cmake, httpserver):
 def test_client_report_ratelimit_then_send_error(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
-    # First request rate-limits sessions. Second request returns 400.
-    # The session item is filtered during serialization (ratelimit_backoff).
-    # The event item is sent but rejected (send_error). Each item must be
-    # counted exactly once under the correct reason.
+    # The first request carries the session's start update. The second
+    # rate-limits sessions. The third returns 400. The session item is
+    # filtered during serialization (ratelimit_backoff). The event item is
+    # sent but rejected (send_error). Each item must be counted exactly once
+    # under the correct reason.
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", headers={"X-Sentry-Rate-Limits": "60:session:organization"}
     )
@@ -146,7 +161,7 @@ def test_client_report_ratelimit_then_send_error(cmake, httpserver):
                 key = (entry["reason"], entry["category"])
                 total_discards[key] = total_discards.get(key, 0) + entry["quantity"]
 
-    # Session updates rate-limited after the first envelope
+    # Session updates rate-limited after the second envelope
     assert ("ratelimit_backoff", "session") in total_discards
     # Second event rejected by the server
     assert ("send_error", "error") in total_discards
@@ -164,8 +179,8 @@ def test_client_report_sample_rate(cmake, httpserver):
         SENTRY_SAMPLE_RATE="0.0",
     )
 
-    # Event is discarded by sample rate. The session at shutdown carries
-    # the client report.
+    # Event is discarded by sample rate. A session envelope carries the
+    # client report.
     run(
         tmp_path,
         "sentry_test_integration",
@@ -173,8 +188,9 @@ def test_client_report_sample_rate(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    # the session's start update and its end
+    assert len(httpserver.log) == 2
+    envelope = find_client_report_envelope(httpserver.log)
 
     assert_session(envelope)
     assert_client_report(
@@ -249,8 +265,8 @@ def test_client_report_before_send_feedback(cmake, httpserver):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    # Feedback is discarded by before_send_feedback. The session at
-    # shutdown carries the client report.
+    # Feedback is discarded by before_send_feedback. A session envelope
+    # carries the client report.
     run(
         tmp_path,
         "sentry_test_integration",
@@ -263,8 +279,9 @@ def test_client_report_before_send_feedback(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    # the session's start update and its end
+    assert len(httpserver.log) == 2
+    envelope = find_client_report_envelope(httpserver.log)
 
     assert_session(envelope)
     assert_client_report(
@@ -279,8 +296,8 @@ def test_client_report_before_send_transaction(cmake, httpserver):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    # Transaction is discarded by before_transaction. The session at
-    # shutdown carries the client report.
+    # Transaction is discarded by before_transaction. A session envelope
+    # carries the client report.
     run(
         tmp_path,
         "sentry_test_integration",
@@ -293,8 +310,9 @@ def test_client_report_before_send_transaction(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    # the session's start update and its end
+    assert len(httpserver.log) == 2
+    envelope = find_client_report_envelope(httpserver.log)
 
     assert_session(envelope)
     assert_client_report(
@@ -307,6 +325,8 @@ def test_client_report_send_error_preserves_pending(cmake, httpserver):
     """Client report counts attached to a failed envelope are preserved."""
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
+    # the session's start update goes through
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "Internal Server Error", status=500
     )
@@ -325,9 +345,9 @@ def test_client_report_send_error_preserves_pending(cmake, httpserver):
 
     # Events 1-2 fail (500) -> send_error discards accumulate.
     # Event 3+ succeed and deliver the accumulated client report.
-    assert len(httpserver.log) > 2
+    assert len(httpserver.log) > 3
     total_discards = {}
-    for req, _resp in httpserver.log[2:]:
+    for req, _resp in httpserver.log[3:]:
         envelope = Envelope.deserialize(req.get_data())
         for item in envelope:
             if item.headers.get("type") != "client_report" or not item.payload.json:
@@ -343,6 +363,8 @@ def test_client_report_send_error_preserves_pending(cmake, httpserver):
 def test_client_report_send_error(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
+    # the session's start update goes through, the event fails
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "Internal Server Error", status=500
     )
@@ -356,8 +378,8 @@ def test_client_report_send_error(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 2
-    envelope = Envelope.deserialize(httpserver.log[1][0].get_data())
+    assert len(httpserver.log) == 3
+    envelope = Envelope.deserialize(httpserver.log[2][0].get_data())
 
     assert_session(envelope)
     assert_client_report(
@@ -369,6 +391,8 @@ def test_client_report_send_error(cmake, httpserver):
 def test_client_report_content_too_large(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
+    # the session's start update goes through, the event fails
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "Content Too Large", status=413
     )
@@ -383,8 +407,8 @@ def test_client_report_content_too_large(cmake, httpserver):
         stderr=subprocess.PIPE,
     )
 
-    assert len(httpserver.log) == 2
-    envelope = Envelope.deserialize(httpserver.log[1][0].get_data())
+    assert len(httpserver.log) == 3
+    envelope = Envelope.deserialize(httpserver.log[2][0].get_data())
 
     assert_session(envelope)
     assert_client_report(
@@ -401,8 +425,9 @@ def test_client_report_with_retry(cmake, httpserver, unreachable_dsn):
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     # Run 1: event discarded by before_send (client report recorded).
-    # The session at shutdown picks up the client report, but send fails
-    # (unreachable), so the session+client_report is cached for retry.
+    # A session envelope picks up the client report, but sending fails
+    # (unreachable), so the session's start update and its end are both
+    # cached for retry.
     run(
         tmp_path,
         "sentry_test_integration",
@@ -418,10 +443,11 @@ def test_client_report_with_retry(cmake, httpserver, unreachable_dsn):
 
     assert cache_dir.exists()
     cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 1
+    assert len(cache_files) == 2
 
-    # Run 2: retry succeeds — the retried session should carry the
+    # Run 2: retry succeeds — one of the retried sessions should carry the
     # client report from run 1.
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
@@ -433,8 +459,8 @@ def test_client_report_with_retry(cmake, httpserver, unreachable_dsn):
         )
     assert waiting.result
 
-    assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert len(httpserver.log) == 2
+    envelope = find_client_report_envelope(httpserver.log)
     assert_session(envelope)
     assert_client_report(
         envelope,

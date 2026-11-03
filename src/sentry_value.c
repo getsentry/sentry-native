@@ -849,32 +849,53 @@ sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
     return 1;
 }
 
-char *
-sentry__value_remove_and_take_key_n(
-    sentry_value_t value, const char *k, size_t k_len)
+static bool
+take_pair(sentry_value_t value, const char *k, size_t k_len, obj_pair_t *out)
 {
     if (!k) {
-        return NULL;
+        return false;
     }
     sentry_slice_t k_slice = { k, k_len };
     thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT
         || !thing_detach(thing)) {
-        return NULL;
+        return false;
     }
     obj_t *o = thing->payload._ptr;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
         if (sentry__slice_eqs(k_slice, pair->k)) {
-            char *key = pair->k;
-            sentry_value_decref(pair->v);
+            *out = *pair;
             memmove(o->pairs + i, o->pairs + i + 1,
                 (o->len - i - 1) * sizeof(o->pairs[0]));
             o->len--;
-            return key;
+            return true;
         }
     }
-    return NULL;
+    return false;
+}
+
+char *
+sentry__value_remove_and_take_key_n(
+    sentry_value_t value, const char *k, size_t k_len)
+{
+    obj_pair_t pair;
+    if (!take_pair(value, k, k_len, &pair)) {
+        return NULL;
+    }
+    sentry_value_decref(pair.v);
+    return pair.k;
+}
+
+sentry_value_t
+sentry__value_take_by_key(sentry_value_t value, const char *k)
+{
+    obj_pair_t pair;
+    if (!k || !take_pair(value, k, strlen(k), &pair)) {
+        return sentry_value_new_null();
+    }
+    sentry_free(pair.k);
+    return pair.v;
 }
 
 int
@@ -1822,42 +1843,6 @@ sentry_value_new_stacktrace(void **ips, size_t len)
 }
 
 sentry_value_t
-sentry_value_new_user_feedback(const sentry_uuid_t *uuid, const char *name,
-    const char *email, const char *comments)
-{
-    SENTRY_SUPPRESS_DEPRECATED
-    return sentry_value_new_user_feedback_n(uuid, name,
-        sentry__guarded_strlen(name), email, sentry__guarded_strlen(email),
-        comments, sentry__guarded_strlen(comments));
-    SENTRY_RESTORE_DEPRECATED
-}
-
-sentry_value_t
-sentry_value_new_user_feedback_n(const sentry_uuid_t *uuid, const char *name,
-    size_t name_len, const char *email, size_t email_len, const char *comments,
-    size_t comments_len)
-{
-    sentry_value_t rv = sentry_value_new_object();
-
-    sentry_value_set_by_key(rv, "event_id", sentry__value_new_uuid(uuid));
-
-    if (name) {
-        sentry_value_set_by_key(
-            rv, "name", sentry_value_new_string_n(name, name_len));
-    }
-    if (email) {
-        sentry_value_set_by_key(
-            rv, "email", sentry_value_new_string_n(email, email_len));
-    }
-    if (comments) {
-        sentry_value_set_by_key(
-            rv, "comments", sentry_value_new_string_n(comments, comments_len));
-    }
-
-    return rv;
-}
-
-sentry_value_t
 sentry_value_new_feedback(const char *message, const char *contact_email,
     const char *name, const sentry_uuid_t *associated_event_id)
 {
@@ -1944,14 +1929,6 @@ sentry_value_set_stacktrace(sentry_value_t value, void **ips, size_t len)
 {
     sentry_value_t stacktrace = sentry_value_new_stacktrace(ips, len);
     sentry_value_set_by_key(value, "stacktrace", stacktrace);
-}
-
-void
-sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
-{
-    sentry_value_t thread = sentry_value_new_object();
-    sentry_value_set_stacktrace(thread, ips, len);
-    sentry_event_add_thread(event, thread);
 }
 
 #define SENTRY_MPACK_MAX_DEPTH 64

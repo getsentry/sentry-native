@@ -38,6 +38,14 @@ size_t sentry__unwind_stack_from_thread(pid_t tid,
     sentry_remote_frame_t *frames, size_t max_frames,
     sentry_remote_registers_t *registers, bool symbolize);
 
+bool sentry__ptrace_attach_thread(pid_t tid);
+
 #endif
+
+/**
+ * Allocates the calling thread's unwinder state up front, so that the unwinder
+ * can still handle allocation failures on this thread later, e.g. in a crash.
+ */
+void sentry__unwind_init(void);
 
 #endif // SENTRY_UNWINDER_H_INCLUDED

@@ -82,7 +82,8 @@ SENTRY_TEST(multiple_inits)
     sentry_close();
     sentry_close();
 
-    TEST_CHECK_INT_EQUAL(called, 4);
+    // two session starts, two session ends and two events
+    TEST_CHECK_INT_EQUAL(called, 6);
 }
 
 typedef struct {
@@ -122,7 +123,7 @@ suspend_dump(sentry_run_t *run, void *data)
 SENTRY_THREAD_FN
 suspend_send_thread(void *data)
 {
-    sentry__transport_send_envelope(data, sentry__envelope_new());
+    sentry__transport_send_envelope(data, sentry__envelope_new(NULL));
     return 0;
 }
 
@@ -160,7 +161,7 @@ SENTRY_TEST(transport_suspend)
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.dump_count), 1);
     TEST_CHECK(!state.queued);
 
-    sentry__transport_send_envelope(transport, sentry__envelope_new());
+    sentry__transport_send_envelope(transport, sentry__envelope_new(NULL));
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.send_count), 1);
     TEST_CHECK(sentry__atomic_fetch(&run->retain));
 
@@ -212,11 +213,11 @@ SENTRY_TEST(concurrent_init)
 
     sentry_close();
 
-    // 1 session, and up to 2 events per thread.
+    // 1 session start, 1 session end, and up to 2 events per thread.
     // might be less because `capture_event` races with close/init and might
     // lose events.
-    TEST_CHECK(called >= THREADS_NUM * 1);
-    TEST_CHECK(called <= THREADS_NUM * 3);
+    TEST_CHECK(called >= THREADS_NUM * 2);
+    TEST_CHECK(called <= THREADS_NUM * 4);
 }
 
 SENTRY_THREAD_FN

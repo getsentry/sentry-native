@@ -840,7 +840,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 continue;
             } else if (sentry__path_filename_matches(file, "session.json")) {
                 if (!session_envelope) {
-                    session_envelope = sentry__envelope_new();
+                    session_envelope = sentry__envelope_new(options);
                 }
                 sentry_session_t *session = sentry__session_from_path(file);
                 if (session) {

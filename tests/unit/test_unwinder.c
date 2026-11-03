@@ -14,6 +14,10 @@
 extern bool find_mem_range_from_fd(int fd, uintptr_t ptr, mem_range_t *range);
 #endif
 
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK
+extern void fail_operator_new(size_t min_size);
+#endif
+
 // On arm64e, function pointers have PAC (Pointer Authentication Code) bits
 // that must be stripped for comparison with addresses from dladdr().
 #if defined(__arm64e__)
@@ -127,6 +131,30 @@ SENTRY_TEST(unwinder_unmapped_ip)
 
     TEST_CHECK_INT_EQUAL(frame_count, 1);
     TEST_CHECK_PTR_EQUAL(backtrace[0], (void *)(uintptr_t)0x10c);
+#endif
+}
+
+SENTRY_TEST(unwinder_alloc_failure)
+{
+#if !defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
+    SKIP_TEST();
+#else
+    void *backtrace[MAX_FRAMES] = { 0 };
+
+    // reading /proc/self/maps fails, but the registers are already captured
+    fail_operator_new(4096);
+    size_t frame_count = sentry_unwind_stack(NULL, backtrace, MAX_FRAMES);
+    fail_operator_new(0);
+    TEST_CHECK_INT_EQUAL(frame_count, 1);
+    TEST_CHECK(backtrace[0] != NULL);
+
+    // capturing the registers fails
+    fail_operator_new(1);
+    frame_count = sentry_unwind_stack(NULL, backtrace, MAX_FRAMES);
+    fail_operator_new(0);
+    TEST_CHECK_INT_EQUAL(frame_count, 0);
+
+    TEST_CHECK(sentry_unwind_stack(NULL, backtrace, MAX_FRAMES) > 1);
 #endif
 }
 

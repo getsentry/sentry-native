@@ -162,10 +162,11 @@ SENTRY_TEST(corrupt_crash_envelope_does_not_block_old_run)
     TEST_ASSERT(!!crash_envelope && !!queued_envelope);
     TEST_ASSERT(sentry__path_write_buffer(crash_envelope, "garbage", 7) == 0);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_ASSERT(!!envelope);
     sentry__envelope_add_event(envelope,
-        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "queued"));
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "queued"),
+        NULL);
     TEST_ASSERT(sentry_envelope_write_to_path(envelope, queued_envelope) == 0);
     sentry_envelope_free(envelope);
 
@@ -241,6 +242,27 @@ SENTRY_TEST(elf_rejects_non_regular_files)
 #endif
 }
 
+SENTRY_TEST(elf_offset)
+{
+#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    // an APK-like zip with an uncompressed library at a page-aligned offset
+    char path[] = "/tmp/sentry-minidump-apk-XXXXXX";
+    int fd = mkstemp(path);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(write(fd, "PK\3\4", 4) == 4);
+    TEST_ASSERT(pwrite(fd, ELFMAG, SELFMAG, 4096) == (ssize_t)SELFMAG);
+    close(fd);
+
+    TEST_CHECK(!sentry__elf_is_file(path));
+    TEST_CHECK(sentry__elf_is_file_at(path, 4096));
+    TEST_CHECK(!sentry__elf_is_file_at(path, 8192));
+
+    TEST_CHECK(unlink(path) == 0);
+#endif
+}
+
 /**
  * Test minidump directory entry structure
  */
@@ -299,6 +321,12 @@ SENTRY_TEST(minidump_context_sizes)
     // Verify NEON/FP registers exist
     ctx.fpsr = 0x12345678;
     TEST_CHECK(ctx.fpsr == 0x12345678);
+
+#    elif defined(__riscv) && __riscv_xlen == 64
+    TEST_CHECK(sizeof(minidump_context_riscv64_t) == 528);
+    TEST_CHECK(offsetof(minidump_context_riscv64_t, regs) == 8);
+    TEST_CHECK(offsetof(minidump_context_riscv64_t, fpregs) == 264);
+    TEST_CHECK(offsetof(minidump_context_riscv64_t, fcsr) == 520);
 
 #    endif
 #else
@@ -445,6 +473,7 @@ SENTRY_TEST(minidump_cpu_architectures)
     TEST_CHECK(MINIDUMP_CPU_ARM == 5); // PROCESSOR_ARCHITECTURE_ARM
     TEST_CHECK(MINIDUMP_CPU_ARM64 == 12); // PROCESSOR_ARCHITECTURE_ARM64
     TEST_CHECK(MINIDUMP_CPU_X86_64 == 9); // PROCESSOR_ARCHITECTURE_AMD64
+    TEST_CHECK(MINIDUMP_CPU_RISCV64 == 0x8006); // MD_CPU_ARCHITECTURE_RISCV64
 #else
     SKIP_TEST();
 #endif
@@ -799,7 +828,8 @@ SENTRY_TEST(elf_header_entry_sizes)
     size_t shdr_size;
     size_t phdr_size;
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     e_ident[EI_CLASS] = ELFCLASS64;
     other_class = ELFCLASS32;
     shdr_size = sizeof(Elf64_Shdr);

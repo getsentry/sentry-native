@@ -14,6 +14,7 @@ from . import (
     Envelope,
     split_log_request_cond,
     extract_request,
+    is_session_start_envelope,
     is_feedback_envelope,
     is_replay_envelope,
     REPLAY_ID,
@@ -30,7 +31,6 @@ from .assertions import (
     assert_replay_envelope,
     assert_session,
     assert_user_feedback,
-    assert_user_report,
     assert_minidump,
     assert_breakpad_crash,
     assert_crash_timestamp,
@@ -155,11 +155,13 @@ def test_session_http(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 1
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
+    # the start update, then the session's end
+    assert len(httpserver.log) == 2
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_session(envelope, {"init": True, "status": "ok", "errors": 0})
 
-    assert_session(envelope, {"init": True, "status": "exited", "errors": 0})
+    envelope = Envelope.deserialize(httpserver.log[1][0].get_data())
+    assert_session(envelope, {"status": "exited", "errors": 0})
 
 
 def test_set_release_and_environment_http(cmake, httpserver):
@@ -178,13 +180,10 @@ def test_set_release_and_environment_http(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 2
+    assert len(httpserver.log) == 3
 
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
-    event = envelope.get_event()
-    assert event["release"] == "updated-release"
-    assert event["environment"] == "updated-environment"
     assert_session(
         envelope,
         {"init": True, "status": "ok", "errors": 0},
@@ -193,6 +192,18 @@ def test_set_release_and_environment_http(cmake, httpserver):
     )
 
     output = httpserver.log[1][0].get_data()
+    envelope = Envelope.deserialize(output)
+    event = envelope.get_event()
+    assert event["release"] == "updated-release"
+    assert event["environment"] == "updated-environment"
+    assert_session(
+        envelope,
+        {"status": "ok", "errors": 0},
+        release="updated-release",
+        environment="updated-environment",
+    )
+
+    output = httpserver.log[2][0].get_data()
     envelope = Envelope.deserialize(output)
     assert_session(
         envelope,
@@ -218,14 +229,19 @@ def test_capture_and_session_http(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 2
+    assert len(httpserver.log) == 3
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
 
-    assert_event(envelope)
     assert_session(envelope, {"init": True, "status": "ok", "errors": 0})
 
     output = httpserver.log[1][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_event(envelope)
+    assert_session(envelope, {"status": "ok", "errors": 0})
+
+    output = httpserver.log[2][0].get_data()
     envelope = Envelope.deserialize(output)
     assert_session(envelope, {"status": "exited", "errors": 0})
 
@@ -284,34 +300,6 @@ def test_user_feedback_with_attachments_http(cmake, httpserver):
 
     # Should have 2 attachments (one file, one bytes)
     assert attachment_count == 2
-
-
-def test_user_report_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
-
-    httpserver.expect_request(
-        "/api/123456/envelope/",
-        headers={"x-sentry-auth": auth_header},
-    ).respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-
-    run(
-        tmp_path,
-        "sentry_test_integration",
-        ["log", "capture-user-report"],
-        env=env,
-    )
-
-    assert len(httpserver.log) == 2
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
-
-    assert_event(envelope, "Hello user feedback!")
-
-    output = httpserver.log[1][0].get_data()
-    envelope = Envelope.deserialize(output)
-
-    assert_user_report(envelope)
 
 
 @pytest.mark.parametrize(
@@ -541,15 +529,20 @@ def test_exception_and_session_http(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 2
+    assert len(httpserver.log) == 3
     output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_session(envelope, {"init": True, "status": "ok", "errors": 0})
+
+    output = httpserver.log[1][0].get_data()
     envelope = Envelope.deserialize(output)
 
     assert_exception(envelope)
     assert_stacktrace(envelope, inside_exception=True)
-    assert_session(envelope, {"init": True, "status": "ok", "errors": 1})
+    assert_session(envelope, {"status": "ok", "errors": 1})
 
-    output = httpserver.log[1][0].get_data()
+    output = httpserver.log[2][0].get_data()
     envelope = Envelope.deserialize(output)
     assert_session(envelope, {"status": "exited", "errors": 1})
 
@@ -625,10 +618,18 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
+    # flush so the session's start update is not in flight when we crash
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
+        [
+            "log",
+            "start-session",
+            "flush",
+            "attachment",
+            "attach-view-hierarchy",
+            "crash",
+        ],
         expect_failure=True,
         env=env,
     )
@@ -640,8 +641,12 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
         env=env,
     )
 
-    assert len(httpserver.log) == 1
-    req = httpserver.log[0][0]
+    # the start update went out (or was dumped and resent) before the crash
+    assert len(httpserver.log) == 2
+    start_req, req = split_log_request_cond(httpserver.log, is_session_start_envelope)
+    envelope = Envelope.deserialize(start_req.get_data())
+    assert_session(envelope, {"init": True, "status": "ok", "errors": 0})
+
     body = req.get_data()
 
     if build_args.get("SENTRY_TRANSPORT_COMPRESSION") == "On":
@@ -650,7 +655,7 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
 
     envelope = Envelope.deserialize(body)
 
-    assert_session(envelope, {"init": True, "status": "crashed", "errors": 1})
+    assert_session(envelope, {"status": "crashed", "errors": 1})
 
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
@@ -730,7 +735,14 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
+        [
+            "log",
+            "start-session",
+            "flush",
+            "attachment",
+            "attach-view-hierarchy",
+            "crash",
+        ],
         expect_failure=True,
         env=env,
     )
@@ -742,8 +754,12 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
         env=env,
     )
 
-    assert len(httpserver.log) == 1
-    req = httpserver.log[0][0]
+    # the start update went out (or was dumped and resent) before the crash
+    assert len(httpserver.log) == 2
+    start_req, req = split_log_request_cond(httpserver.log, is_session_start_envelope)
+    envelope = Envelope.deserialize(start_req.get_data())
+    assert_session(envelope, {"init": True, "status": "ok", "errors": 0})
+
     body = req.get_data()
 
     if build_args.get("SENTRY_TRANSPORT_COMPRESSION") == "On":
@@ -752,7 +768,7 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
 
     envelope = Envelope.deserialize(body)
 
-    assert_session(envelope, {"init": True, "status": "crashed", "errors": 1})
+    assert_session(envelope, {"status": "crashed", "errors": 1})
 
     assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
@@ -1562,13 +1578,19 @@ def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn)
         env=env,
     )
 
+    def attempt_counts(files):
+        # <timestamp>-<attempt>-<uuid>.envelope
+        return sorted(int(f.name.split("-")[1]) for f in files)
+
     assert cache_dir.exists()
+    # the start update and the session's end both failed and got cached
     cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 1
-    assert "-00-" in str(cache_files[0].name)
-    envelope_uuid = cache_files[0].stem[-36:]
+    assert len(cache_files) == 2
+    assert attempt_counts(cache_files) == [0, 0]
+    envelope_uuids = {f.stem[-36:] for f in cache_files}
 
-    # second and third attempts still fail — envelope gets renamed each time
+    # second and third attempts still fail — a network error stops the run
+    # after the first envelope, so one envelope gets renamed each time
     run(
         tmp_path,
         "sentry_test_integration",
@@ -1577,9 +1599,9 @@ def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn)
     )
 
     cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 1
-    assert "-01-" in str(cache_files[0].name)
-    assert cache_files[0].stem[-36:] == envelope_uuid
+    assert len(cache_files) == 2
+    assert sum(attempt_counts(cache_files)) == 1
+    assert {f.stem[-36:] for f in cache_files} == envelope_uuids
 
     run(
         tmp_path,
@@ -1589,11 +1611,12 @@ def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn)
     )
 
     cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 1
-    assert "-02-" in str(cache_files[0].name)
-    assert cache_files[0].stem[-36:] == envelope_uuid
+    assert len(cache_files) == 2
+    assert sum(attempt_counts(cache_files)) == 2
+    assert {f.stem[-36:] for f in cache_files} == envelope_uuids
 
     # succeed on fourth attempt
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
@@ -1605,9 +1628,14 @@ def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn)
         )
     assert waiting.result
 
-    assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert_session(envelope, {"init": True, "status": "exited", "errors": 0})
+    assert len(httpserver.log) == 2
+    start_req, end_req = split_log_request_cond(
+        httpserver.log, is_session_start_envelope
+    )
+    envelope = Envelope.deserialize(start_req.get_data())
+    assert_session(envelope, {"init": True, "status": "ok", "errors": 0})
+    envelope = Envelope.deserialize(end_req.get_data())
+    assert_session(envelope, {"status": "exited", "errors": 0})
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 0

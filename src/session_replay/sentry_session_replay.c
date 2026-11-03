@@ -298,7 +298,7 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
             bool body_ok = mpack_writer_destroy(&writer) == mpack_ok;
 
             if (body_ok && body) {
-                envelope = sentry__envelope_new_with_dsn(options->dsn);
+                envelope = sentry__envelope_new(options);
                 if (envelope) {
                     sentry__envelope_set_header(envelope, "event_id",
                         sentry_value_new_string(replay_id));

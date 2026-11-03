@@ -23,7 +23,7 @@ class CMake:
         self.runs = dict()
         self.factory = factory
 
-    def compile(self, targets, options=None, cflags=None):
+    def compile(self, targets, options=None, cflags=None, source_dir=None):
         # We build in tmp for all of our tests. Disable the warning MSVC generates to not clutter the build logs.
         if cflags is None:
             cflags = []
@@ -35,11 +35,12 @@ class CMake:
         key = ";".join(f"{k}={v}" for k, v in options.items())
         if cflags:
             key += ";" + ";".join(cflags)
+        key = (source_dir, key)
 
         # cache the build configuration
         if key not in self.runs:
             cwd = self.factory.mktemp("cmake")
-            cmake_configure(cwd, options, cflags)
+            cmake_configure(cwd, options, cflags, source_dir)
             cmake_build(cwd, targets, options)
             self.runs[key] = (cwd, set(targets))
         else:
@@ -97,6 +98,7 @@ class CMake:
                     exe_name("sentry-crash"),
                     exe_name("sentry_early_init"),
                     exe_name("sentry_test_platform"),
+                    exe_name("sentry_test_pkgconfig"),
                 ]
                 cmd = [
                     os.environ.get("LLVM_COV", "llvm-cov"),
@@ -129,7 +131,7 @@ class CMake:
                 )
 
 
-def cmake_configure(cwd, options, cflags=None):
+def cmake_configure(cwd, options, cflags=None, source_dir=None):
     if cflags is None:
         cflags = []
     __tracebackhide__ = True
@@ -166,7 +168,8 @@ def cmake_configure(cwd, options, cflags=None):
 
     options.update(get_android_config())
 
-    source_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    if source_dir is None:
+        source_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
     cmake = ["cmake"]
     if "scan-build" in os.environ.get("RUN_ANALYZER", ""):
@@ -206,7 +209,7 @@ def cmake_configure(cwd, options, cflags=None):
     env = dict(os.environ)
     env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
 
-    config_cmd.append(source_dir)
+    config_cmd.append(os.fspath(source_dir))
 
     print("\n{} > {}".format(cwd, " ".join(config_cmd)), flush=True)
     try:

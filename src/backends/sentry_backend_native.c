@@ -15,6 +15,9 @@
 #        include <mach-o/dyld.h>
 #        include <spawn.h>
 #    endif
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include <android/api-level.h>
+#    endif
 #endif
 
 #include <inttypes.h>
@@ -901,7 +904,8 @@ native_backend_startup(
     // Install crash handlers (signal handlers on Linux/macOS, Mach exception
     // handler on iOS)
 #if defined(SENTRY_PLATFORM_IOS)
-    if (sentry__crash_handler_init(state->ipc, SENTRY_HANDLER_STRATEGY_DEFAULT)
+    if (sentry__crash_handler_init(
+            state->ipc, SENTRY_HANDLER_STRATEGY_DEFAULT, NULL)
         < 0) {
         SENTRY_WARN("failed to initialize crash handler");
         sentry__crash_ipc_free(state->ipc);
@@ -1005,11 +1009,21 @@ native_backend_startup(
     }
 
     sentry_handler_strategy_t strategy =
-#    if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
         options ? sentry_options_get_handler_strategy(options) :
 #    endif
                 SENTRY_HANDLER_STRATEGY_DEFAULT;
-    if (sentry__crash_handler_init(state->ipc, strategy) < 0) {
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    // CHAIN_AT_START invokes the previous handler and expects to regain
+    // control. On Android API < 26, the old debuggerd daemon kills the
+    // crashing process via SIGKILL after the chained handler triggers
+    // it, so we fall back to DEFAULT which chains at the end instead.
+    if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
+        && android_get_device_api_level() < 26) {
+        strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
+    }
+#    endif
+    if (sentry__crash_handler_init(state->ipc, strategy, NULL) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
 #    if defined(SENTRY_PLATFORM_UNIX)
         kill(state->daemon_pid, SIGTERM);
@@ -1606,10 +1620,10 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 
                 // End session with crashed status and write session envelope to
                 // disk
-                sentry__record_errors_on_current_session(1);
+                sentry__record_errors_on_current_session(options, 1);
                 sentry_session_t *session
                     = sentry__end_current_session_with_status(
-                        SENTRY_SESSION_STATUS_CRASHED);
+                        options, SENTRY_SESSION_STATUS_CRASHED);
 
                 if (session || !sentry_value_is_null(transaction)) {
                     if (!sentry_value_is_null(transaction)) {
@@ -1622,7 +1636,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                         }
                     }
                     if (session) {
-                        sentry_envelope_t *envelope = sentry__envelope_new();
+                        sentry_envelope_t *envelope
+                            = sentry__envelope_new(options);
                         if (envelope) {
                             sentry__envelope_add_session(envelope, session);
                             sentry__capture_envelope(
@@ -1661,6 +1676,11 @@ native_backend_reinstall(sentry_backend_t *backend)
 void
 sentry__backend_preload(void)
 {
+#ifdef SENTRY_PLATFORM_UNIX
+    if (sentry__crash_handler_preload() < 0) {
+        SENTRY_WARN("failed to preload native crash handler");
+    }
+#endif
 }
 
 /**

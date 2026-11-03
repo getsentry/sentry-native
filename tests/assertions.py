@@ -13,13 +13,38 @@ import tests
 import msgpack
 
 from . import REPLAY_ID, SENTRY_VERSION
-from .conditions import is_android, is_asan, is_tsan, is_wine
+from .conditions import is_android, is_asan, is_tsan
 
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)[-.]?(.*)")
 
 INSTALLATION_ID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
+
+
+OS_RELEASE_PATHS = [
+    "/run/host/etc/os-release",
+    "/run/host/usr/lib/os-release",
+    "/run/host/os-release",
+    "/etc/os-release",
+    "/usr/lib/os-release",
+]
+
+
+def read_os_release():
+    for path in OS_RELEASE_PATHS:
+        try:
+            with open(path) as f:
+                lines = f.read().splitlines()
+        except OSError:
+            continue
+        fields = {}
+        for line in lines:
+            key, sep, value = line.partition("=")
+            if sep:
+                fields[key] = value.strip('"')
+        return fields
+    return {}
 
 
 def matches(actual, expected):
@@ -62,18 +87,6 @@ def assert_user_feedback(envelope):
     assert user_feedback["name"] == "some-name"
     assert user_feedback["contact_email"] == "some-email"
     assert user_feedback["message"] == "some-message"
-
-
-def assert_user_report(envelope):
-    user_report = None
-    for item in envelope:
-        if item.headers.get("type") == "user_report" and item.payload.json is not None:
-            user_report = item.payload.json
-
-    assert user_report is not None
-    assert user_report["name"] == "some-name"
-    assert user_report["email"] == "some-email"
-    assert user_report["comments"] == "some-comment"
 
 
 def assert_meta(
@@ -131,11 +144,11 @@ def assert_event_meta(
     if is_android:
         expected_sdk["name"] = "sentry.native.android"
     else:
-        if sys.platform == "win32" or is_wine:
-            expected_os_context = {"name": "Windows"}
-            if not is_wine:
-                expected_os_context["version"] = platform.version()
-            assert_matches(event["contexts"]["os"], expected_os_context)
+        if sys.platform == "win32":
+            assert_matches(
+                event["contexts"]["os"],
+                {"name": "Windows", "version": platform.version()},
+            )
             assert event["contexts"]["os"]["version"] is not None
             assert event["contexts"]["os"]["build"] is not None
         elif sys.platform == "linux":
@@ -143,13 +156,26 @@ def assert_event_meta(
             match = VERSION_RE.match(version)
             version = match.group(1)
             build = match.group(2)
-            expected_os_context = {"name": "Linux", "version": version}
-            if build:
-                expected_os_context["build"] = build
+            os_release = read_os_release()
+            if os_release.get("ID") in ("steamos", "bazzite"):
+                expected_os_context = {
+                    "name": os_release.get("NAME", os_release["ID"]),
+                    "version": os_release.get("VERSION_ID", version),
+                    "kernel_version": platform.release(),
+                }
+                if "BUILD_ID" in os_release:
+                    expected_os_context["build"] = os_release["BUILD_ID"]
 
-            assert_matches(event["contexts"]["os"], expected_os_context)
-            assert "distribution_name" in event["contexts"]["os"]
-            assert "distribution_version" in event["contexts"]["os"]
+                assert_matches(event["contexts"]["os"], expected_os_context)
+                assert "distribution_name" not in event["contexts"]["os"]
+            else:
+                expected_os_context = {"name": "Linux", "version": version}
+                if build:
+                    expected_os_context["build"] = build
+
+                assert_matches(event["contexts"]["os"], expected_os_context)
+                assert "distribution_name" in event["contexts"]["os"]
+                assert "distribution_version" in event["contexts"]["os"]
         elif sys.platform == "darwin":
             version = platform.mac_ver()[0].split(".")
             if len(version) < 3:

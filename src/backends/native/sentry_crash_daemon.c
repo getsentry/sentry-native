@@ -4,6 +4,7 @@
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
 #include "sentry_core.h"
+#include "sentry_crash_handler.h"
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
 #include "sentry_elf.h"
@@ -20,6 +21,7 @@
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_unix_pageallocator.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
@@ -534,7 +536,8 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
     return sentry__build_registers(&uctx);
 }
 
-#ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
+#if defined(SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)                             \
+    || defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE)
 static sentry_value_t
 build_registers_from_remote_registers(
     const sentry_remote_registers_t *remote_registers)
@@ -775,6 +778,10 @@ build_stacktrace_for_thread(
     ip = (uint64_t)thread_context->uc_mcontext.arm_pc;
     fp = (uint64_t)thread_context->uc_mcontext.arm_fp;
     sp = (uint64_t)thread_context->uc_mcontext.arm_sp;
+#    elif defined(__riscv) && __riscv_xlen == 64
+    ip = (uint64_t)thread_context->uc_mcontext.__gregs[REG_PC];
+    fp = (uint64_t)thread_context->uc_mcontext.__gregs[REG_S0];
+    sp = (uint64_t)thread_context->uc_mcontext.__gregs[REG_SP];
 #    endif
 #elif defined(SENTRY_PLATFORM_MACOS)
 #    if defined(__x86_64__)
@@ -895,7 +902,8 @@ build_stacktrace_for_thread(
     }
 #elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     // On Linux, use process_vm_readv to read stack memory from crashed process
-    if (ctx->platform.num_threads > 0) {
+    // (threads enumerated from /proc have no registers)
+    if (ctx->platform.num_threads > 0 && sp != 0) {
         pid_t pid = ctx->crashed_pid;
         stack_size = SENTRY_CRASH_MAX_STACK_CAPTURE;
         stack_start = sp;
@@ -905,11 +913,12 @@ build_stacktrace_for_thread(
                 = { .iov_base = stack_buf, .iov_len = stack_size };
             struct iovec remote_iov
                 = { .iov_base = (void *)stack_start, .iov_len = stack_size };
-            ssize_t bytes_read
-                = process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0);
+            ssize_t bytes_read = sentry__process_vm_readv(
+                pid, &local_iov, 1, &remote_iov, 1, 0);
             if (bytes_read <= 0) {
-                SENTRY_DEBUG(
-                    "process_vm_readv failed, falling back to single frame");
+                SENTRY_DEBUGF("process_vm_readv failed for %d: %s, falling "
+                              "back to single frame",
+                    pid, strerror(errno));
                 sentry_free(stack_buf);
                 stack_buf = NULL;
             } else {
@@ -1000,10 +1009,11 @@ build_stacktrace_for_thread(
     int frame_count = 0;
 
 #if defined(SENTRY_PLATFORM_LINUX)
-    // Remote DWARF unwinding via libunwind ptrace accessors. Do not attach to
+    // Remote DWARF unwinding via ptrace. Do not attach to
     // the crashed thread from the daemon; use the saved fault context below.
     {
-#    ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
+#    if defined(SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)                         \
+        || defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE)
         pid_t tid = 0;
         if (thread_idx == SIZE_MAX) {
             tid = ctx->crashed_tid;
@@ -1073,6 +1083,12 @@ build_stacktrace_for_thread(
                         sentry_value_set_by_key(stacktrace, "registers",
                             build_registers_from_remote_registers(&registers));
                     }
+#        ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE
+                    // libunwindstack already adjusts the caller frames
+                    sentry_value_set_by_key(stacktrace,
+                        "instruction_addr_adjustment",
+                        sentry_value_new_string("none"));
+#        endif
                     sentry_free(remote_frames);
                     return stacktrace;
                 }
@@ -1167,6 +1183,21 @@ build_stacktrace_for_thread(
                         (unsigned long long)stack_end);
                     break;
                 }
+            }
+#elif defined(__riscv) && __riscv_xlen == 64
+            // RISC-V frame records precede the CFA held in s0
+            if (!read_stack_value(stack_buf, stack_start, stack_size,
+                    current_fp - 2 * sizeof(uintptr_t), &saved_fp)
+                || !read_stack_value(stack_buf, stack_start, stack_size,
+                    current_fp - sizeof(uintptr_t), &return_addr)) {
+                break;
+            }
+            // GCC < 14 leaf frames save only s0, so the caller is in ra
+            if (walk_count == 0 && return_addr >= stack_start
+                && return_addr < stack_end) {
+                saved_fp = return_addr;
+                return_addr
+                    = (uint64_t)thread_context->uc_mcontext.__gregs[REG_RA];
             }
 #else
             // Read saved frame pointer and return address
@@ -1270,12 +1301,13 @@ build_stacktrace_for_thread(
 #    include <elf.h>
 
 /**
- * Extract Build ID from ELF file (for debug_meta)
+ * Extract Build ID from the ELF image at `elf_offset` in a file
+ * (for debug_meta)
  * Returns the Build ID length, or 0 if not found
  */
 static size_t
-extract_elf_build_id_for_module(
-    const char *elf_path, uint8_t *build_id, size_t max_len)
+extract_elf_build_id_for_module(const char *elf_path, uint64_t elf_offset,
+    uint8_t *build_id, size_t max_len)
 {
     int fd = sentry__elf_open(elf_path);
     if (fd < 0) {
@@ -1283,13 +1315,14 @@ extract_elf_build_id_for_module(
     }
 
     // Read ELF header
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Ehdr ehdr;
 #    else
     Elf32_Ehdr ehdr;
 #    endif
 
-    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
+    if (pread(fd, &ehdr, sizeof(ehdr), (off_t)elf_offset) != sizeof(ehdr)) {
         close(fd);
         return 0;
     }
@@ -1313,14 +1346,16 @@ extract_elf_build_id_for_module(
         return 0;
     }
 
-    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+    uint64_t shoff = elf_offset + ehdr.e_shoff;
+    if (lseek(fd, (off_t)shoff, SEEK_SET) != (off_t)shoff
         || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
         sentry_free(shdr_buf);
         close(fd);
         return 0;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
 #    else
     Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
@@ -1343,8 +1378,8 @@ extract_elf_build_id_for_module(
             continue;
         }
 
-        if (lseek(fd, sections[i].sh_offset, SEEK_SET)
-                != (off_t)sections[i].sh_offset
+        uint64_t note_offset = elf_offset + sections[i].sh_offset;
+        if (lseek(fd, (off_t)note_offset, SEEK_SET) != (off_t)note_offset
             || read(fd, note_buf, note_size) != (ssize_t)note_size) {
             sentry_free(note_buf);
             continue;
@@ -1416,7 +1451,8 @@ elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
         return 0;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Ehdr ehdr;
 #    else
     Elf32_Ehdr ehdr;
@@ -1447,7 +1483,8 @@ elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
         return 0;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
 #    else
     Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
@@ -1569,7 +1606,7 @@ get_sym_source(const sentry_module_info_t *mod, uint32_t mod_idx)
     if (debuglink[0]) {
         uint8_t mod_bid[16];
         size_t mod_bid_len = extract_elf_build_id_for_module(
-            mod->name, mod_bid, sizeof(mod_bid));
+            mod->name, mod->elf_offset, mod_bid, sizeof(mod_bid));
 
         const char *slash = strrchr(mod->name, '/');
         int dir_len = slash ? (int)(slash - mod->name) : 0;
@@ -1603,7 +1640,7 @@ get_sym_source(const sentry_module_info_t *mod, uint32_t mod_idx)
 
             uint8_t dbg_bid[16];
             size_t dbg_bid_len = extract_elf_build_id_for_module(
-                candidate, dbg_bid, sizeof(dbg_bid));
+                candidate, 0, dbg_bid, sizeof(dbg_bid));
             if (mod_bid_len && dbg_bid_len
                 && (mod_bid_len != dbg_bid_len
                     || memcmp(mod_bid, dbg_bid, mod_bid_len) != 0)) {
@@ -1650,7 +1687,8 @@ sym_source_lookup(const sym_source_t *src, uint64_t sym_target, char *name_out,
         return 0;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Sym chunk[256];
 #    else
     Elf32_Sym chunk[256];
@@ -1674,7 +1712,8 @@ sym_source_lookup(const sym_source_t *src, uint64_t sym_target, char *name_out,
         }
 
         for (size_t k = 0; k < n; k++) {
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
             unsigned char sym_type = ELF64_ST_TYPE(chunk[k].st_info);
 #    else
             unsigned char sym_type = ELF32_ST_TYPE(chunk[k].st_info);
@@ -1799,6 +1838,11 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue; // No pathname or special mapping like [stack]
         }
 
+        // Skip non-readable mappings
+        if (perms[0] != 'r') {
+            continue;
+        }
+
         const char *pathname = line + pathname_offset;
         // Trim newline
         size_t len = strlen(pathname);
@@ -1810,11 +1854,26 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         }
 
         // Check if this file is already captured - if so, extend size if needed
+        // A mapping at offset 0 starts another load of the file, unless the
+        // file was captured last (small libraries can map all segments at
+        // offset 0)
         sentry_module_info_t *existing_mod = NULL;
-        for (uint32_t j = 0; j < ctx->module_count; j++) {
-            if (strncmp(ctx->modules[j].name, pathname, len) == 0
-                && ctx->modules[j].name[len] == '\0') {
-                existing_mod = &ctx->modules[j];
+        for (uint32_t j = ctx->module_count; j > 0; j--) {
+            sentry_module_info_t *other = &ctx->modules[j - 1];
+            if (strncmp(other->name, pathname, len) == 0
+                && other->name[len] == '\0') {
+                // An ELF image inside a larger file only owns its load range
+                if (other->elf_offset != 0) {
+                    if (start >= other->base_address
+                        && start < other->base_address + other->size) {
+                        existing_mod = other;
+                        break;
+                    }
+                    continue;
+                }
+                if (offset != 0 || j == ctx->module_count) {
+                    existing_mod = other;
+                }
                 break;
             }
         }
@@ -1847,7 +1906,17 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         memcpy(mod->name, pathname, copy_len);
         mod->name[copy_len] = '\0';
 
-        if (!sentry__elf_is_file(mod->name)) {
+        // An ELF image can also start inside a larger file, such as a library
+        // that Android maps straight from an APK. Its load size is known up
+        // front to group the image's other segments.
+        mod->elf_offset = 0;
+        if (offset != 0 && sentry__elf_is_file_at(mod->name, offset)) {
+            uint64_t elf_size
+                = sentry__elf_compute_size_from_phdrs(mod->name, offset);
+            mod->elf_offset = offset;
+            mod->base_address = start;
+            mod->size = MAX(end - start, elf_size);
+        } else if (offset > start || !sentry__elf_is_file(mod->name)) {
             continue;
         }
 
@@ -1855,7 +1924,7 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         memset(mod->uuid, 0, sizeof(mod->uuid));
         mod->pdb_age = 0; // Not used on Linux, only for Windows PE modules
         extract_elf_build_id_for_module(
-            mod->name, mod->uuid, sizeof(mod->uuid));
+            mod->name, mod->elf_offset, mod->uuid, sizeof(mod->uuid));
 
         // Convert to little-endian GUID format for Sentry debug_id
         sentry__uuid_swap_guid_bytes(mod->uuid);
@@ -1885,7 +1954,8 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
 
     DIR *dir = opendir(task_path);
     if (!dir) {
-        SENTRY_WARNF("Failed to open %s for thread enumeration", task_path);
+        SENTRY_WARNF("Failed to open %s for thread enumeration: %s", task_path,
+            strerror(errno));
         return;
     }
 
@@ -4345,7 +4415,12 @@ daemon_file_logger(
 
     // Get current timestamp
     time_t now = time(NULL);
+#if defined(SENTRY_PLATFORM_WINDOWS)
     struct tm *tm_info = localtime(&now);
+#else
+    struct tm tm_buf;
+    struct tm *tm_info = localtime_r(&now, &tm_buf);
+#endif
     char timestamp[SENTRY_CRASH_TIMESTAMP_SIZE];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
 
@@ -4357,6 +4432,33 @@ daemon_file_logger(
     vfprintf(log_file, message, args);
     fprintf(log_file, "\n");
     fflush(log_file); // Flush immediately to ensure logs are written
+}
+
+static long g_crash_handling = 0;
+
+static void
+dump_crash_queue(void)
+{
+    if (!sentry__atomic_compare_swap(&g_crash_handling, 0, 1)) {
+        return;
+    }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+    (void)!sentry__enter_signal_handler();
+    sentry__page_allocator_enable();
+#endif
+    sentry__logger_disable();
+
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->run && options->transport) {
+            sentry__transport_dump_queue(options->transport, options->run);
+            sentry__http_transport_set_retry_enabled(options->transport, false);
+        }
+    }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+    sentry__leave_signal_handler();
+#endif
 }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -4461,7 +4563,6 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #endif
 
     // Initialize Sentry options for daemon (reuses all SDK infrastructure)
-    // Options are passed explicitly to all functions, no global state
     sentry_options_t *options = sentry_options_new();
     if (!options) {
         SENTRY_ERROR("sentry_options_new() failed");
@@ -4597,6 +4698,15 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_WARN("No transport available");
     }
 
+    sentry__options_set(options);
+    bool crash_handler_installed
+        = sentry__crash_handler_init(
+              NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, dump_crash_queue)
+        == 0;
+    if (!crash_handler_installed) {
+        SENTRY_WARN("Failed to install daemon crash handler");
+    }
+
     SENTRY_DEBUG("Entering main loop");
 
     // Daemon main loop
@@ -4698,6 +4808,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             }
         }
     }
+    if (crash_handler_installed) {
+        sentry__crash_handler_shutdown();
+    }
+    sentry__options_set(NULL);
+
     if (crash_processed) {
         // Mark as done
         SENTRY_DEBUG("Marking crash state as DONE");

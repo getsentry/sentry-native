@@ -96,9 +96,9 @@ write_event_envelope(const sentry_path_t *dir, const sentry_uuid_t *event_id)
     if (sentry__path_create_dir_all(dir) != 0) {
         return NULL;
     }
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry__envelope_add_event(
-        envelope, sentry__value_new_event_with_id(event_id));
+        envelope, sentry__value_new_event_with_id(event_id), NULL);
     char *filename = sentry__uuid_as_filename(event_id, ".envelope");
     sentry_path_t *path
         = filename ? sentry__path_join_str(dir, filename) : NULL;
@@ -161,11 +161,11 @@ SENTRY_TEST(cache_keep)
     TEST_ASSERT(!!old_run_path);
     TEST_ASSERT(sentry__path_create_dir_all(old_run_path) == 0);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_ASSERT(!!envelope);
     sentry_uuid_t event_id = sentry_uuid_new_v4();
     sentry_value_t event = sentry__value_new_event_with_id(&event_id);
-    sentry__envelope_add_event(envelope, event);
+    sentry__envelope_add_event(envelope, event, NULL);
 
     char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
     TEST_ASSERT(!!envelope_filename);
@@ -335,9 +335,9 @@ SENTRY_TEST(on_crashed_last_run_cache)
     sentry_path_t *crash_path = write_event_envelope(old_run, &event_id);
     sentry_path_t *marker_path = write_run_crash_marker(old_run, &event_id);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry__envelope_add_event(
-        envelope, sentry__value_new_event_with_id(&event_id));
+        envelope, sentry__value_new_event_with_id(&event_id), NULL);
     TEST_CHECK(sentry__run_write_cache(options->run, envelope, -1));
     sentry_envelope_free(envelope);
 
@@ -387,11 +387,11 @@ SENTRY_TEST(callback_envelope_is_not_resent_without_backend)
     sentry_path_t *callback_path
         = sentry__path_join_str(old_run->run_path, "__sentry-crash.envelope");
     TEST_ASSERT(!!callback_path);
-    sentry_envelope_t *callback_envelope = sentry__envelope_new();
+    sentry_envelope_t *callback_envelope = sentry__envelope_new(NULL);
     TEST_ASSERT(!!callback_envelope);
     sentry_uuid_t callback_id = sentry_uuid_new_v4();
     sentry__envelope_add_event(
-        callback_envelope, sentry__value_new_event_with_id(&callback_id));
+        callback_envelope, sentry__value_new_event_with_id(&callback_id), NULL);
     TEST_ASSERT(
         sentry_envelope_write_to_path(callback_envelope, callback_path) == 0);
     sentry_envelope_free(callback_envelope);
@@ -976,11 +976,11 @@ SENTRY_TEST(cache_write_minidump)
     TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
 
     sentry_uuid_t event_id = sentry_uuid_new_v4();
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_ASSERT(!!envelope);
 
     sentry_value_t event = sentry__value_new_event_with_id(&event_id);
-    sentry__envelope_add_event(envelope, event);
+    sentry__envelope_add_event(envelope, event, NULL);
 
     const char *minidump_data = "fake_minidump_payload";
     size_t minidump_len = strlen(minidump_data);
@@ -1057,11 +1057,11 @@ SENTRY_TEST(cache_write_raw_with_minidump)
 
     // build a structured envelope, serialize it, then reload as raw
     sentry_uuid_t event_id = sentry_uuid_new_v4();
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_ASSERT(!!envelope);
 
     sentry_value_t event = sentry__value_new_event_with_id(&event_id);
-    sentry__envelope_add_event(envelope, event);
+    sentry__envelope_add_event(envelope, event, NULL);
 
     const char *minidump_data = "raw_minidump_payload";
     size_t minidump_len = strlen(minidump_data);

@@ -84,17 +84,21 @@
 #    define TEST_VISIBLE
 #endif
 
+// tests opt into automatic sessions explicitly: with a release set, the
+// session's start update would otherwise be the first envelope of every test
 #ifdef SENTRY_TEST_PATH_PREFIX
 #    define SENTRY_TEST_OPTIONS_NEW(Varname)                                   \
         sentry_options_t *Varname = sentry_options_new();                      \
         TEST_ASSERT(!!Varname);                                                \
+        sentry_options_set_auto_session_tracking(Varname, false);              \
         sentry_options_set_database_path(                                      \
             Varname, SENTRY_TEST_PATH_PREFIX ".sentry-native")
 #else
 #    define SENTRY_TEST_PATH_PREFIX ""
 #    define SENTRY_TEST_OPTIONS_NEW(Varname)                                   \
         sentry_options_t *Varname = sentry_options_new();                      \
-        TEST_ASSERT(!!Varname)
+        TEST_ASSERT(!!Varname);                                                \
+        sentry_options_set_auto_session_tracking(Varname, false)
 #endif
 
 #define SENTRY_TEST_DSN_NEW_DEFAULT(Varname)                                   \
@@ -103,13 +107,6 @@
 #define SENTRY_TEST_DSN_NEW(Varname, DSN_URL)                                  \
     sentry_dsn_t *Varname = sentry__dsn_new(DSN_URL);                          \
     TEST_ASSERT(!!Varname)
-
-#define SENTRY_TEST_DEPRECATED(call)                                           \
-    do {                                                                       \
-        SENTRY_SUPPRESS_DEPRECATED                                             \
-        call;                                                                  \
-        SENTRY_RESTORE_DEPRECATED                                              \
-    } while (0)
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <windows.h>

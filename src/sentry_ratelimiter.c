@@ -48,10 +48,16 @@ bool
 sentry__rate_limiter_update_from_header(
     sentry_rate_limiter_t *rl, const char *sentry_header)
 {
-    sentry_slice_t slice = sentry__slice_from_str(sentry_header);
+    sentry_slice_t rest = sentry__slice_from_str(sentry_header);
 
     while (true) {
-        slice = sentry__slice_trim(slice);
+        // A limit ends at the next comma, so split there before reading its
+        // fields. The scope is optional, and splitting on ':' across the whole
+        // header first let a limit without one swallow the limit after it.
+        sentry_slice_t limit = sentry__slice_split_at(rest, ',');
+        size_t limit_len = limit.len;
+
+        sentry_slice_t slice = sentry__slice_trim(limit);
         uint64_t retry_after = 0;
         if (!sentry__slice_consume_uint64(&slice, &retry_after)) {
             return false;
@@ -98,12 +104,10 @@ sentry__rate_limiter_update_from_header(
             sentry__slice_consume_if(&categories, ';');
         }
 
-        size_t next = sentry__slice_find(slice, ',');
-        if (next != (size_t)-1) {
-            slice = sentry__slice_advance(slice, next + 1);
-        } else {
+        if (limit_len >= rest.len) {
             break;
         }
+        rest = sentry__slice_advance(rest, limit_len + 1);
     }
 
     return true;

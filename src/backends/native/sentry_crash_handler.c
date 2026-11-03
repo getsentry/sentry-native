@@ -34,6 +34,8 @@
 #    include <winnt.h>
 #endif
 
+static void (*g_crash_callback)(void) = NULL;
+
 #if (defined(SENTRY_PLATFORM_WINDOWS)                                          \
     && !((defined(_MSC_VER) || defined(__clang__))                             \
         && (defined(_M_AMD64) || defined(_M_ARM64))))                          \
@@ -123,6 +125,8 @@ static sentry_handler_strategy_t g_handler_strategy
     = SENTRY_HANDLER_STRATEGY_DEFAULT;
 static struct sigaction g_previous_handlers[16];
 static stack_t g_signal_stack = { 0 };
+static volatile long g_handlers_installed = 0;
+static volatile long g_preloaded = 0;
 
 static void
 reset_signal_handlers(void)
@@ -139,7 +143,7 @@ reraise_signal(int signum)
     raise(signum);
 }
 
-static void
+static bool
 invoke_previous_signal_handler(int signum, siginfo_t *info, void *context)
 {
     for (size_t i = 0; i < g_crash_signal_count; i++) {
@@ -148,8 +152,11 @@ invoke_previous_signal_handler(int signum, siginfo_t *info, void *context)
         }
 
         struct sigaction *handler = &g_previous_handlers[i];
-        if (handler->sa_handler == SIG_DFL || handler->sa_handler == SIG_IGN) {
-            return;
+        if (handler->sa_handler == SIG_DFL) {
+            return false;
+        }
+        if (handler->sa_handler == SIG_IGN) {
+            return true;
         }
 
         if (handler->sa_flags & SA_SIGINFO) {
@@ -158,8 +165,9 @@ invoke_previous_signal_handler(int signum, siginfo_t *info, void *context)
             handler->sa_handler(signum);
         }
 
-        return;
+        return true;
     }
+    return false;
 }
 
 /**
@@ -322,6 +330,8 @@ capture_frame_pointer_stack(
     fp = (uintptr_t)uctx->uc_mcontext.gregs[REG_EBP];
 #            elif defined(__aarch64__)
     fp = (uintptr_t)uctx->uc_mcontext.regs[29];
+#            elif defined(__riscv) && __riscv_xlen == 64
+    fp = (uintptr_t)uctx->uc_mcontext.__gregs[REG_S0];
 #            endif
     capture->frame_pointer = true;
     while (fp && fp >= sp && fp - sp <= SENTRY_CRASH_MAX_STACK_CAPTURE
@@ -329,7 +339,14 @@ capture_frame_pointer_stack(
         && capture->count < SENTRY_CRASH_MAX_BACKTRACE_FRAMES) {
         uintptr_t pair[2];
         struct iovec local = { pair, sizeof(pair) };
-        struct iovec remote = { (void *)fp, sizeof(pair) };
+        uintptr_t record = fp;
+#            if defined(__riscv) && __riscv_xlen == 64
+        record -= sizeof(pair);
+        if (record < sp) {
+            break;
+        }
+#            endif
+        struct iovec remote = { (void *)record, sizeof(pair) };
         if (syscall(SYS_process_vm_readv, getpid(), &local, 1, &remote, 1, 0)
             != (ssize_t)sizeof(pair)) {
             break;
@@ -393,10 +410,13 @@ capture_stack(sentry_crash_capture_t *capture, ucontext_t *uctx)
 static void
 crash_signal_handler(int signum, siginfo_t *info, void *context)
 {
+    if (g_crash_callback) {
+        g_crash_callback();
+    }
     sentry__enter_crash_handler();
     ucontext_t *uctx = (ucontext_t *)context;
 
-#    if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     if (g_handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
         && signum != SIGABRT && uctx) {
         uintptr_t ip = sentry__ucontext_get_ip(uctx);
@@ -419,13 +439,24 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     sentry_crash_ipc_t *ipc = g_crash_ipc;
     if (!uctx || !ipc || !ipc->shmem) {
         // No context or IPC available, forward to the previous handler
-        // Re-enable previous signal handlers before re-raising to prevent loops
+        // Re-enable previous signal handlers to prevent loops
         reset_signal_handlers();
+        bool preloaded = sentry__atomic_fetch(&g_preloaded);
+        if (preloaded) {
+            // Consume the preload so that a later init reinstalls the handlers
+            sentry__atomic_store(&g_handlers_installed, 0);
+            sentry__atomic_store(&g_preloaded, 0);
+        }
+        bool handled = false;
         if (g_handler_strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
-            invoke_previous_signal_handler(signum, info, context);
+            handled = invoke_previous_signal_handler(signum, info, context);
+        }
+        sentry__exit_crash_handler();
+        if (preloaded && handled) {
+            // Resume wherever the previous handler left off
+            return;
         }
         // The previous handler returned, fall back to default termination
-        sentry__exit_crash_handler();
         reraise_signal(signum);
         return;
     }
@@ -968,16 +999,25 @@ daemon_handling:
     reraise_signal(signum);
 }
 
-int
-sentry__crash_handler_init(
-    sentry_crash_ipc_t *ipc, sentry_handler_strategy_t strategy)
+static int
+install_signal_handlers(sentry_crash_ipc_t *ipc, bool preload,
+    sentry_handler_strategy_t strategy, void (*callback)(void))
 {
-    if (!ipc) {
+    if (!preload && !ipc && !callback) {
         return -1;
+    }
+
+    if (sentry__atomic_fetch(&g_handlers_installed)) {
+        if (!preload) {
+            g_crash_ipc = ipc;
+            g_handler_strategy = strategy;
+        }
+        return 0;
     }
 
     g_crash_ipc = ipc;
     g_handler_strategy = strategy;
+    g_crash_callback = callback;
 
     // Set up signal stack
     if (sentry__setup_sigaltstack(
@@ -992,6 +1032,9 @@ sentry__crash_handler_init(
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = crash_signal_handler;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    if (g_crash_callback) {
+        sa.sa_flags |= SA_NODEFER;
+    }
 
     size_t installed_count = 0;
     for (size_t i = 0; i < g_crash_signal_count; i++) {
@@ -1008,6 +1051,12 @@ sentry__crash_handler_init(
             return -1;
         }
         installed_count++;
+    }
+
+    g_crash_ipc = ipc;
+    sentry__atomic_store(&g_handlers_installed, 1);
+    if (preload) {
+        sentry__atomic_store(&g_preloaded, 1);
     }
 
     // Prime libunwind's internal cache by performing a short unwind.
@@ -1044,9 +1093,23 @@ sentry__crash_handler_init(
 }
 
 int
+sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+    sentry_handler_strategy_t strategy, void (*callback)(void))
+{
+    return install_signal_handlers(ipc, false, strategy, callback);
+}
+
+int
+sentry__crash_handler_preload(void)
+{
+    return install_signal_handlers(
+        NULL, true, SENTRY_HANDLER_STRATEGY_DEFAULT, NULL);
+}
+
+int
 sentry__crash_handler_reinstall(void)
 {
-    if (!g_crash_ipc) {
+    if (!g_crash_ipc && !g_crash_callback) {
         return -1;
     }
 
@@ -1055,6 +1118,9 @@ sentry__crash_handler_reinstall(void)
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = crash_signal_handler;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    if (g_crash_callback) {
+        sa.sa_flags |= SA_NODEFER;
+    }
 
     for (size_t i = 0; i < g_crash_signal_count; i++) {
         struct sigaction previous;
@@ -1075,6 +1141,16 @@ sentry__crash_handler_reinstall(void)
 void
 sentry__crash_handler_shutdown(void)
 {
+    if (sentry__atomic_fetch(&g_preloaded)) {
+        g_crash_ipc = NULL;
+        SENTRY_DEBUG("crash handler deactivated, keeping preloaded handlers");
+        return;
+    }
+
+    if (!sentry__atomic_fetch(&g_handlers_installed)) {
+        return;
+    }
+
     // Restore previous signal handlers
     reset_signal_handlers();
 
@@ -1082,6 +1158,9 @@ sentry__crash_handler_shutdown(void)
     sentry__teardown_sigaltstack(&g_signal_stack);
 
     g_crash_ipc = NULL;
+    g_crash_callback = NULL;
+    sentry__atomic_store(&g_handlers_installed, 0);
+    sentry__atomic_store(&g_preloaded, 0);
 
     SENTRY_DEBUG("crash handler shutdown");
 }
@@ -1169,6 +1248,16 @@ crash_sigabrt_handler(EXCEPTION_POINTERS *exception_pointers)
 static LONG WINAPI
 crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 {
+    if (g_crash_callback) {
+        DWORD code = exception_info->ExceptionRecord->ExceptionCode;
+        if (code == EXCEPTION_BREAKPOINT || code == EXCEPTION_SINGLE_STEP) {
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
+        g_crash_callback();
+        SetUnhandledExceptionFilter(g_previous_filter);
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     sentry__enter_crash_handler();
     // Only handle crash once
     static volatile long handling_crash = 0;
@@ -1254,15 +1343,16 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 }
 
 int
-sentry__crash_handler_init(
-    sentry_crash_ipc_t *ipc, sentry_handler_strategy_t strategy)
+sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+    sentry_handler_strategy_t strategy, void (*callback)(void))
 {
-    if (!ipc) {
+    if (!ipc && !callback) {
         return -1;
     }
     (void)strategy;
 
     g_crash_ipc = ipc;
+    g_crash_callback = callback;
 
     sentry__crash_handler_reinstall();
 
@@ -1273,7 +1363,7 @@ sentry__crash_handler_init(
 int
 sentry__crash_handler_reinstall(void)
 {
-    if (!g_crash_ipc) {
+    if (!g_crash_ipc && !g_crash_callback) {
         return -1;
     }
 
@@ -1291,7 +1381,7 @@ void
 sentry__crash_handler_shutdown(void)
 {
     // Restore previous exception filter (including NULL)
-    if (g_crash_ipc) {
+    if (g_crash_ipc || g_crash_callback) {
         SetUnhandledExceptionFilter(g_previous_filter);
         g_previous_filter = NULL;
     }
@@ -1299,6 +1389,7 @@ sentry__crash_handler_shutdown(void)
     sentry__win32_restore_sigabrt_handler();
 
     g_crash_ipc = NULL;
+    g_crash_callback = NULL;
 
     SENTRY_DEBUG("crash handler shutdown");
 }

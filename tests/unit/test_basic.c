@@ -131,6 +131,48 @@ SENTRY_TEST(sampling_before_send)
     TEST_CHECK_INT_EQUAL(called_beforesend, 100);
 }
 
+static void
+counting_event_transport_func(sentry_envelope_t *envelope, void *data)
+{
+    uint64_t *called = data;
+    if (!sentry_value_is_null(sentry_envelope_get_event(envelope))) {
+        *called += 1;
+    }
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(sampling_crash_handler)
+{
+    uint64_t called_transport = 0;
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_transport_t *transport
+        = sentry_transport_new(counting_event_transport_func);
+    sentry_transport_set_state(transport, &called_transport);
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_sample_rate(options, 0.0);
+    sentry_init(options);
+
+    // events captured while handling a crash are not sampled, even nested
+    sentry__enter_crash_handler();
+    sentry__enter_crash_handler();
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "foo"));
+    sentry__exit_crash_handler();
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "foo"));
+    sentry__exit_crash_handler();
+
+    // sampling applies again once the crash handler is left
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "foo"));
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(called_transport, 2);
+}
+
 static sentry_value_t
 discarding_before_send(
     sentry_value_t event, sentry_hint_t *UNUSED(hint), void *data)
@@ -149,8 +191,6 @@ SENTRY_TEST(discarding_before_send)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
-    sentry_options_set_auto_session_tracking(options, 0);
     sentry_transport_t *transport
         = sentry_transport_new(counting_transport_func);
     sentry_transport_set_state(transport, &called_transport);
@@ -206,10 +246,6 @@ SENTRY_TEST(crash_marker)
 
 SENTRY_TEST(crashed_last_run)
 {
-    // fails before init() is called
-    SENTRY_TEST_DEPRECATED(
-        TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 1));
-
     // clear any leftover from previous test runs
     {
         SENTRY_TEST_OPTIONS_NEW(options);
@@ -262,9 +298,7 @@ SENTRY_TEST(crashed_last_run)
 
         TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
         TEST_CHECK(sentry__has_crash_marker(options));
-        // explicit clearing remains supported on all platforms
-        SENTRY_TEST_DEPRECATED(
-            TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 0));
+        TEST_CHECK(sentry__clear_crash_marker(options));
 
         sentry_close();
     }
@@ -618,7 +652,6 @@ SENTRY_TEST(capture_event_hints)
     for (int mode = 0; mode < 4; mode++) {
         sentry_envelope_t *captured = NULL;
         SENTRY_TEST_OPTIONS_NEW(options);
-        sentry_options_set_auto_session_tracking(options, false);
         sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
         sentry_transport_t *transport = sentry_transport_new(capture_envelope);
         sentry_transport_set_state(transport, &captured);
@@ -719,7 +752,6 @@ SENTRY_TEST(capture_filter_attachments)
             filter.clear = mode == 1;
             filter.discard = mode == 2;
             SENTRY_TEST_OPTIONS_NEW(options);
-            sentry_options_set_auto_session_tracking(options, false);
             sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
             sentry_transport_t *transport
                 = sentry_transport_new(capture_envelope);
@@ -794,7 +826,6 @@ static void
 init_with_stacktrace_capture(stacktrace_capture_t *state, bool attach)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_transport_t *transport
         = sentry_transport_new(send_envelope_stacktrace);
@@ -864,4 +895,20 @@ SENTRY_TEST(attach_stacktrace_leaves_events_with_a_stacktrace_alone)
     TEST_CHECK(sentry_value_is_null(state.threads));
 
     sentry_value_decref(state.threads);
+}
+
+SENTRY_TEST(options_global_lifetime)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry__options_set(options);
+    TEST_CHECK_INT_EQUAL(options->refcount, 2);
+
+    SENTRY_WITH_OPTIONS (current) {
+        TEST_CHECK_PTR_EQUAL(current, options);
+        sentry__options_set(NULL);
+        TEST_CHECK(!sentry_is_enabled());
+        TEST_CHECK_INT_EQUAL(options->refcount, 2);
+    }
+    TEST_CHECK_INT_EQUAL(options->refcount, 1);
+    sentry_options_free(options);
 }
