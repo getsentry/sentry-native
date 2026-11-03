@@ -517,18 +517,24 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     return ipc;
 }
 
-static void
+static bool
 notify_fallback(sentry_crash_ipc_t *ipc)
 {
     if (!ipc || ipc->notify_fd < 0) {
-        return;
+        return false;
+    }
+
+    // a pipe without a reader would raise SIGPIPE, the daemon is gone
+    struct pollfd pfd = { .fd = ipc->notify_fd, .events = POLLOUT };
+    if (poll(&pfd, 1, 0) == 1 && (pfd.revents & (POLLERR | POLLHUP))) {
+        return false;
     }
 
     // Write to eventfd to wake up daemon
     // This is signal-safe
     uint64_t val = 1;
     ssize_t written = write(ipc->notify_fd, &val, sizeof(val));
-    (void)written; // Ignore errors in signal handler
+    return written == (ssize_t)sizeof(val);
 }
 
 bool
@@ -845,16 +851,16 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     return ipc;
 }
 
-static void
+static bool
 notify_fallback(sentry_crash_ipc_t *ipc)
 {
     if (!ipc) {
-        return;
+        return false;
     }
 
     // Write byte to pipe (signal-safe)
     char byte = 1;
-    write(ipc->notify_pipe[1], &byte, 1);
+    return write(ipc->notify_pipe[1], &byte, 1) == 1;
 }
 
 bool
@@ -1162,17 +1168,18 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     return ipc;
 }
 
-static void
+static bool
 notify_fallback(sentry_crash_ipc_t *ipc)
 {
     if (!ipc || !ipc->event_handle) {
         // No logging - called from signal handler/exception filter
-        return;
+        return false;
     }
 
     // SetEvent is safe to call from exception filter
     // Ignore errors silently - we're crashing anyway
     SetEvent(ipc->event_handle);
+    return true;
 }
 
 bool
@@ -1633,16 +1640,15 @@ sentry__crash_ipc_send(
     return sent;
 }
 
-void
+bool
 sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
 {
     if (!ipc) {
-        return;
+        return false;
     }
     if (sentry__atomic_fetch(&ipc->shmem->state)
         == SENTRY_CRASH_STATE_CRASHING) {
-        notify_fallback(ipc);
-        return;
+        return notify_fallback(ipc);
     }
     sentry__atomic_store(&ipc->stopped, 1);
 #if !defined(SENTRY_PLATFORM_WINDOWS)
@@ -1655,12 +1661,12 @@ sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
         bool sent = write_message(ipc, frame, sizeof(frame), true);
         sentry__atomic_store(&ipc->writing, 0);
         if (sent) {
-            return;
+            return true;
         }
     }
 #endif
     // also used by WER; the daemon drains complete frames before freezing
-    notify_fallback(ipc);
+    return notify_fallback(ipc);
 }
 
 static void

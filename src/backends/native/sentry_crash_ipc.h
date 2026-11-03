@@ -228,8 +228,9 @@ bool sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms);
 /**
  * Notify daemon that a crash occurred (called from signal handler).
  * This function is signal-safe.
+ * Returns false if no daemon could be notified, for example because it is gone.
  */
-void sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc);
+bool sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc);
 
 /**
  * Wait for crash notification (called by daemon).

@@ -922,13 +922,13 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
             SENTRY_CRASH_STATE_CRASHED)) {
 
         // Successfully claimed crash slot, notify daemon
-        sentry__crash_ipc_notify(ipc);
+        bool notified = sentry__crash_ipc_notify(ipc);
 
         // Wait for daemon to finish processing (keep process alive for
-        // minidump)
+        // minidump), unless no daemon was there to notify
         bool processing_started = false;
         int elapsed_ms = 0;
-        while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
+        while (notified && elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
             long state = sentry__atomic_fetch(&ctx->state);
             if (state == SENTRY_CRASH_STATE_PROCESSING && !processing_started) {
                 // Daemon started processing (no logging - signal-safe)

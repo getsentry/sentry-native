@@ -1571,3 +1571,28 @@ SENTRY_TEST(crash_daemon_shutdown_during_crash)
     sentry_options_free(options);
 #endif
 }
+
+SENTRY_TEST(crash_ipc_notify_without_daemon)
+{
+#if !defined(SENTRY_BACKEND_NATIVE)                                            \
+    || !(defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID))
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    // the daemon's ends are gone, as in a killed crash service
+    close(ipc->message_fd[1]);
+    ipc->message_fd[1] = -1;
+    int notify_pipe[2];
+    TEST_ASSERT(pipe(notify_pipe) == 0);
+    close(notify_pipe[0]);
+    TEST_ASSERT(dup2(notify_pipe[1], ipc->notify_fd) == ipc->notify_fd);
+    close(notify_pipe[1]);
+
+    void (*previous)(int) = signal(SIGPIPE, SIG_DFL);
+    TEST_CHECK(!sentry__crash_ipc_notify(ipc));
+    sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_CRASHING);
+    TEST_CHECK(!sentry__crash_ipc_notify(ipc));
+    signal(SIGPIPE, previous);
+    sentry__crash_ipc_free(ipc);
+#endif
+}
