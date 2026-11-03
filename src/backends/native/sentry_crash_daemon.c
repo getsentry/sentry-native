@@ -4579,20 +4579,27 @@ sentry_android_crash_daemon_send(
         // keep a failed upload in the run folder for the next launch
         sentry__http_transport_set_dump_failed(
             daemon->options->transport, true);
-        sentry__capture_envelope(
-            daemon->options->transport, envelope, daemon->options);
 
+        // keep a copy for the next launch until the send has finished
         sentry_path_t *raw_path = sentry__path_from_str(daemon->envelope_path);
-        if (raw_path) {
+        sentry_path_t *pending_path = sentry__path_join_str(
+            daemon->options->run->run_path, "__sentry-pending.envelope");
+        if (raw_path && strcmp(path, daemon->envelope_path) != 0) {
+            sentry_path_t *merged_path = sentry__path_from_str(path);
+            if (merged_path
+                && sentry__path_rename(merged_path, raw_path) != 0) {
+                sentry__path_remove(merged_path);
+            }
+            sentry__path_free(merged_path);
+        }
+        bool pending = raw_path && pending_path
+            && sentry__path_rename(raw_path, pending_path) == 0;
+        if (raw_path && !pending) {
             sentry__path_remove(raw_path);
         }
-        if (strcmp(path, daemon->envelope_path) != 0) {
-            sentry_path_t *merged_path = sentry__path_from_str(path);
-            if (merged_path) {
-                sentry__path_remove(merged_path);
-                sentry__path_free(merged_path);
-            }
-        }
+
+        sentry__capture_envelope(
+            daemon->options->transport, envelope, daemon->options);
 
         daemon->options->shutdown_timeout = timeout;
         int rv = sentry__transport_shutdown(
@@ -4613,6 +4620,15 @@ sentry_android_crash_daemon_send(
         } else if (rv == 0) {
             result = SENTRY_ANDROID_SEND_SENT;
         }
+        if (pending) {
+            if (result == SENTRY_ANDROID_SEND_FAILED) {
+                // the next launch sends the pending copy
+                result = SENTRY_ANDROID_SEND_KEPT;
+            } else {
+                sentry__path_remove(pending_path);
+            }
+        }
+        sentry__path_free(pending_path);
         sentry__path_free(raw_path);
     } else {
         SENTRY_WARN(
