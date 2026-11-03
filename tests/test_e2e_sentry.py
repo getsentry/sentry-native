@@ -917,6 +917,7 @@ def test_e2e_trace_propagation(cmake):
 
 
 @pytest.mark.skipif(not has_native, reason="native backend not available")
+@pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
 def test_e2e_tus(cmake):
     """Verify a large crash attachment reaches Sentry after an interrupted upload."""
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
@@ -986,6 +987,7 @@ def test_e2e_tus(cmake):
     assert_large_attachment(attachments)
 
 
+@pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
 def test_e2e_tus_compressed(cmake):
     """Verify a large attachment reaches Sentry in gzip-compressed chunks."""
     tmp_path = cmake(
