@@ -72,6 +72,7 @@ allprojects {{
         str(init),
         ":sentry:publishToMavenLocal",
         ":sentry-android-core:publishToMavenLocal",
+        ":sentry-android-ndk:publishToMavenLocal",
         ":sentry-android-ndk-outproc:publishToMavenLocal",
     )
 

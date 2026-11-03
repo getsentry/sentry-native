@@ -97,6 +97,16 @@ subprojects {
             assignAarTypes()
         }
 
+        // the inproc and outproc backends exclude each other
+        afterEvaluate {
+            configurations.matching {
+                it.name.startsWith("releaseVariant") && it.name.endsWith("Publication")
+            }.configureEach {
+                outgoing.capability("$group:${project.name}:$version")
+                outgoing.capability("$group:sentry-ndk-backend:$version")
+            }
+        }
+
         configure<DistributionContainer> {
             getByName("main").contents {
                 // non android modules
@@ -406,13 +416,6 @@ fun Project.configureNdkLibrary() {
      *
      */
     afterEvaluate {
-        configurations.matching {
-            it.name.startsWith("releaseVariant") && it.name.endsWith("Publication")
-        }.configureEach {
-            outgoing.capability("$group:${project.name}:$version")
-            outgoing.capability("$group:sentry-ndk-backend:$version")
-        }
-
         tasks.matching { it.name.startsWith("prefab") && it.name.endsWith("Package") }.configureEach {
             doLast {
                 project.fileTree("build/intermediates/") {
