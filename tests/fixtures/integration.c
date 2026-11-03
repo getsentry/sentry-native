@@ -586,7 +586,7 @@ trigger_stack_overflow()
 }
 
 static void
-trigger_oom(void)
+limit_process_memory(void)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     // Optionally limit process memory to trigger OOM faster.
@@ -610,6 +610,12 @@ trigger_oom(void)
         }
     }
 #endif
+}
+
+static void
+trigger_oom(void)
+{
+    limit_process_memory();
 
     size_t count = 1024;
     for (;;) {
@@ -629,6 +635,32 @@ trigger_oom(void)
         }
         count *= 2;
     }
+}
+
+static void
+trigger_oom_exhaust(void)
+{
+    limit_process_memory();
+
+    // keep allocating smaller blocks until almost no memory is left
+    for (size_t size = 64 * 1024 * 1024; size >= 64 * 1024; size /= 2) {
+        for (;;) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+            void *p = HeapAlloc(GetProcessHeap(), 0, size);
+#else
+            void *p = malloc(size);
+#endif
+            if (!p) {
+                break;
+            }
+            memset(p, 1, size);
+        }
+    }
+#ifdef SENTRY_PLATFORM_WINDOWS
+    RaiseException(0xc000, 0, 0, NULL);
+#else
+    *((volatile int *)3) = 1;
+#endif
 }
 
 static sentry_value_t
@@ -836,6 +868,10 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "on-crash")) {
         sentry_options_set_on_crash(options, on_crash_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "crash-memory-reserve")) {
+        sentry_options_set_crash_memory_reserve(options, 4 * 1024 * 1024);
     }
 
     if (has_arg(argc, argv, "on-crashed-last-run")) {
@@ -1377,6 +1413,9 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "oom")) {
         trigger_oom();
+    }
+    if (has_arg(argc, argv, "oom-exhaust")) {
+        trigger_oom_exhaust();
     }
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
     && !defined(__MINGW64__)

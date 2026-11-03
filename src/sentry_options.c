@@ -92,6 +92,7 @@ sentry_options_new(void)
     opts->strict_trace_continuation = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
     opts->max_stack_capture_size = 0;
+    opts->crash_memory_reserve = (size_t)SENTRY_CRASH_MEMORY_RESERVE * 1024;
     opts->cache_keep = SENTRY_CACHE_KEEP_NONE;
     opts->cache_max_age = 0;
     opts->cache_max_size = 0;
@@ -765,6 +766,12 @@ sentry_options_set_max_stack_capture_size(
     sentry_options_t *opts, uint32_t max_stack_capture_size)
 {
     opts->max_stack_capture_size = max_stack_capture_size;
+}
+
+void
+sentry_options_set_crash_memory_reserve(sentry_options_t *opts, size_t bytes)
+{
+    opts->crash_memory_reserve = bytes;
 }
 
 void

@@ -5,6 +5,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_cpu_relax.h"
+#include "sentry_crash_reserve.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_hint.h"
@@ -1357,6 +1358,8 @@ process_ucontext(const sentry_ucontext_t *uctx)
         return;
     }
 #endif
+
+    sentry__crash_reserve_release();
 
     if (!g_backend_config.enable_logging_when_crashed) {
         sentry__logger_disable();
