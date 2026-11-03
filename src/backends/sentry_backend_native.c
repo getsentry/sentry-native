@@ -1072,6 +1072,7 @@ native_backend_startup(
     char *daemon_handler_path = NULL;
 #    if defined(SENTRY_PLATFORM_ANDROID)
     if (state->android_service_daemon) {
+        // not a child process, so there is no PID to signal or wait for
         state->daemon_pid = 0;
         SENTRY_DEBUG("using Android service-hosted crash daemon");
         uint64_t ready = 1;
@@ -1109,7 +1110,7 @@ native_backend_startup(
 #    if defined(SENTRY_PLATFORM_WINDOWS)
     if (state->daemon_pid == (pid_t)-1) {
 #    else
-    if (!state->android_service_daemon && state->daemon_pid < 0) {
+    if (state->daemon_pid < 0) {
 #    endif
         SENTRY_WARN("failed to start crash daemon");
         sentry__crash_ipc_free(state->ipc);
@@ -1146,15 +1147,18 @@ native_backend_startup(
 
     // On Linux, allow the daemon to ptrace this process
     // This is required when Yama LSM ptrace_scope is enabled
-    if (!state->android_service_daemon
-        && prctl(PR_SET_PTRACER, state->daemon_pid, 0, 0, 0) != 0) {
+    // On Android, the crash handler allows any ptracer at crash time instead,
+    // which also covers the service-hosted daemon
+#        if !defined(SENTRY_PLATFORM_ANDROID)
+    if (prctl(PR_SET_PTRACER, state->daemon_pid, 0, 0, 0) != 0) {
         SENTRY_WARNF(
             "prctl(PR_SET_PTRACER) failed: %s - daemon may not be able to "
             "read process memory",
             strerror(errno));
-    } else if (!state->android_service_daemon) {
+    } else {
         SENTRY_DEBUGF("Set daemon PID %d as ptracer", state->daemon_pid);
     }
+#        endif
 #    endif
 
 #    if defined(SENTRY_PLATFORM_WINDOWS)
@@ -1198,7 +1202,7 @@ native_backend_startup(
     if (sentry__crash_handler_init(state->ipc, strategy, NULL) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
 #    if defined(SENTRY_PLATFORM_UNIX)
-        if (!state->android_service_daemon && state->daemon_pid > 0) {
+        if (state->daemon_pid > 0) {
             kill(state->daemon_pid, SIGTERM);
         }
 #    elif defined(SENTRY_PLATFORM_WINDOWS)

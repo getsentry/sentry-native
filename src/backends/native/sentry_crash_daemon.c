@@ -567,52 +567,6 @@ make_run_envelope_path(
     sentry_free(filename);
     return path;
 }
-
-static sentry_envelope_t *
-wait_for_android_tombstone_envelope(
-    const sentry_path_t *native_envelope_path, sentry_path_t **merged_path_out)
-{
-    if (merged_path_out) {
-        *merged_path_out = NULL;
-    }
-    if (!native_envelope_path) {
-        return NULL;
-    }
-
-    sentry_path_t *merged_path
-        = sentry__path_append_str(native_envelope_path, ".merged");
-    if (!merged_path) {
-        return NULL;
-    }
-
-    const int timeout_ms = 10000;
-    const int interval_ms = 100;
-    int elapsed_ms = 0;
-    while (elapsed_ms < timeout_ms) {
-        if (sentry__path_is_file(merged_path)) {
-            SENTRY_DEBUGF("Found Android tombstone merged envelope: %s",
-                merged_path->path);
-            sentry_envelope_t *envelope
-                = sentry__envelope_from_path(merged_path);
-            if (envelope) {
-                if (merged_path_out) {
-                    *merged_path_out = merged_path;
-                } else {
-                    sentry__path_free(merged_path);
-                }
-                return envelope;
-            }
-            SENTRY_WARN("Failed to read Android tombstone merged envelope");
-            break;
-        }
-        usleep(interval_ms * 1000);
-        elapsed_ms += interval_ms;
-    }
-
-    SENTRY_DEBUG("Timed out waiting for Android tombstone merged envelope");
-    sentry__path_free(merged_path);
-    return NULL;
-}
 #endif
 
 // cache large staged attachments as attachment-ref items
@@ -4491,36 +4445,27 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     // Launch reporter, or fall back to transport (consent/caching in core).
     if (!sentry__launch_external_crash_reporter(options, envelope)) {
 #if defined(SENTRY_PLATFORM_ANDROID)
-        if (!options || !options->run
-            || !sentry__run_write_envelope(options->run, envelope)) {
-            SENTRY_WARN("Failed to dump crash envelope to run folder");
-        } else {
-            SENTRY_DEBUG(
-                "Crash envelope written for Android tombstone merging");
-            sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_DONE);
-            SENTRY_DEBUG("Released crashed process for Android tombstone");
-            if (daemon && android_native_envelope_path) {
-                strncpy(daemon->envelope_path,
-                    android_native_envelope_path->path,
-                    sizeof(daemon->envelope_path) - 1);
-                daemon->envelope_path[sizeof(daemon->envelope_path) - 1] = '\0';
+        // Tombstone merging needs the sentry-java crash service. The
+        // standalone daemon is only used in tests and is not supported in
+        // apps, so it handles the envelope as on Linux.
+        if (daemon) {
+            if (!options || !options->run
+                || !sentry__run_write_envelope(options->run, envelope)) {
+                SENTRY_WARN("Failed to dump crash envelope to run folder");
+            } else {
+                SENTRY_DEBUG(
+                    "Crash envelope written for Android tombstone merging");
+                sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_DONE);
+                SENTRY_DEBUG("Released crashed process for Android tombstone");
+                if (android_native_envelope_path) {
+                    strncpy(daemon->envelope_path,
+                        android_native_envelope_path->path,
+                        sizeof(daemon->envelope_path) - 1);
+                    daemon->envelope_path[sizeof(daemon->envelope_path) - 1]
+                        = '\0';
+                }
                 sentry_envelope_free(envelope);
                 envelope = NULL;
-            } else {
-                sentry_path_t *merged_path = NULL;
-                sentry_envelope_t *merged_envelope
-                    = wait_for_android_tombstone_envelope(
-                        android_native_envelope_path, &merged_path);
-                if (merged_envelope) {
-                    sentry_envelope_free(envelope);
-                    envelope = merged_envelope;
-                    sentry__path_remove(android_native_envelope_path);
-                    sentry__path_remove(merged_path);
-                    sentry__path_free(merged_path);
-                } else {
-                    sentry_envelope_free(envelope);
-                    envelope = NULL;
-                }
             }
         }
 #endif
