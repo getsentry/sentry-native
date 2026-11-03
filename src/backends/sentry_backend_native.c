@@ -1662,6 +1662,69 @@ init_scope_observer(void *data, const sentry_scope_t *scope)
     return snapshot_scope(state, scope);
 }
 
+#if defined(SENTRY_PLATFORM_ANDROID)
+static native_backend_state_t *
+android_service_backend_state(const sentry_options_t *options)
+{
+    native_backend_state_t *state
+        = options->backend ? options->backend->data : NULL;
+    if (!state || !state->android_service_daemon
+        || sentry__atomic_fetch(&state->crashed)) {
+        return NULL;
+    }
+    return state;
+}
+
+__attribute__((visibility("default"))) int
+sentry_android_crash_daemon_dup_shm_fd(void)
+{
+    int fd = -1;
+    SENTRY_WITH_OPTIONS (options) {
+        native_backend_state_t *state = android_service_backend_state(options);
+        if (state) {
+            fd = fcntl(state->ipc->shm_fd, F_DUPFD_CLOEXEC, 0);
+        }
+    }
+    return fd;
+}
+
+__attribute__((visibility("default"))) bool
+sentry_android_crash_daemon_reattach(
+    int notify_fd, int ready_fd, int message_fd)
+{
+    bool reattached = false;
+    bool taken = false;
+    SENTRY_WITH_OPTIONS (options) {
+        native_backend_state_t *state = android_service_backend_state(options);
+        if (!state) {
+            continue;
+        }
+        // scope changes notify under this lock, so none lands before the
+        // snapshot
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            sentry__mutex_lock(&scope->observers_lock);
+            taken = true;
+            if (sentry__crash_ipc_reattach(
+                    state->ipc, notify_fd, ready_fd, message_fd)) {
+                // as at startup, the new daemon waits for the configured app
+                uint64_t ready = 1;
+                ssize_t written
+                    = write(state->ipc->notify_fd, &ready, sizeof(ready));
+                (void)written;
+                reattached = snapshot_scope(state, scope);
+            }
+            sentry__mutex_unlock(&scope->observers_lock);
+        }
+    }
+    if (!taken) {
+        close(notify_fd);
+        close(ready_fd);
+        close(message_fd);
+    }
+    return reattached;
+}
+#endif
+
 static bool
 observe_scope(native_backend_state_t *state)
 {

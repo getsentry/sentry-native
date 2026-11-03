@@ -159,6 +159,7 @@ sentry__crash_ipc_message_decode(
 #    include <errno.h>
 #    include <fcntl.h>
 #    include <pthread.h>
+#    include <sched.h>
 #    include <sys/file.h>
 #    include <sys/socket.h>
 #    include <sys/stat.h>
@@ -415,6 +416,39 @@ sentry__crash_ipc_init_app_with_fds(const char *shm_path, int notify_fd,
     strncpy(ipc->shm_name, shm_path, sizeof(ipc->shm_name) - 1);
 
     return init_app(ipc, notify_fd, ready_fd, message_fd);
+}
+
+bool
+sentry__crash_ipc_reattach(
+    sentry_crash_ipc_t *ipc, int notify_fd, int ready_fd, int message_fd)
+{
+    bool reattached = false;
+    if (ipc && !ipc->is_daemon
+        && sentry__atomic_fetch(&ipc->shmem->state)
+            == SENTRY_CRASH_STATE_READY) {
+        // stop new frames, and let one in flight finish
+        sentry__atomic_store(&ipc->message_failed, 1);
+        while (!sentry__atomic_compare_swap(&ipc->writing, 0, 1)) {
+            sched_yield();
+        }
+        // in place, so that the crash handler never reads a closed fd
+        reattached = dup3(notify_fd, ipc->notify_fd, O_CLOEXEC) >= 0
+            && dup3(ready_fd, ipc->ready_fd, O_CLOEXEC) >= 0
+            && dup3(message_fd, ipc->message_fd[0], O_CLOEXEC) >= 0;
+        if (reattached) {
+            struct timeval send_timeout = { 1, 0 };
+            setsockopt(ipc->message_fd[0], SOL_SOCKET, SO_SNDTIMEO,
+                &send_timeout, sizeof(send_timeout));
+            // a new daemon starts at a snapshot with sequence 1
+            ipc->sequence = 0;
+            sentry__atomic_store(&ipc->message_failed, 0);
+        }
+        sentry__atomic_store(&ipc->writing, 0);
+    }
+    close(notify_fd);
+    close(ready_fd);
+    close(message_fd);
+    return reattached;
 }
 #    else
 sentry_crash_ipc_t *

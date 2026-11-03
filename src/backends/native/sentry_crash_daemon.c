@@ -241,10 +241,11 @@ android_install_logcat_logger(void)
 
 __attribute__((visibility("default"))) sentry_crash_daemon_t *
 sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
-    int ready_fd, int message_fd, const char *shm_path,
+    int ready_fd, int message_fd, const char *shm_path, int shm_fd,
     sentry_transport_t *transport)
 {
-    if (!shm_path || !shm_path[0]) {
+    // a reattaching app hands over its file, the name is gone by then
+    if (shm_fd < 0 && (!shm_path || !shm_path[0])) {
         goto fail;
     }
 
@@ -254,16 +255,18 @@ sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
         goto fail;
     }
 
-    int shm_fd = open(shm_path, O_RDWR | O_CLOEXEC);
     if (shm_fd < 0) {
-        goto fail;
+        shm_fd = open(shm_path, O_RDWR | O_CLOEXEC);
+        if (shm_fd < 0) {
+            goto fail;
+        }
+        // the app maps the file before it notifies, neither side needs the
+        // name
+        unlink(shm_path);
     }
-    // the app maps the file before it notifies, neither side needs the name
-    unlink(shm_path);
 
     sentry_crash_daemon_t *daemon = SENTRY_MAKE(sentry_crash_daemon_t);
     if (!daemon) {
-        close(shm_fd);
         goto fail;
     }
     daemon->transport = transport;
@@ -283,6 +286,9 @@ fail:
     close(notify_fd);
     close(ready_fd);
     close(message_fd);
+    if (shm_fd >= 0) {
+        close(shm_fd);
+    }
     sentry_transport_free(transport);
     return NULL;
 }

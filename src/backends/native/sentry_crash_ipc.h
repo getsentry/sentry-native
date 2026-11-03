@@ -177,6 +177,13 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(
     const char *database_path, sentry_mutex_t *init_mutex);
 sentry_crash_ipc_t *sentry__crash_ipc_init_app_with_fds(const char *shm_path,
     int notify_fd, int ready_fd, int message_fd, sentry_mutex_t *init_mutex);
+/**
+ * Replaces the app's daemon fds with those of a restarted crash service, and
+ * takes ownership of the new fds. Fails while a crash is being handled. The
+ * caller sends a scope snapshot next.
+ */
+bool sentry__crash_ipc_reattach(
+    sentry_crash_ipc_t *ipc, int notify_fd, int ready_fd, int message_fd);
 #elif defined(SENTRY_PLATFORM_LINUX)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(sem_t *init_sem);
 #elif defined(SENTRY_PLATFORM_MACOS)

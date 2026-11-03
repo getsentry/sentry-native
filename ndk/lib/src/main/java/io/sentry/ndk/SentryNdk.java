@@ -25,7 +25,18 @@ public final class SentryNdk {
       @NotNull String shmPath, int notifyFd, int readyFd, int messageFd);
 
   private static native long nativeRunCrashDaemon(
-      int appPid, long appTid, int notifyFd, int readyFd, int messageFd, @NotNull String shmPath);
+      int appPid,
+      long appTid,
+      int notifyFd,
+      int readyFd,
+      int messageFd,
+      @Nullable String shmPath,
+      int shmFd);
+
+  private static native int nativeDupCrashShmFd();
+
+  private static native boolean nativeReattachCrashDaemon(
+      int notifyFd, int readyFd, int messageFd);
 
   private static native @NotNull String nativeGetCrashEnvelopePath(long handle);
 
@@ -74,11 +85,44 @@ public final class SentryNdk {
     nativeInitCrashDaemon(shmPath, notifyFd, readyFd, messageFd);
   }
 
+  /**
+   * Runs a crash daemon for an app process until it exits or crashes.
+   *
+   * @param shmPath the shared memory file of a configuring app, or null with {@code shmFd}
+   * @param shmFd the shared memory file of a reattaching app, or -1 with {@code shmPath}
+   */
   public static @Nullable CrashDaemon runCrashDaemon(
-      int appPid, long appTid, int notifyFd, int readyFd, int messageFd, @NotNull String shmPath) {
+      int appPid,
+      long appTid,
+      int notifyFd,
+      int readyFd,
+      int messageFd,
+      @Nullable String shmPath,
+      int shmFd) {
     loadNativeLibraries();
-    final long handle = nativeRunCrashDaemon(appPid, appTid, notifyFd, readyFd, messageFd, shmPath);
+    final long handle =
+        nativeRunCrashDaemon(appPid, appTid, notifyFd, readyFd, messageFd, shmPath, shmFd);
     return handle == 0 ? null : new CrashDaemon(handle);
+  }
+
+  /**
+   * Returns a duplicate of the crash IPC's shared memory file for a restarted crash service, or -1
+   * if the app has none to reattach.
+   */
+  public static int dupCrashShmFd() {
+    loadNativeLibraries();
+    return nativeDupCrashShmFd();
+  }
+
+  /**
+   * Switches the crash IPC to the daemon of a restarted crash service and sends it the current
+   * scope. Takes ownership of the fds.
+   *
+   * @return false if the app could not reattach, for example while handling a crash
+   */
+  public static boolean reattachCrashDaemon(int notifyFd, int readyFd, int messageFd) {
+    loadNativeLibraries();
+    return nativeReattachCrashDaemon(notifyFd, readyFd, messageFd);
   }
 
   @ApiStatus.Internal

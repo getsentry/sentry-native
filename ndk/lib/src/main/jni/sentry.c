@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "sentry_http.h"
 
@@ -15,7 +16,8 @@ extern void sentry_android_crash_daemon_init(const char *shm_path,
 typedef struct sentry_crash_daemon_s sentry_crash_daemon_t;
 extern sentry_crash_daemon_t *sentry_android_crash_daemon_run(int app_pid,
     uint64_t app_tid, int notify_fd, int ready_fd, int message_fd,
-    const char *shm_path, sentry_transport_t *transport) __attribute__((weak));
+    const char *shm_path, int shm_fd,
+    sentry_transport_t *transport) __attribute__((weak));
 extern const char *sentry_android_crash_daemon_get_envelope_path(
     const sentry_crash_daemon_t *daemon) __attribute__((weak));
 extern int sentry_android_crash_daemon_send(
@@ -23,6 +25,9 @@ extern int sentry_android_crash_daemon_send(
     uint64_t timeout) __attribute__((weak));
 extern void sentry_android_crash_daemon_close(
     sentry_crash_daemon_t *daemon) __attribute__((weak));
+extern int sentry_android_crash_daemon_dup_shm_fd(void) __attribute__((weak));
+extern bool sentry_android_crash_daemon_reattach(
+    int notify_fd, int ready_fd, int message_fd) __attribute__((weak));
 
 #define ENSURE(Expr)                                                           \
     if (!(Expr))                                                               \
@@ -596,13 +601,11 @@ Java_io_sentry_ndk_SentryNdk_nativeRunCrashDaemon(
         jint notify_fd,
         jint ready_fd,
         jint message_fd,
-        jstring shm_path) {
-    if (!shm_path) {
-        return 0;
-    }
-
-    const char *shm_path_chars = (*env)->GetStringUTFChars(env, shm_path, 0);
-    if (!shm_path_chars) {
+        jstring shm_path,
+        jint shm_fd) {
+    const char *shm_path_chars
+        = shm_path ? (*env)->GetStringUTFChars(env, shm_path, 0) : NULL;
+    if (shm_path && !shm_path_chars) {
         return 0;
     }
 
@@ -610,12 +613,40 @@ Java_io_sentry_ndk_SentryNdk_nativeRunCrashDaemon(
     if (sentry_android_crash_daemon_run) {
         daemon = sentry_android_crash_daemon_run((int) app_pid,
             (uint64_t) app_tid, (int) notify_fd, (int) ready_fd,
-            (int) message_fd, shm_path_chars,
+            (int) message_fd, shm_path_chars, (int) shm_fd,
             sentry_android_http_transport_new());
     }
 
-    (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);
+    if (shm_path_chars) {
+        (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);
+    }
     return (jlong)(uintptr_t)daemon;
+}
+
+JNIEXPORT jint JNICALL
+Java_io_sentry_ndk_SentryNdk_nativeDupCrashShmFd(JNIEnv *env, jclass cls) {
+    return sentry_android_crash_daemon_dup_shm_fd
+        ? (jint) sentry_android_crash_daemon_dup_shm_fd()
+        : -1;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_io_sentry_ndk_SentryNdk_nativeReattachCrashDaemon(
+        JNIEnv *env,
+        jclass cls,
+        jint notify_fd,
+        jint ready_fd,
+        jint message_fd) {
+    if (!sentry_android_crash_daemon_reattach) {
+        close(notify_fd);
+        close(ready_fd);
+        close(message_fd);
+        return JNI_FALSE;
+    }
+    return sentry_android_crash_daemon_reattach(
+        (int) notify_fd, (int) ready_fd, (int) message_fd)
+        ? JNI_TRUE
+        : JNI_FALSE;
 }
 
 JNIEXPORT jstring JNICALL
