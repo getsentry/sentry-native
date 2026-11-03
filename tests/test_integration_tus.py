@@ -36,7 +36,7 @@ def test_tus_upload(cmake, httpserver):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_uri + "?" + upload_qs
 
     # TUS creation request (POST, no body) -> 201 + Location
     httpserver.expect_oneshot_request(
@@ -189,7 +189,7 @@ def test_tus_rate_limit(cmake, httpserver):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_uri + "?" + upload_qs
 
     httpserver.expect_oneshot_request(
         "/api/123456/upload/",
@@ -269,7 +269,7 @@ def test_tus_shutdown(cmake, httpserver):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_uri + "?" + upload_qs
 
     release_create = threading.Event()
 
@@ -428,7 +428,7 @@ def test_tus_crash_restart(cmake, httpserver, backend):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_uri + "?" + upload_qs
 
     # Second run: restart picks up crash and uploads via TUS
     httpserver.expect_oneshot_request(
@@ -520,7 +520,7 @@ def test_tus_crash_native(cmake, httpserver):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_uri + "?" + upload_qs
 
     httpserver.expect_oneshot_request(
         "/api/123456/upload/",

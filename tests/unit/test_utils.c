@@ -303,10 +303,8 @@ SENTRY_TEST(dsn_resolve_url)
     TEST_CHECK_STRING_EQUAL(url, "https://sentry.io:443/api/42/upload/abc123/");
     sentry_free(url);
 
-    // absolute URL passes through
-    url = sentry__dsn_resolve_url(dsn, "https://other.host/path");
-    TEST_CHECK_STRING_EQUAL(url, "https://other.host/path");
-    sentry_free(url);
+    // absolute URL is rejected
+    TEST_CHECK(!sentry__dsn_resolve_url(dsn, "https://other.host/path"));
 
     // NULL inputs
     TEST_CHECK(!sentry__dsn_resolve_url(NULL, "/path"));

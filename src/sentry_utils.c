@@ -404,18 +404,16 @@ sentry__dsn_get_upload_url(const sentry_dsn_t *dsn)
 char *
 sentry__dsn_resolve_url(const sentry_dsn_t *dsn, const char *path)
 {
-    if (!dsn || !dsn->is_valid || !path) {
+    if (!dsn || !dsn->is_valid || !path || path[0] != '/') {
         return NULL;
     }
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
-    if (path[0] == '/') {
-        sentry__stringbuilder_append(&sb, dsn->is_secure ? "https" : "http");
-        sentry__stringbuilder_append(&sb, "://");
-        sentry__stringbuilder_append(&sb, dsn->host);
-        sentry__stringbuilder_append_char(&sb, ':');
-        sentry__stringbuilder_append_int64(&sb, (int64_t)dsn->port);
-    }
+    sentry__stringbuilder_append(&sb, dsn->is_secure ? "https" : "http");
+    sentry__stringbuilder_append(&sb, "://");
+    sentry__stringbuilder_append(&sb, dsn->host);
+    sentry__stringbuilder_append_char(&sb, ':');
+    sentry__stringbuilder_append_int64(&sb, (int64_t)dsn->port);
     sentry__stringbuilder_append(&sb, path);
     return sentry__stringbuilder_into_string(&sb);
 }
