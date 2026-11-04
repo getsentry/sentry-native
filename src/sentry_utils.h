@@ -147,7 +147,7 @@ char *sentry__dsn_get_upload_url(const sentry_dsn_t *dsn);
 /**
  * Resolves a possibly relative URL against the DSN's origin.
  * If the path starts with '/', the DSN's scheme, host, and port are prepended.
- * Returns a newly allocated string.
+ * Returns a newly allocated string, or NULL for non-HTTP(S) URLs.
  */
 char *sentry__dsn_resolve_url(const sentry_dsn_t *dsn, const char *path);
 

@@ -308,6 +308,9 @@ SENTRY_TEST(dsn_resolve_url)
     TEST_CHECK_STRING_EQUAL(url, "https://other.host/path");
     sentry_free(url);
 
+    // non-HTTP URL is rejected
+    TEST_CHECK(!sentry__dsn_resolve_url(dsn, "file:///tmp/path"));
+
     // NULL inputs
     TEST_CHECK(!sentry__dsn_resolve_url(NULL, "/path"));
     TEST_CHECK(!sentry__dsn_resolve_url(dsn, NULL));
