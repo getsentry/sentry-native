@@ -401,19 +401,37 @@ sentry__dsn_get_upload_url(const sentry_dsn_t *dsn)
     return sentry__stringbuilder_into_string(&sb);
 }
 
+static bool
+is_http_url(const char *str)
+{
+    sentry_url_t url;
+    if (sentry__url_parse(&url, str, false) != 0) {
+        return false;
+    }
+    bool is_http = sentry__string_eq(url.scheme, "https")
+        || sentry__string_eq(url.scheme, "http");
+    sentry__url_cleanup(&url);
+    return is_http;
+}
+
 char *
 sentry__dsn_resolve_url(const sentry_dsn_t *dsn, const char *path)
 {
-    if (!dsn || !dsn->is_valid || !path || path[0] != '/') {
+    if (!dsn || !dsn->is_valid || !path) {
+        return NULL;
+    }
+    if (path[0] != '/' && !is_http_url(path)) {
         return NULL;
     }
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
-    sentry__stringbuilder_append(&sb, dsn->is_secure ? "https" : "http");
-    sentry__stringbuilder_append(&sb, "://");
-    sentry__stringbuilder_append(&sb, dsn->host);
-    sentry__stringbuilder_append_char(&sb, ':');
-    sentry__stringbuilder_append_int64(&sb, (int64_t)dsn->port);
+    if (path[0] == '/') {
+        sentry__stringbuilder_append(&sb, dsn->is_secure ? "https" : "http");
+        sentry__stringbuilder_append(&sb, "://");
+        sentry__stringbuilder_append(&sb, dsn->host);
+        sentry__stringbuilder_append_char(&sb, ':');
+        sentry__stringbuilder_append_int64(&sb, (int64_t)dsn->port);
+    }
     sentry__stringbuilder_append(&sb, path);
     return sentry__stringbuilder_into_string(&sb);
 }
