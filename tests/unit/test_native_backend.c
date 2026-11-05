@@ -1527,20 +1527,22 @@ SENTRY_TEST(crash_daemon_shutdown_during_crash)
     TEST_ASSERT(sentry__crash_ipc_send(
         ipc, SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN, sentry_value_new_null()));
 
-    char pid[32], tid[32], notify[32], ready[32], message[32];
+    char pid[32], tid[32], notify[32], ready[32], shm[32], message[32];
     snprintf(pid, sizeof(pid), "%d", (int)getpid());
     snprintf(tid, sizeof(tid), "%llx", (unsigned long long)pthread_self());
     snprintf(notify, sizeof(notify), "%d", ipc->notify_fd);
     snprintf(ready, sizeof(ready), "%d", ipc->ready_fd);
+    snprintf(shm, sizeof(shm), "%d", ipc->shm_fd);
     snprintf(message, sizeof(message), "%d", ipc->message_fd[1]);
     pid_t child = fork();
     TEST_ASSERT(child >= 0);
     if (child == 0) {
-        int fds[] = { ipc->notify_fd, ipc->ready_fd, ipc->message_fd[1] };
+        int fds[] = { ipc->notify_fd, ipc->ready_fd, ipc->shm_fd,
+            ipc->message_fd[1] };
         for (size_t i = 0; i < sizeof(fds) / sizeof(fds[0]); i++) {
             fcntl(fds[i], F_SETFD, 0);
         }
-        execl(daemon, daemon, pid, tid, notify, ready, message, NULL);
+        execl(daemon, daemon, pid, tid, notify, ready, shm, message, NULL);
         _exit(1);
     }
     TEST_CHECK(sentry__crash_ipc_wait_for_ready(ipc, 5000));

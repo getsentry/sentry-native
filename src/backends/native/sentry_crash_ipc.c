@@ -203,9 +203,23 @@ init_unlock(sentry_crash_ipc_t *ipc)
     }
 }
 #    else
+#        include <sys/syscall.h>
+
+#        ifndef MFD_CLOEXEC
+#            define MFD_CLOEXEC 0x0001U
+#        endif
+
 static int
 shm_create(sentry_crash_ipc_t *ipc)
 {
+#        ifdef SYS_memfd_create
+    // shm_open() memory raises SIGBUS on write when /dev/shm is full
+    int fd = (int)syscall(SYS_memfd_create, "sentry-crash", MFD_CLOEXEC);
+    if (fd >= 0) {
+        ipc->shm_name[0] = '\0';
+        return fd;
+    }
+#        endif
     return shm_open(ipc->shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
 }
 
@@ -367,7 +381,7 @@ fail:
     if (ipc->shm_fd >= 0) {
         close(ipc->shm_fd);
         if (!shm_exists) {
-            shm_remove(ipc);
+            sentry__crash_ipc_unlink(ipc);
         }
     }
     init_unlock(ipc);
@@ -473,21 +487,13 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 }
 #    endif
 
-#    if defined(SENTRY_PLATFORM_ANDROID)
 sentry_crash_ipc_t *
 sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     int notify_eventfd, int ready_eventfd, int shm_fd, int message_fd)
-#    else
-sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
-    int notify_eventfd, int ready_eventfd, int message_fd)
-#    endif
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
-#    if defined(SENTRY_PLATFORM_ANDROID)
         close(shm_fd);
-#    endif
         return NULL;
     }
     ipc->is_daemon = true;
@@ -495,22 +501,12 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     ipc->message_fd[1] = message_fd;
     fcntl(message_fd, F_SETFD, FD_CLOEXEC);
 
-    // Open existing shared memory created by app (using PID and thread ID)
+    // Shared memory is handed over open, its name is only needed to unlink it
     // Must match the format in sentry__crash_ipc_init_app
     uint32_t id = (uint32_t)((app_pid ^ (app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-#    if defined(SENTRY_PLATFORM_ANDROID)
-    // The file is handed over open, its path is only needed to unlink it
     ipc->shm_fd = shm_fd;
-#    else
+#    if !defined(SENTRY_PLATFORM_ANDROID)
     snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
-
-    ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
-    if (ipc->shm_fd < 0) {
-        SENTRY_WARNF(
-            "daemon: failed to open shared memory: %s", strerror(errno));
-        sentry_free(ipc);
-        return NULL;
-    }
 #    endif
 
     // Map shared memory

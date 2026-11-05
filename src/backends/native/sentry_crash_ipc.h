@@ -204,13 +204,10 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
  * @param ready_handle Ready signal handle inherited from parent (eventfd on
  * Linux, pipe fd on macOS, event on Windows)
  */
-#if defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
     uint64_t app_tid, int notify_eventfd, int ready_eventfd, int shm_fd,
     int message_fd);
-#elif defined(SENTRY_PLATFORM_LINUX)
-sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
-    uint64_t app_tid, int notify_eventfd, int ready_eventfd, int message_fd);
 #elif defined(SENTRY_PLATFORM_MACOS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
     uint64_t app_tid, int notify_pipe_read, int ready_pipe_write, int shm_fd,

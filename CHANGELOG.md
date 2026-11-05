@@ -47,6 +47,7 @@
 - Native/Unix: Preserve existing alternate signal stacks to prevent ASan aborts when the initializing thread exits before SDK shutdown. ([#2219](https://github.com/getsentry/sentry-native/pull/2219))
 - Native/Linux: fix oversized `debug_meta.images` entries that overlapped other libraries when a file was mapped more than once. ([#2228](https://github.com/getsentry/sentry-native/pull/2228))
 - Fix const-correctness of `sentry_options_get_*`, `sentry_span_iter_headers`, and `sentry_transaction_iter_headers`. ([#2277](https://github.com/getsentry/sentry-native/pull/2277))
+- Native/Linux: back the crash context with a memfd to prevent `SIGBUS` during `sentry_init` when `/dev/shm` is full. ([#1725](https://github.com/getsentry/sentry-native/pull/1725))
 
 ## 0.17.6
 

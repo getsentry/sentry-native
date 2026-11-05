@@ -467,14 +467,10 @@ native_backend_process_old_run(sentry_backend_t *backend,
  * @param ready_handle Ready signal handle
  * @return Daemon PID on success, -1 on failure
  */
-#if defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
     int ready_eventfd, int shm_fd, int message_fd, const char *handler_path)
-#elif defined(SENTRY_PLATFORM_LINUX)
-static pid_t
-daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
-    int ready_eventfd, int message_fd, const char *handler_path)
 #elif defined(SENTRY_PLATFORM_MACOS)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
@@ -601,31 +597,23 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             fcntl(message_fd, F_SETFD, message_flags & ~FD_CLOEXEC);
         }
 
-#    if defined(SENTRY_PLATFORM_ANDROID)
         int shm_flags = fcntl(shm_fd, F_GETFD);
         if (shm_flags != -1) {
             fcntl(shm_fd, F_SETFD, shm_flags & ~FD_CLOEXEC);
         }
-#    endif
 
         // Convert arguments to strings for exec
         char pid_str[32], tid_str[32], notify_str[32], ready_str[32],
-            message_str[32];
+            shm_str[32], message_str[32];
         snprintf(pid_str, sizeof(pid_str), "%d", (int)app_pid);
         snprintf(tid_str, sizeof(tid_str), "%" PRIx64, app_tid);
         snprintf(notify_str, sizeof(notify_str), "%d", notify_eventfd);
         snprintf(ready_str, sizeof(ready_str), "%d", ready_eventfd);
+        snprintf(shm_str, sizeof(shm_str), "%d", shm_fd);
         snprintf(message_str, sizeof(message_str), "%d", message_fd);
 
-#    if defined(SENTRY_PLATFORM_ANDROID)
-        char shm_str[32];
-        snprintf(shm_str, sizeof(shm_str), "%d", shm_fd);
         char *argv[] = { "sentry-crash", pid_str, tid_str, notify_str,
             ready_str, shm_str, message_str, NULL };
-#    else
-        char *argv[] = { "sentry-crash", pid_str, tid_str, notify_str,
-            ready_str, message_str, NULL };
-#    endif
 
         if (!sentry__string_empty(handler_path)) {
             execv(handler_path, argv);
@@ -1106,7 +1094,8 @@ native_backend_startup(
     daemon_handler_path = resolve_handler_path(options);
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = daemon_start(getpid(), tid, state->ipc->notify_fd,
-        state->ipc->ready_fd, state->ipc->message_fd[1], daemon_handler_path);
+        state->ipc->ready_fd, state->ipc->shm_fd, state->ipc->message_fd[1],
+        daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     daemon_handler_path = resolve_handler_path(options);
     uint64_t tid = (uint64_t)pthread_self();

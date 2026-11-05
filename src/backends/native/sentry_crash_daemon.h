@@ -28,7 +28,7 @@ int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
     sentry_crash_daemon_t *daemon);
 #elif defined(SENTRY_PLATFORM_LINUX)
 int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
-    int notify_eventfd, int ready_eventfd, int message_fd);
+    int notify_eventfd, int ready_eventfd, int shm_fd, int message_fd);
 #elif defined(SENTRY_PLATFORM_MACOS)
 int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
     int notify_pipe_read, int ready_pipe_write, int shm_fd, int message_fd);
