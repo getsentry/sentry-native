@@ -612,7 +612,7 @@ Java_io_sentry_ndk_SentryNdk_nativeRunCrashDaemon(
     sentry_crash_daemon_t *daemon = sentry_android_crash_daemon_run(
         (int) app_pid, (uint64_t) app_tid, (int) notify_fd, (int) ready_fd,
         (int) message_fd, shm_path_chars, (int) shm_fd,
-        sentry_android_http_transport_new());
+        sentry_android_http_transport_new(env));
 
     if (shm_path_chars) {
         (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);

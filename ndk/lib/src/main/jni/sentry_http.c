@@ -3,9 +3,11 @@
 #include <android/log.h>
 #include <jni.h>
 #include <limits.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 
+static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
 static JavaVM *g_vm;
 static jclass g_client_class;
 static jmethodID g_constructor;
@@ -15,22 +17,24 @@ static jmethodID g_shutdown;
 static jfieldID g_status_code;
 static jfieldID g_headers;
 
-JNIEXPORT jint JNICALL
-JNI_OnLoad(JavaVM *vm, void *reserved)
+// FindClass finds the app's classes only when called from Java
+static bool
+load_client_class(JNIEnv *env)
 {
-    (void)reserved;
-    JNIEnv *env;
-    if ((*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6) != JNI_OK) {
-        return JNI_ERR;
+    if (g_client_class) {
+        return true;
+    }
+    if ((*env)->GetJavaVM(env, &g_vm) != JNI_OK) {
+        return false;
     }
     jclass cls = (*env)->FindClass(env, "io/sentry/ndk/SentryHttpClient");
     if (!cls) {
-        return JNI_ERR;
+        return false;
     }
     g_client_class = (*env)->NewGlobalRef(env, cls);
     (*env)->DeleteLocalRef(env, cls);
     if (!g_client_class) {
-        return JNI_ERR;
+        return false;
     }
     jclass response
         = (*env)->FindClass(env, "io/sentry/ndk/SentryHttpClient$Response");
@@ -51,11 +55,10 @@ JNI_OnLoad(JavaVM *vm, void *reserved)
                  env, response, "headers", "[Ljava/lang/String;"))) {
         (*env)->DeleteGlobalRef(env, g_client_class);
         g_client_class = NULL;
-        return JNI_ERR;
+        return false;
     }
     (*env)->DeleteLocalRef(env, response);
-    g_vm = vm;
-    return JNI_VERSION_1_6;
+    return true;
 }
 
 static JNIEnv *
@@ -301,8 +304,16 @@ client_free(sentry_http_client_t *client)
 }
 
 sentry_transport_t *
-sentry_android_http_transport_new(void)
+sentry_android_http_transport_new(JNIEnv *env)
 {
+    pthread_mutex_lock(&g_mutex);
+    bool loaded = load_client_class(env);
+    pthread_mutex_unlock(&g_mutex);
+    if (!loaded) {
+        clear_exception(env);
+        return NULL;
+    }
+
     sentry_transport_t *transport
         = sentry_http_transport_new(client_new, NULL, client_send, client_free);
     if (transport) {

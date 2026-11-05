@@ -245,7 +245,7 @@ sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
     sentry_transport_t *transport)
 {
     // a reattaching app hands over its file, the name is gone by then
-    if (shm_fd < 0 && (!shm_path || !shm_path[0])) {
+    if (!transport || (shm_fd < 0 && (!shm_path || !shm_path[0]))) {
         goto fail;
     }
 
