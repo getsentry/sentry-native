@@ -10,6 +10,7 @@ from flaky import flaky
 from . import (
     make_dsn,
     run,
+    run_command,
     stage_replay,
     Envelope,
     split_log_request_cond,
@@ -1541,3 +1542,76 @@ def test_crashpad_breadcrumbs(cmake, httpserver, count, reinstall, crash_arg):
 
     if crash_arg == "fastfail":
         assert wait_for_no_werfault()
+
+
+def start_until_handler(tmp_path, args, env=None):
+    # the fixture sleeps after the handler has started, which leaves the test
+    # time to stall the handler before the scope updates that follow. The
+    # handler inherits stdout, so the output goes to a file instead of a pipe.
+    log_path = tmp_path / "stalled-handler.log"
+    with open(log_path, "w") as log:
+        child = subprocess.Popen(
+            [*run_command(str(tmp_path / "sentry_test_integration")), "log", "sleep"]
+            + args,
+            cwd=tmp_path,
+            env=env,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+        )
+    assert wait_for(lambda: "started crashpad client handler" in log_path.read_text())
+    handler = next(
+        p
+        for p in psutil.Process(child.pid).children()
+        if p.name() == "crashpad_handler.exe"
+    )
+    return child, handler
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="only Windows sends scope updates to the handler over its pipe",
+)
+def test_crashpad_suspended_handler(cmake):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+
+    child, handler = start_until_handler(tmp_path, ["open-transaction"])
+    handler.suspend()
+    try:
+        # two scope updates, each given up after 5 seconds
+        child.wait(timeout=40)
+    finally:
+        child.kill()
+        handler.resume()
+
+    assert child.returncode == 0
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="only Windows sends scope updates to the handler over its pipe",
+)
+def test_crashpad_busy_handler_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    child, _ = start_until_handler(tmp_path, ["crash"], env)
+    pipe = next(
+        name
+        for name in os.listdir("\\\\.\\pipe\\")
+        if name.startswith(f"crashpad_{child.pid}_")
+    )
+    # occupy both of the handler's pipe instances
+    instances = [open(f"\\\\.\\pipe\\{pipe}", "r+b", buffering=0) for _ in range(2)]
+    try:
+        with httpserver.wait(timeout=30) as waiting:
+            child.wait(timeout=30)
+    finally:
+        child.kill()
+        for instance in instances:
+            instance.close()
+
+    assert waiting.result
+    assert len(httpserver.log) == 1
+    assert_crashpad_upload(httpserver.log[0][0])
