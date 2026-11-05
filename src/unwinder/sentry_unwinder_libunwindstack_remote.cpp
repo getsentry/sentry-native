@@ -31,13 +31,17 @@ capture_registers(unwindstack::Regs *regs, sentry_remote_registers_t *registers)
 }
 
 static size_t
-unwind_thread(pid_t tid, sentry_remote_frame_t *frames, size_t max_frames,
+unwind_thread(pid_t tid, const ucontext_t *context,
+    sentry_remote_frame_t *frames, size_t max_frames,
     sentry_remote_registers_t *registers, bool symbolize)
 {
     // an uncaught exception, e.g. std::bad_alloc, would abort the daemon
     try {
-        std::unique_ptr<unwindstack::Regs> regs(
-            unwindstack::Regs::RemoteGet(tid));
+        std::unique_ptr<unwindstack::Regs> regs(context
+                ? unwindstack::Regs::CreateFromUcontext(
+                      unwindstack::Regs::CurrentArch(),
+                      const_cast<ucontext_t *>(context))
+                : unwindstack::Regs::RemoteGet(tid));
         if (!regs) {
             SENTRY_WARNF("libunwindstack failed to read registers of %d", tid);
             return 0;
@@ -98,7 +102,7 @@ unwind_thread(pid_t tid, sentry_remote_frame_t *frames, size_t max_frames,
 
 extern "C" size_t
 sentry__unwind_stack_from_thread_libunwindstack_remote(pid_t tid,
-    sentry_remote_frame_t *frames, size_t max_frames,
+    const ucontext_t *context, sentry_remote_frame_t *frames, size_t max_frames,
     sentry_remote_registers_t *registers, bool symbolize)
 {
     if (registers) {
@@ -109,11 +113,17 @@ sentry__unwind_stack_from_thread_libunwindstack_remote(pid_t tid,
         return 0;
     }
 
+    if (context) {
+        return unwind_thread(
+            tid, context, frames, max_frames, registers, symbolize);
+    }
+
     if (!sentry__ptrace_attach_thread(tid)) {
         return 0;
     }
 
-    size_t count = unwind_thread(tid, frames, max_frames, registers, symbolize);
+    size_t count
+        = unwind_thread(tid, NULL, frames, max_frames, registers, symbolize);
 
     ptrace(PTRACE_DETACH, tid, NULL, NULL);
     return count;

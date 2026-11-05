@@ -842,6 +842,21 @@ static void enrich_stacktrace(
     const sentry_crash_context_t *ctx, sentry_value_t stacktrace);
 
 /**
+ * Does the handler's capture hold the crashed thread's stack? The fault IP
+ * alone does not count with libunwindstack, which can unwind the saved context.
+ */
+static bool
+has_captured_stack(const sentry_crash_context_t *ctx)
+{
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE
+    return ctx->capture.count > 1;
+#else
+    return ctx->capture.count > 1
+        || (ctx->capture.count == 1 && ctx->capture.ips[0] != 0);
+#endif
+}
+
+/**
  * Build stacktrace frames for a specific thread using frame pointer-based
  * unwinding. Reads the captured stack memory and walks the frame chain.
  *
@@ -854,9 +869,7 @@ static sentry_value_t
 build_stacktrace_for_thread(
     const sentry_crash_context_t *ctx, size_t thread_idx)
 {
-    if (thread_idx == SIZE_MAX
-        && (ctx->capture.count > 1
-            || (ctx->capture.count == 1 && ctx->capture.ips[0] != 0))) {
+    if (thread_idx == SIZE_MAX && has_captured_stack(ctx)) {
         sentry_value_t captured = sentry__crash_context_build_stacktrace(
             ctx, build_registers_from_ctx(ctx, SIZE_MAX));
         enrich_stacktrace(ctx, captured);
@@ -1129,8 +1142,8 @@ build_stacktrace_for_thread(
     int frame_count = 0;
 
 #if defined(SENTRY_PLATFORM_LINUX)
-    // Remote DWARF unwinding via ptrace. Do not attach to
-    // the crashed thread from the daemon; use the saved fault context below.
+    // Remote DWARF unwinding. Do not attach to the crashed thread from the
+    // daemon. Unwind its saved fault context instead.
     {
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)                         \
         || defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE)
@@ -1144,13 +1157,15 @@ build_stacktrace_for_thread(
         bool is_crashed_thread
             = thread_idx == SIZE_MAX || tid == ctx->crashed_tid;
 
-        if (tid > 0 && !is_crashed_thread) {
+        if (tid > 0) {
             sentry_remote_registers_t registers = { 0 };
             sentry_remote_frame_t *remote_frames
                 = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
             size_t remote_count = remote_frames
-                ? sentry__unwind_stack_from_thread(tid, remote_frames,
-                      MAX_STACK_FRAMES, &registers, ctx->symbolize_stacktraces)
+                ? sentry__unwind_stack_from_thread(tid,
+                      is_crashed_thread ? &ctx->platform.context : NULL,
+                      remote_frames, MAX_STACK_FRAMES, &registers,
+                      ctx->symbolize_stacktraces)
                 : 0;
 
             if (remote_count > 0) {
@@ -3409,6 +3424,13 @@ build_native_event(const sentry_crash_context_t *ctx, sentry_value_t base,
         sentry_event_add_exception(event, exc);
     } else {
         sentry_value_t stacktrace = sentry_value_get_by_key(exc, "stacktrace");
+        sentry_value_t unwound = has_captured_stack(ctx)
+            ? sentry_value_new_null()
+            : build_stacktrace_from_ctx(ctx);
+        if (!sentry_value_is_null(unwound)) {
+            sentry_value_set_by_key(exc, "stacktrace", unwound);
+            stacktrace = unwound;
+        }
         enrich_stacktrace(ctx, stacktrace);
     }
 
