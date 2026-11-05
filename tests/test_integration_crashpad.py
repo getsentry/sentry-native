@@ -1545,13 +1545,19 @@ def test_crashpad_breadcrumbs(cmake, httpserver, count, reinstall, crash_arg):
 
 
 def start_until_handler(tmp_path, args, env=None):
-    # the fixture sleeps after the handler has started, which leaves the test
-    # time to stall the handler before the scope updates that follow. The
-    # handler inherits stdout, so the output goes to a file instead of a pipe.
+    # with no-setup, nothing reaches the handler between its start and the
+    # fixture's sleep, which leaves the test time to stall the handler before
+    # the scope updates that follow. The handler inherits stdout, so the output
+    # goes to a file instead of a pipe.
     log_path = tmp_path / "stalled-handler.log"
     with open(log_path, "w") as log:
         child = subprocess.Popen(
-            [*run_command(str(tmp_path / "sentry_test_integration")), "log", "sleep"]
+            [
+                *run_command(str(tmp_path / "sentry_test_integration")),
+                "log",
+                "no-setup",
+                "sleep",
+            ]
             + args,
             cwd=tmp_path,
             env=env,
@@ -1614,4 +1620,6 @@ def test_crashpad_busy_handler_crash(cmake, httpserver):
 
     assert waiting.result
     assert len(httpserver.log) == 1
-    assert_crashpad_upload(httpserver.log[0][0])
+    assert_crashpad_upload(
+        httpserver.log[0][0], expect_breadcrumbs=False, expect_default_scope=False
+    )
