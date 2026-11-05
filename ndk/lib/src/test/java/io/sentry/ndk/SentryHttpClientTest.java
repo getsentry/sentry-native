@@ -63,6 +63,7 @@ public class SentryHttpClientTest {
             new String[] {"Content-Type", "application/x-sentry-envelope", "X-Sentry-Auth", "auth"},
             ByteBuffer.wrap(body),
             null,
+            0,
             body.length);
 
     assertEquals(200, response.statusCode);
@@ -92,6 +93,7 @@ public class SentryHttpClientTest {
           new String[] {"Tus-Resumable", "1.0.0"},
           null,
           file.getPath(),
+          0,
           body.length);
 
       assertEquals("PATCH", connection.getRequestMethod());
@@ -103,8 +105,35 @@ public class SentryHttpClientTest {
   }
 
   @Test
+  public void streamsAttachmentChunk() throws Exception {
+    final File file = File.createTempFile("sentry-http", ".attachment");
+    try {
+      final byte[] body = new byte[20000];
+      for (int i = 0; i < body.length; i++) {
+        body[i] = (byte) i;
+      }
+      try (OutputStream output = new FileOutputStream(file)) {
+        output.write(body);
+      }
+      client.send(
+          "PATCH",
+          connection.getURL().toString(),
+          new String[] {"Tus-Resumable", "1.0.0"},
+          null,
+          file.getPath(),
+          5000,
+          10000);
+
+      assertEquals(10000, connection.bodyLength());
+      assertArrayEquals(Arrays.copyOfRange(body, 5000, 15000), connection.output.toByteArray());
+    } finally {
+      assertTrue(file.delete());
+    }
+  }
+
+  @Test
   public void sendsBodylessRequest() throws Exception {
-    client.send("POST", connection.getURL().toString(), new String[0], null, null, 0);
+    client.send("POST", connection.getURL().toString(), new String[0], null, null, 0, 0);
 
     assertEquals("POST", connection.getRequestMethod());
     assertFalse(connection.getDoOutput());
@@ -121,7 +150,7 @@ public class SentryHttpClientTest {
     connection.headers.put("Other", Arrays.asList("one", "two"));
 
     final SentryHttpClient.Response response =
-        client.send("POST", connection.getURL().toString(), new String[0], null, null, 0);
+        client.send("POST", connection.getURL().toString(), new String[0], null, null, 0, 0);
 
     assertEquals(429, response.statusCode);
     assertArrayEquals(
@@ -146,7 +175,7 @@ public class SentryHttpClientTest {
 
     assertThrows(
         IOException.class,
-        () -> client.send("POST", connection.getURL().toString(), new String[0], null, null, 0));
+        () -> client.send("POST", connection.getURL().toString(), new String[0], null, null, 0, 0));
 
     assertTrue(connection.disconnected);
   }
@@ -158,7 +187,7 @@ public class SentryHttpClientTest {
 
     assertThrows(
         IOException.class,
-        () -> client.send("POST", connection.getURL().toString(), new String[0], null, null, 0));
+        () -> client.send("POST", connection.getURL().toString(), new String[0], null, null, 0, 0));
 
     assertTrue(connection.disconnected);
   }
@@ -180,6 +209,7 @@ public class SentryHttpClientTest {
                               new String[0],
                               null,
                               null,
+                              0,
                               0)));
       assertTrue(connection.entered.await(2, TimeUnit.SECONDS));
       client.shutdown();
@@ -197,7 +227,7 @@ public class SentryHttpClientTest {
 
     assertThrows(
         IOException.class,
-        () -> client.send("POST", connection.getURL().toString(), new String[0], null, null, 0));
+        () -> client.send("POST", connection.getURL().toString(), new String[0], null, null, 0, 0));
   }
 
   @Test
@@ -206,7 +236,7 @@ public class SentryHttpClientTest {
 
     assertThrows(
         IOException.class,
-        () -> client.send("POST", connection.getURL().toString(), new String[0], null, null, 0));
+        () -> client.send("POST", connection.getURL().toString(), new String[0], null, null, 0, 0));
 
     assertTrue(connection.disconnected);
   }
@@ -224,6 +254,7 @@ public class SentryHttpClientTest {
                 new String[0],
                 ByteBuffer.wrap(new byte[] {1}),
                 null,
+                0,
                 1));
 
     assertEquals(0, connection.output.size());

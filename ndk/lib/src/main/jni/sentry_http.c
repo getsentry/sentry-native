@@ -45,7 +45,7 @@ load_client_class(JNIEnv *env)
                  "(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"))
         || !(g_send = (*env)->GetMethodID(env, g_client_class, "send",
                  "(Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;"
-                 "Ljava/nio/ByteBuffer;Ljava/lang/String;J)"
+                 "Ljava/nio/ByteBuffer;Ljava/lang/String;JJ)"
                  "Lio/sentry/ndk/SentryHttpClient$Response;"))
         || !(g_shutdown
             = (*env)->GetMethodID(env, g_client_class, "shutdown", "()V"))
@@ -242,7 +242,8 @@ client_send(sentry_http_client_t *client, sentry_http_request_t *req,
         }
     }
     jobject response = (*env)->CallObjectMethod(env, client, g_send, method,
-        url, headers, buffer, path, (jlong)body_len);
+        url, headers, buffer, path,
+        (jlong)sentry_http_request_get_body_file_offset(req), (jlong)body_len);
     if (clear_exception(env) || !response) {
         goto done;
     }

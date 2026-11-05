@@ -87,6 +87,7 @@ class SentryHttpClient {
       String[] headers,
       @Nullable ByteBuffer body,
       @Nullable String bodyPath,
+      long bodyOffset,
       long bodyLength)
       throws IOException {
     final HttpURLConnection connection = openConnection(new URL(url));
@@ -129,11 +130,17 @@ class SentryHttpClient {
         connection.setFixedLengthStreamingMode(bodyLength);
         try (OutputStream output = connection.getOutputStream()) {
           if (bodyPath != null) {
-            try (InputStream input = new FileInputStream(bodyPath)) {
-              int count;
-              while ((count = input.read(buffer)) != -1) {
+            try (FileInputStream input = new FileInputStream(bodyPath)) {
+              input.getChannel().position(bodyOffset);
+              long remaining = bodyLength;
+              while (remaining > 0) {
+                final int count = input.read(buffer, 0, (int) Math.min(buffer.length, remaining));
+                if (count == -1) {
+                  break;
+                }
                 checkCancelled(expired);
                 output.write(buffer, 0, count);
+                remaining -= count;
               }
             }
           } else {
