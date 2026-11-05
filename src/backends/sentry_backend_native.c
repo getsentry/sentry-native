@@ -67,22 +67,28 @@ static char g_ipc_sem_name[64] = { 0 };
 #if defined(SENTRY_PLATFORM_ANDROID)
 typedef struct {
     bool configured;
-    char shm_path[SENTRY_CRASH_MAX_PATH];
+    int shm_fd;
     int notify_fd;
     int ready_fd;
     int message_fd;
 } android_crash_daemon_config_t;
 
 static android_crash_daemon_config_t g_android_crash_daemon_config
-    = { false, { 0 }, -1, -1, -1 };
+    = { false, -1, -1, -1, -1 };
+
+__attribute__((visibility("default"))) int
+sentry_android_crash_daemon_create_shm(void)
+{
+    return sentry__crash_ipc_create_memfd();
+}
 
 __attribute__((visibility("default"))) void
 sentry_android_crash_daemon_init(
-    const char *shm_path, int notify_fd, int ready_fd, int message_fd)
+    int shm_fd, int notify_fd, int ready_fd, int message_fd)
 {
-    if (!shm_path || !shm_path[0] || notify_fd < 0 || ready_fd < 0
-        || message_fd < 0) {
+    if (shm_fd < 0 || notify_fd < 0 || ready_fd < 0 || message_fd < 0) {
         // the backend owns the fds, even when it rejects them
+        close(shm_fd);
         close(notify_fd);
         close(ready_fd);
         close(message_fd);
@@ -92,15 +98,12 @@ sentry_android_crash_daemon_init(
     sentry__mutex_lock(&g_ipc_sync_mutex);
     // replaces a configuration that no backend startup took
     if (g_android_crash_daemon_config.configured) {
+        close(g_android_crash_daemon_config.shm_fd);
         close(g_android_crash_daemon_config.notify_fd);
         close(g_android_crash_daemon_config.ready_fd);
         close(g_android_crash_daemon_config.message_fd);
     }
-    strncpy(g_android_crash_daemon_config.shm_path, shm_path,
-        sizeof(g_android_crash_daemon_config.shm_path) - 1);
-    g_android_crash_daemon_config
-        .shm_path[sizeof(g_android_crash_daemon_config.shm_path) - 1]
-        = '\0';
+    g_android_crash_daemon_config.shm_fd = shm_fd;
     g_android_crash_daemon_config.notify_fd = notify_fd;
     g_android_crash_daemon_config.ready_fd = ready_fd;
     g_android_crash_daemon_config.message_fd = message_fd;
@@ -109,18 +112,17 @@ sentry_android_crash_daemon_init(
 }
 
 static bool
-take_android_crash_daemon_config(char *shm_path, size_t shm_path_len,
-    int *notify_fd, int *ready_fd, int *message_fd)
+take_android_crash_daemon_config(
+    int *shm_fd, int *notify_fd, int *ready_fd, int *message_fd)
 {
     bool configured = false;
     sentry__mutex_lock(&g_ipc_sync_mutex);
     if (g_android_crash_daemon_config.configured) {
-        strncpy(
-            shm_path, g_android_crash_daemon_config.shm_path, shm_path_len - 1);
-        shm_path[shm_path_len - 1] = '\0';
+        *shm_fd = g_android_crash_daemon_config.shm_fd;
         *notify_fd = g_android_crash_daemon_config.notify_fd;
         *ready_fd = g_android_crash_daemon_config.ready_fd;
         *message_fd = g_android_crash_daemon_config.message_fd;
+        g_android_crash_daemon_config.shm_fd = -1;
         g_android_crash_daemon_config.notify_fd = -1;
         g_android_crash_daemon_config.ready_fd = -1;
         g_android_crash_daemon_config.message_fd = -1;
@@ -854,15 +856,15 @@ native_backend_startup(
 #elif defined(SENTRY_PLATFORM_IOS)
     state->ipc = sentry__crash_ipc_init_app(NULL);
 #elif defined(SENTRY_PLATFORM_ANDROID)
-    char service_shm_path[SENTRY_CRASH_MAX_PATH] = { 0 };
+    int service_shm_fd = -1;
     int service_notify_fd = -1;
     int service_ready_fd = -1;
     int service_message_fd = -1;
-    state->android_service_daemon = take_android_crash_daemon_config(
-        service_shm_path, sizeof(service_shm_path), &service_notify_fd,
-        &service_ready_fd, &service_message_fd);
+    state->android_service_daemon
+        = take_android_crash_daemon_config(&service_shm_fd, &service_notify_fd,
+            &service_ready_fd, &service_message_fd);
     if (state->android_service_daemon) {
-        state->ipc = sentry__crash_ipc_init_app_with_fds(service_shm_path,
+        state->ipc = sentry__crash_ipc_init_app_with_fds(service_shm_fd,
             service_notify_fd, service_ready_fd, service_message_fd,
             &g_ipc_sync_mutex);
     } else {

@@ -163,7 +163,23 @@ sentry__crash_ipc_message_decode(
 #    include <sys/file.h>
 #    include <sys/socket.h>
 #    include <sys/stat.h>
+#    include <sys/syscall.h>
 #    include <unistd.h>
+
+#    ifndef MFD_CLOEXEC
+#        define MFD_CLOEXEC 0x0001U
+#    endif
+
+int
+sentry__crash_ipc_create_memfd(void)
+{
+#    ifdef SYS_memfd_create
+    return (int)syscall(SYS_memfd_create, "sentry-crash", MFD_CLOEXEC);
+#    else
+    errno = ENOSYS;
+    return -1;
+#    endif
+}
 
 #    if defined(SENTRY_PLATFORM_ANDROID)
 // Bionic implements neither shm_open() nor sem_open(). Map a file in the
@@ -203,23 +219,15 @@ init_unlock(sentry_crash_ipc_t *ipc)
     }
 }
 #    else
-#        include <sys/syscall.h>
-
-#        ifndef MFD_CLOEXEC
-#            define MFD_CLOEXEC 0x0001U
-#        endif
-
 static int
 shm_create(sentry_crash_ipc_t *ipc)
 {
-#        ifdef SYS_memfd_create
     // shm_open() memory raises SIGBUS on write when /dev/shm is full
-    int fd = (int)syscall(SYS_memfd_create, "sentry-crash", MFD_CLOEXEC);
+    int fd = sentry__crash_ipc_create_memfd();
     if (fd >= 0) {
         ipc->shm_name[0] = '\0';
         return fd;
     }
-#        endif
     return shm_open(ipc->shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
 }
 
@@ -251,14 +259,15 @@ init_unlock(sentry_crash_ipc_t *ipc)
 #    endif
 
 /**
- * Creates or reuses the shared memory named by `ipc->shm_name`, and the
- * notification and message fds that were not handed over (-1).
+ * Creates what was not handed over (-1): the shared memory, or reuses that
+ * named by `ipc->shm_name`, and the notification and message fds.
  */
 static sentry_crash_ipc_t *
-init_app(sentry_crash_ipc_t *ipc, int notify_fd, int ready_fd, int message_fd)
+init_app(sentry_crash_ipc_t *ipc, int shm_fd, int notify_fd, int ready_fd,
+    int message_fd)
 {
     ipc->is_daemon = false;
-    ipc->shm_fd = -1;
+    ipc->shm_fd = shm_fd;
     ipc->notify_fd = notify_fd;
     ipc->ready_fd = ready_fd;
     ipc->message_fd[0] = message_fd;
@@ -274,7 +283,9 @@ init_app(sentry_crash_ipc_t *ipc, int notify_fd, int ready_fd, int message_fd)
 
     // Try to create or open shared memory
     bool shm_exists = false;
-    ipc->shm_fd = shm_create(ipc);
+    if (ipc->shm_fd < 0) {
+        ipc->shm_fd = shm_create(ipc);
+    }
     if (ipc->shm_fd < 0 && errno == EEXIST) {
         // Shared memory already exists - reuse it
         shm_exists = true;
@@ -410,26 +421,20 @@ sentry__crash_ipc_init_app(
     snprintf(ipc->shm_name, sizeof(ipc->shm_name), "%s/.sentry-shm-%08x",
         database_path, id);
 
-    return init_app(ipc, -1, -1, -1);
+    return init_app(ipc, -1, -1, -1, -1);
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_app_with_fds(const char *shm_path, int notify_fd,
-    int ready_fd, int message_fd, sentry_mutex_t *init_mutex)
+sentry__crash_ipc_init_app_with_fds(int shm_fd, int notify_fd, int ready_fd,
+    int message_fd, sentry_mutex_t *init_mutex)
 {
-    if (!shm_path || !shm_path[0]) {
-        SENTRY_WARN("Android crash IPC requires a shared memory path");
-        return NULL;
-    }
-
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
     ipc->init_mutex = init_mutex;
-    strncpy(ipc->shm_name, shm_path, sizeof(ipc->shm_name) - 1);
 
-    return init_app(ipc, notify_fd, ready_fd, message_fd);
+    return init_app(ipc, shm_fd, notify_fd, ready_fd, message_fd);
 }
 
 bool
@@ -483,7 +488,7 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
     snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
 
-    return init_app(ipc, -1, -1, -1);
+    return init_app(ipc, -1, -1, -1, -1);
 }
 #    endif
 

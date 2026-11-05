@@ -21,17 +21,13 @@ public final class SentryNdk {
    */
   private static native int initSentryNative(@NotNull final NdkOptions options);
 
+  private static native int nativeCreateCrashShm();
+
   private static native void nativeInitCrashDaemon(
-      @NotNull String shmPath, int notifyFd, int readyFd, int messageFd);
+      int shmFd, int notifyFd, int readyFd, int messageFd);
 
   private static native long nativeRunCrashDaemon(
-      int appPid,
-      long appTid,
-      int notifyFd,
-      int readyFd,
-      int messageFd,
-      @Nullable String shmPath,
-      int shmFd);
+      int appPid, long appTid, int notifyFd, int readyFd, int messageFd, int shmFd);
 
   private static native int nativeDupCrashShmFd();
 
@@ -79,29 +75,22 @@ public final class SentryNdk {
     }
   }
 
-  public static void initCrashDaemon(
-      @NotNull String shmPath, int notifyFd, int readyFd, int messageFd) {
+  /** Creates the shared memory of the crash IPC, or returns -1 if that fails. Needs API 30+. */
+  public static int createCrashShm() {
     loadNativeLibraries();
-    nativeInitCrashDaemon(shmPath, notifyFd, readyFd, messageFd);
+    return nativeCreateCrashShm();
   }
 
-  /**
-   * Runs a crash daemon for an app process until it exits or crashes.
-   *
-   * @param shmPath the shared memory file of a configuring app, or null with {@code shmFd}
-   * @param shmFd the shared memory file of a reattaching app, or -1 with {@code shmPath}
-   */
-  public static @Nullable CrashDaemon runCrashDaemon(
-      int appPid,
-      long appTid,
-      int notifyFd,
-      int readyFd,
-      int messageFd,
-      @Nullable String shmPath,
-      int shmFd) {
+  public static void initCrashDaemon(int shmFd, int notifyFd, int readyFd, int messageFd) {
     loadNativeLibraries();
-    final long handle =
-        nativeRunCrashDaemon(appPid, appTid, notifyFd, readyFd, messageFd, shmPath, shmFd);
+    nativeInitCrashDaemon(shmFd, notifyFd, readyFd, messageFd);
+  }
+
+  /** Runs a crash daemon for an app process until it exits or crashes. */
+  public static @Nullable CrashDaemon runCrashDaemon(
+      int appPid, long appTid, int notifyFd, int readyFd, int messageFd, int shmFd) {
+    loadNativeLibraries();
+    final long handle = nativeRunCrashDaemon(appPid, appTid, notifyFd, readyFd, messageFd, shmFd);
     return handle == 0 ? null : new CrashDaemon(handle);
   }
 

@@ -175,7 +175,7 @@ typedef struct {
 #if defined(SENTRY_PLATFORM_ANDROID)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(
     const char *database_path, sentry_mutex_t *init_mutex);
-sentry_crash_ipc_t *sentry__crash_ipc_init_app_with_fds(const char *shm_path,
+sentry_crash_ipc_t *sentry__crash_ipc_init_app_with_fds(int shm_fd,
     int notify_fd, int ready_fd, int message_fd, sentry_mutex_t *init_mutex);
 /**
  * Replaces the app's daemon fds with those of a restarted crash service, and
@@ -192,6 +192,14 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex);
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(HANDLE init_mutex);
 #else
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
+#endif
+
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+/**
+ * Creates anonymous shared memory that depends on neither the disk nor
+ * /dev/shm. Returns -1 on failure.
+ */
+int sentry__crash_ipc_create_memfd(void);
 #endif
 
 /**

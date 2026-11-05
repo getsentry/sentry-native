@@ -109,13 +109,14 @@ public final class io/sentry/ndk/NdkOptions {
 
 public final class io/sentry/ndk/SentryNdk {
 	public static fun close ()V
+	public static fun createCrashShm ()I
 	public static fun dupCrashShmFd ()I
 	public static fun init (Lio/sentry/ndk/NdkOptions;)V
-	public static fun initCrashDaemon (Ljava/lang/String;III)V
+	public static fun initCrashDaemon (IIII)V
 	public static fun loadNativeLibraries ()V
 	public static fun preload ()V
 	public static fun reattachCrashDaemon (III)Z
-	public static fun runCrashDaemon (IJIIILjava/lang/String;I)Lio/sentry/ndk/SentryNdk$CrashDaemon;
+	public static fun runCrashDaemon (IJIIII)Lio/sentry/ndk/SentryNdk$CrashDaemon;
 }
 
 public final class io/sentry/ndk/SentryNdk$CrashDaemon : java/lang/AutoCloseable {

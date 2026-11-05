@@ -11,12 +11,12 @@
 
 #include "sentry_http.h"
 
-extern void sentry_android_crash_daemon_init(const char *shm_path,
-    int notify_fd, int ready_fd, int message_fd) __attribute__((weak));
+extern int sentry_android_crash_daemon_create_shm(void) __attribute__((weak));
+extern void sentry_android_crash_daemon_init(int shm_fd, int notify_fd,
+    int ready_fd, int message_fd) __attribute__((weak));
 typedef struct sentry_crash_daemon_s sentry_crash_daemon_t;
 extern sentry_crash_daemon_t *sentry_android_crash_daemon_run(int app_pid,
-    uint64_t app_tid, int notify_fd, int ready_fd, int message_fd,
-    const char *shm_path, int shm_fd,
+    uint64_t app_tid, int notify_fd, int ready_fd, int message_fd, int shm_fd,
     sentry_transport_t *transport) __attribute__((weak));
 extern const char *sentry_android_crash_daemon_get_envelope_path(
     const sentry_crash_daemon_t *daemon) __attribute__((weak));
@@ -567,26 +567,29 @@ fail:
     return (jint)-1;
 }
 
+JNIEXPORT jint JNICALL
+Java_io_sentry_ndk_SentryNdk_nativeCreateCrashShm(JNIEnv *env, jclass cls) {
+    return sentry_android_crash_daemon_create_shm
+        ? (jint) sentry_android_crash_daemon_create_shm()
+        : -1;
+}
+
 JNIEXPORT void JNICALL
 Java_io_sentry_ndk_SentryNdk_nativeInitCrashDaemon(
         JNIEnv *env,
         jclass cls,
-        jstring shm_path,
+        jint shm_fd,
         jint notify_fd,
         jint ready_fd,
         jint message_fd) {
-    ENSURE_OR_FAIL(shm_path && sentry_android_crash_daemon_init);
-
-    const char *shm_path_chars = (*env)->GetStringUTFChars(env, shm_path, 0);
-    ENSURE_OR_FAIL(shm_path_chars);
+    ENSURE_OR_FAIL(sentry_android_crash_daemon_init);
 
     sentry_android_crash_daemon_init(
-        shm_path_chars, (int) notify_fd, (int) ready_fd, (int) message_fd);
-
-    (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);
+        (int) shm_fd, (int) notify_fd, (int) ready_fd, (int) message_fd);
     return;
 
 fail:
+    close(shm_fd);
     close(notify_fd);
     close(ready_fd);
     close(message_fd);
@@ -601,22 +604,14 @@ Java_io_sentry_ndk_SentryNdk_nativeRunCrashDaemon(
         jint notify_fd,
         jint ready_fd,
         jint message_fd,
-        jstring shm_path,
         jint shm_fd) {
     ENSURE_OR_FAIL(sentry_android_crash_daemon_run);
 
-    const char *shm_path_chars
-        = shm_path ? (*env)->GetStringUTFChars(env, shm_path, 0) : NULL;
-    ENSURE_OR_FAIL(!shm_path || shm_path_chars);
-
     sentry_crash_daemon_t *daemon = sentry_android_crash_daemon_run(
         (int) app_pid, (uint64_t) app_tid, (int) notify_fd, (int) ready_fd,
-        (int) message_fd, shm_path_chars, (int) shm_fd,
+        (int) message_fd, (int) shm_fd,
         sentry_android_http_transport_new(env));
 
-    if (shm_path_chars) {
-        (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);
-    }
     return (jlong)(uintptr_t)daemon;
 
 fail:
