@@ -474,8 +474,8 @@ sentry_close(void)
         sentry__crash_reserve_release();
 
         if (options->transport) {
-            if (sentry__transport_shutdown(
-                    options->transport, options->shutdown_timeout)
+            if (sentry__transport_shutdown(options->transport,
+                    sentry_options_get_shutdown_timeout(options))
                 != 0) {
                 SENTRY_WARN("transport did not shut down cleanly");
             }
