@@ -165,7 +165,18 @@ resolve_handler_path(const sentry_options_t *options)
     }
 
     if (!sentry__path_is_file(handler_path)) {
-        SENTRY_WARNF("Android crash daemon is missing: %s", handler_path->path);
+        // fall back to sentry-crash next to the executable (as in adb runs)
+        sentry__path_free(handler_path);
+        sentry_path_t *exe_path = sentry__path_current_exe();
+        sentry_path_t *exe_dir = exe_path ? sentry__path_dir(exe_path) : NULL;
+        handler_path
+            = exe_dir ? sentry__path_join_str(exe_dir, "sentry-crash") : NULL;
+        sentry__path_free(exe_dir);
+        sentry__path_free(exe_path);
+    }
+
+    if (!handler_path || !sentry__path_is_file(handler_path)) {
+        SENTRY_WARN("Android crash daemon is missing");
         sentry__path_free(handler_path);
         return NULL;
     }
@@ -1085,9 +1096,11 @@ native_backend_startup(
     } else {
         daemon_handler_path = resolve_handler_path(options);
         uint64_t tid = (uint64_t)pthread_self();
-        state->daemon_pid = daemon_start(getpid(), tid, state->ipc->notify_fd,
-            state->ipc->ready_fd, state->ipc->shm_fd, state->ipc->message_fd[1],
-            daemon_handler_path);
+        state->daemon_pid = daemon_handler_path
+            ? daemon_start(getpid(), tid, state->ipc->notify_fd,
+                  state->ipc->ready_fd, state->ipc->shm_fd,
+                  state->ipc->message_fd[1], daemon_handler_path)
+            : -1;
     }
 #    elif defined(SENTRY_PLATFORM_LINUX)
     daemon_handler_path = resolve_handler_path(options);
