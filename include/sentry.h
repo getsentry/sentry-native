@@ -2412,6 +2412,8 @@ SENTRY_API void sentry_options_set_crash_memory_reserve(
 /**
  * Sets the maximum time (in milliseconds) to wait for the asynchronous
  * tasks to end on shutdown before attempting a forced termination.
+ * Defaults to 2 seconds. With `SENTRY_CRASH_UPLOAD_MODE_ASYNC`, the native
+ * crash daemon instead defaults to 10 seconds for uploading crashes.
  */
 SENTRY_API void sentry_options_set_shutdown_timeout(
     sentry_options_t *opts, uint64_t shutdown_timeout);

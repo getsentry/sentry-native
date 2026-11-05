@@ -112,7 +112,7 @@ sentry_options_new(void)
     opts->backend = sentry__backend_new();
     opts->transport = sentry_transport_new_default();
     opts->refcount = 1;
-    opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
+    opts->shutdown_timeout = UINT64_MAX;
     opts->transfer_timeout = SENTRY_DEFAULT_TRANSFER_TIMEOUT;
     sentry_options_set_sample_rate(
         opts, sentry__getenv_double("SENTRY_SAMPLE_RATE", 1.0));
@@ -771,7 +771,15 @@ sentry_options_set_shutdown_timeout(
 uint64_t
 sentry_options_get_shutdown_timeout(const sentry_options_t *opts)
 {
-    return opts->shutdown_timeout;
+    return sentry__options_has_shutdown_timeout(opts)
+        ? opts->shutdown_timeout
+        : SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
+}
+
+bool
+sentry__options_has_shutdown_timeout(const sentry_options_t *opts)
+{
+    return opts->shutdown_timeout != UINT64_MAX;
 }
 
 void

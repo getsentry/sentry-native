@@ -4583,6 +4583,12 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     options->enable_large_attachments = ipc->shmem->enable_large_attachments;
     options->http_retry = false;
     options->shutdown_timeout = ipc->shmem->shutdown_timeout;
+    // Use a longer default timeout for async uploads, which run in the
+    // background after the crashed app exits.
+    if (!sentry__options_has_shutdown_timeout(options)
+        && ipc->shmem->crash_upload_mode == SENTRY_CRASH_UPLOAD_MODE_ASYNC) {
+        options->shutdown_timeout = SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS;
+    }
     options->transfer_timeout = ipc->shmem->transfer_timeout;
 
     // Set custom logger that writes to file
@@ -4793,8 +4799,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         if (options->transport) {
             // Wait for the configured SDK shutdown timeout to send pending
             // envelopes (crash envelope + logs envelope, etc.).
-            int rv = sentry__transport_shutdown(
-                options->transport, options->shutdown_timeout);
+            int rv = sentry__transport_shutdown(options->transport,
+                sentry_options_get_shutdown_timeout(options));
             if (rv != 0) {
                 SENTRY_WARN("transport did not shut down cleanly");
             }
