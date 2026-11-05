@@ -2043,8 +2043,9 @@ def test_native_proxy_system(cmake, httpserver, proxy_empty):
 
 
 full_mode_test = pytest.mark.skipif(
-    sys.platform == "win32" or is_wine or is_asan or is_tsan,
-    reason="Covers the Linux and macOS writers, without sanitizer shadow memory",
+    sys.platform == "win32" or is_wine or is_asan or is_tsan or is_kcov,
+    reason="Covers the Linux and macOS writers, without sanitizer shadow memory "
+    "or kcov's ptrace tracer",
 )
 
 
