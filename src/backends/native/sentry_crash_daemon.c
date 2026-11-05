@@ -4643,7 +4643,8 @@ sentry_android_crash_daemon_send(
 __attribute__((visibility("default"))) void
 sentry_android_crash_daemon_close(sentry_crash_daemon_t *daemon)
 {
-    android_cleanup_pending_crash_daemon(daemon, true);
+    // the next launch sends the unsent envelope
+    android_cleanup_pending_crash_daemon(daemon, false);
 }
 
 static void
