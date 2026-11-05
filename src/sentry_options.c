@@ -769,7 +769,7 @@ sentry_options_set_shutdown_timeout(
 }
 
 uint64_t
-sentry_options_get_shutdown_timeout(sentry_options_t *opts)
+sentry_options_get_shutdown_timeout(const sentry_options_t *opts)
 {
     return opts->shutdown_timeout;
 }
@@ -782,7 +782,7 @@ sentry_options_set_transfer_timeout(
 }
 
 uint64_t
-sentry_options_get_transfer_timeout(sentry_options_t *opts)
+sentry_options_get_transfer_timeout(const sentry_options_t *opts)
 {
     return opts->transfer_timeout;
 }
@@ -953,7 +953,7 @@ sentry_options_set_max_spans(sentry_options_t *opts, size_t max_spans)
  * transaction.
  */
 size_t
-sentry_options_get_max_spans(sentry_options_t *opts)
+sentry_options_get_max_spans(const sentry_options_t *opts)
 {
     return opts->max_spans;
 }
@@ -974,7 +974,7 @@ sentry_options_set_traces_sample_rate(
  * Returns the sample rate for transactions.
  */
 double
-sentry_options_get_traces_sample_rate(sentry_options_t *opts)
+sentry_options_get_traces_sample_rate(const sentry_options_t *opts)
 {
     return opts->traces_sample_rate;
 }

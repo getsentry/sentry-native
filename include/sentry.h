@@ -2420,7 +2420,8 @@ SENTRY_API void sentry_options_set_shutdown_timeout(
  * Gets the maximum time (in milliseconds) to wait for the asynchronous tasks to
  * end on shutdown before attempting a forced termination.
  */
-SENTRY_API uint64_t sentry_options_get_shutdown_timeout(sentry_options_t *opts);
+SENTRY_API uint64_t sentry_options_get_shutdown_timeout(
+    const sentry_options_t *opts);
 
 /**
  * Sets the timeout (in milliseconds) for HTTP transfer operations.
@@ -2440,7 +2441,8 @@ SENTRY_API void sentry_options_set_transfer_timeout(
 /**
  * Gets the timeout (in milliseconds) for HTTP transfer operations.
  */
-SENTRY_API uint64_t sentry_options_get_transfer_timeout(sentry_options_t *opts);
+SENTRY_API uint64_t sentry_options_get_transfer_timeout(
+    const sentry_options_t *opts);
 
 /**
  * Sets a user-defined backend.
@@ -3093,7 +3095,7 @@ SENTRY_API void sentry_options_set_max_spans(
  * Gets the maximum number of spans that can be attached to a
  * transaction.
  */
-SENTRY_API size_t sentry_options_get_max_spans(sentry_options_t *opts);
+SENTRY_API size_t sentry_options_get_max_spans(const sentry_options_t *opts);
 
 /**
  * Sets the sample rate for transactions. Should be a double between
@@ -3106,7 +3108,8 @@ SENTRY_API void sentry_options_set_traces_sample_rate(
 /**
  * Returns the sample rate for transactions.
  */
-SENTRY_API double sentry_options_get_traces_sample_rate(sentry_options_t *opts);
+SENTRY_API double sentry_options_get_traces_sample_rate(
+    const sentry_options_t *opts);
 
 /**
  * A sentry Transaction Context.
@@ -4498,13 +4501,13 @@ typedef void (*sentry_iter_headers_function_t)(
 /**
  * Iterates the distributed tracing HTTP headers for the given span.
  */
-SENTRY_API void sentry_span_iter_headers(sentry_span_t *span,
+SENTRY_API void sentry_span_iter_headers(const sentry_span_t *span,
     sentry_iter_headers_function_t callback, void *userdata);
 
 /**
  * Iterates the distributed tracing HTTP headers for the given transaction.
  */
-SENTRY_API void sentry_transaction_iter_headers(sentry_transaction_t *tx,
+SENTRY_API void sentry_transaction_iter_headers(const sentry_transaction_t *tx,
     sentry_iter_headers_function_t callback, void *userdata);
 
 /**
