@@ -4,6 +4,7 @@
 #include "sentry_minidump_format.h"
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 /**
  * Common minidump writer base structure
@@ -53,5 +54,36 @@ minidump_rva_t sentry__minidump_write_string(
  * @return Size of the architecture-specific context structure
  */
 size_t sentry__minidump_get_context_size(void);
+
+/**
+ * Read memory from the crashed process
+ *
+ * @param writer Pointer to writer base
+ * @param addr Address to read from
+ * @param buf Buffer to read into
+ * @param size Number of bytes to read
+ * @return Number of bytes read, or a negative value on failure
+ */
+typedef ssize_t (*sentry_minidump_read_fn_t)(
+    minidump_writer_base_t *writer, uint64_t addr, void *buf, size_t size);
+
+/**
+ * Write a Memory64List stream with the memory of the given regions
+ *
+ * Must be the last stream, because the memory can extend past the 4GB limit
+ * of 32-bit RVAs.
+ *
+ * On return, `list` describes the captured memory. A region ends at its first
+ * unreadable byte, and regions with no readable bytes are dropped.
+ *
+ * @param writer Pointer to writer base
+ * @param dir Directory entry to fill in
+ * @param list Regions to capture
+ * @param read_memory Function to read the memory with
+ * @return 0 on success, -1 on failure
+ */
+int sentry__minidump_write_memory64_list(minidump_writer_base_t *writer,
+    minidump_directory_t *dir, minidump_memory64_list_t *list,
+    sentry_minidump_read_fn_t read_memory);
 
 #endif // SENTRY_MINIDUMP_COMMON_H_INCLUDED

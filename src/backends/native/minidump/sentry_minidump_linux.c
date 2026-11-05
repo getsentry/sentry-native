@@ -2199,12 +2199,51 @@ capture_indirect_memory(
     }
 }
 
+static ssize_t
+read_region(
+    minidump_writer_base_t *writer, uint64_t addr, void *buf, size_t size)
+{
+    return read_process_memory((minidump_writer_t *)writer, addr, buf, size);
+}
+
+/**
+ * Write memory64 list stream (all readable mappings)
+ */
+static int
+write_memory64_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    minidump_memory64_list_t *list = sentry_malloc(sizeof(*list)
+        + writer->mapping_count * sizeof(minidump_memory64_descriptor_t));
+    if (!list) {
+        return -1;
+    }
+
+    list->count = 0;
+    for (size_t i = 0; i < writer->mapping_count; i++) {
+        const memory_mapping_t *mapping = &writer->mappings[i];
+        if (should_include_region(mapping, SENTRY_MINIDUMP_MODE_FULL, 0)) {
+            list->ranges[list->count].start_address = mapping->start;
+            list->ranges[list->count].size = mapping->end - mapping->start;
+            list->count++;
+        }
+    }
+
+    int rv = sentry__minidump_write_memory64_list(
+        (minidump_writer_base_t *)writer, dir, list, read_region);
+    sentry_free(list);
+    return rv;
+}
+
 /**
  * Write memory list stream (heap memory based on minidump mode)
  */
 static int
 write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
+    if (writer->crash_ctx->minidump_mode == SENTRY_MINIDUMP_MODE_FULL) {
+        return write_memory64_list_stream(writer, dir);
+    }
+
     // Get crash address for SMART mode filtering
     uint64_t crash_addr = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
 
@@ -2887,7 +2926,7 @@ sentry__write_minidump(
     //   1  ThreadList
     //   2  ModuleList
     //   3  Exception
-    //   4  MemoryList
+    //   4  MemoryList          Memory64List in FULL mode
     //   5  LinuxProcStatus     /proc/<pid>/status
     //   6  LinuxMaps           /proc/<pid>/maps
     //   7  ThreadNames
@@ -2928,9 +2967,6 @@ sentry__write_minidump(
     result |= write_module_list_stream(writer, &directories[2]);
     SENTRY_DEBUG("writing exception stream");
     result |= write_exception_stream(writer, &directories[3]);
-
-    // Write memory list stream (empty for STACK_ONLY, populated for SMART/FULL)
-    result |= write_memory_list_stream(writer, &directories[4]);
 
     // Write Linux-specific streams for debugger compatibility.
     // These are non-fatal: if they fail, the minidump is still valid. The
@@ -3000,6 +3036,10 @@ sentry__write_minidump(
         NULLIFY_DIR_ENTRY(13, MINIDUMP_STREAM_LINUX_DSO_DEBUG);
     }
 #    undef NULLIFY_DIR_ENTRY
+
+    // Write memory list stream (empty for STACK_ONLY, populated for SMART/FULL)
+    // last, because FULL mode memory can extend past the 4GB RVA limit
+    result |= write_memory_list_stream(writer, &directories[4]);
 
     if (result < 0) {
         goto cleanup_error;

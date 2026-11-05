@@ -2040,3 +2040,92 @@ def test_native_proxy_system(cmake, httpserver, proxy_empty):
             proxy_process,
             expected_proxy_logsize=0 if proxy_empty else None,
         )
+
+
+full_mode_test = pytest.mark.skipif(
+    sys.platform == "win32" or is_wine or is_asan or is_tsan,
+    reason="Covers the Linux and macOS writers, without sanitizer shadow memory",
+)
+
+
+def _run_full_mode_crash(cmake, httpserver, args):
+    # Static build so the hardened-runtime process can load itself without
+    # tripping the dyld "different team IDs" check on ad-hoc-signed dylibs.
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {"SENTRY_BACKEND": "native", "BUILD_SHARED_LIBS": "OFF"},
+    )
+
+    if sys.platform == "darwin":
+        _codesign_for_task_for_pid(
+            str(tmp_path / "sentry_test_integration"),
+            str(tmp_path / "sentry-crash"),
+        )
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=60) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "stdout", "minidump-mode", "2", *args, "crash"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+    return tmp_path
+
+
+def _assert_event_without_minidump(request):
+    envelope = Envelope.deserialize(request.get_data())
+    assert envelope.get_event() is not None
+    assert "event.minidump" not in [
+        item.headers.get("attachment_type") for item in envelope
+    ]
+
+
+@full_mode_test
+def test_native_full_mode_captures_entire_regions(cmake, httpserver):
+    tmp_path = _run_full_mode_crash(cmake, httpserver, ["large-allocation", "8"])
+
+    db_dir = tmp_path / ".sentry-native"
+    assert wait_for_file(db_dir / "*.run/__sentry-crash.dmp")
+    dump = _parse_minidump(next(db_dir.glob("*.run/__sentry-crash.dmp")))
+
+    assert 9 in dump["streams"], "FULL mode should write a Memory64ListStream"
+    data = dump["data"]
+    offset = struct.unpack_from("<Q", data, dump["streams"][9][1] + 8)[0]
+
+    # The fixture ends its allocation with this pattern
+    pattern = b"\xa5" * 32
+    for _start, size in dump["memory_regions"]:
+        if data.find(pattern, offset + 4 * 1024 * 1024, offset + size) >= 0:
+            break
+        offset += size
+    else:
+        pytest.fail("end of the large allocation is missing from the minidump")
+
+
+@full_mode_test
+def test_native_full_mode_reports_crash_without_oversized_minidump(cmake, httpserver):
+    _run_full_mode_crash(cmake, httpserver, ["large-allocation", "600"])
+
+    _assert_event_without_minidump(httpserver.log[0][0])
+
+
+@full_mode_test
+def test_native_full_mode_uploads_large_minidump_separately(cmake, httpserver):
+    httpserver.expect_request("/api/123456/upload/").respond_with_data(
+        "Not Found", status=404
+    )
+
+    _run_full_mode_crash(
+        cmake, httpserver, ["large-attachment", "large-allocation", "128"]
+    )
+
+    requests = [entry[0] for entry in httpserver.log]
+    # sentry <base64({"attachment_type":"event.minidump"})>
+    metadata = "sentry eyJhdHRhY2htZW50X3R5cGUiOiJldmVudC5taW5pZHVtcCJ9"
+    assert any(req.headers.get("upload-metadata") == metadata for req in requests)
+    _assert_event_without_minidump(
+        next(req for req in requests if "/envelope/" in req.path)
+    )

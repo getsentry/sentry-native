@@ -220,5 +220,72 @@ sentry__minidump_get_context_size(void)
 #    endif
 }
 
+// Copy regions in chunks, because they can exceed what the daemon can allocate
+#    define MEMORY64_CHUNK_SIZE (4 * 1024 * 1024)
+
+int
+sentry__minidump_write_memory64_list(minidump_writer_base_t *writer,
+    minidump_directory_t *dir, minidump_memory64_list_t *list,
+    sentry_minidump_read_fn_t read_memory)
+{
+    void *buf = sentry_malloc(MEMORY64_CHUNK_SIZE);
+    if (!buf) {
+        return -1;
+    }
+
+    // Reserve space for the list, and fill it in once the sizes are known
+    size_t list_size = sizeof(*list) + list->count * sizeof(list->ranges[0]);
+    minidump_rva_t rva = sentry__minidump_write_data(writer, list, list_size);
+    if (!rva) {
+        sentry_free(buf);
+        return -1;
+    }
+    list->base_rva = writer->current_offset;
+
+    uint64_t count = 0;
+    bool writable = true;
+    for (uint64_t i = 0; writable && i < list->count; i++) {
+        uint64_t start = list->ranges[i].start_address;
+        uint64_t size = list->ranges[i].size;
+        uint64_t offset = 0;
+
+        while (offset < size) {
+            size_t len = size - offset < MEMORY64_CHUNK_SIZE
+                ? (size_t)(size - offset)
+                : MEMORY64_CHUNK_SIZE;
+            ssize_t nread = read_memory(writer, start + offset, buf, len);
+            if (nread <= 0) {
+                break;
+            }
+            if (write(writer->fd, buf, (size_t)nread) != nread) {
+                SENTRY_WARNF("minidump write failed: %s", strerror(errno));
+                writable = false;
+                break;
+            }
+            writer->current_offset += (uint64_t)nread;
+            offset += (uint64_t)nread;
+        }
+
+        if (offset > 0) {
+            list->ranges[count].start_address = start;
+            list->ranges[count].size = offset;
+            count++;
+        }
+    }
+    sentry_free(buf);
+
+    list->count = count;
+    list_size = sizeof(*list) + count * sizeof(list->ranges[0]);
+    if (pwrite(writer->fd, list, list_size, rva) != (ssize_t)list_size) {
+        SENTRY_WARNF("minidump write failed: %s", strerror(errno));
+        return -1;
+    }
+
+    dir->stream_type = MINIDUMP_STREAM_MEMORY64_LIST;
+    dir->rva = rva;
+    dir->data_size = (uint32_t)list_size;
+    return 0;
+}
+
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID ||
        // SENTRY_PLATFORM_MACOS
