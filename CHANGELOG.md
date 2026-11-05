@@ -36,6 +36,7 @@
 - Add `sentry_iter_trace_propagation_headers` to propagate traces without a span. ([#2240](https://github.com/getsentry/sentry-native/pull/2240))
 - Resume interrupted TUS attachment uploads from the server-provided upload offset. ([#2058](https://github.com/getsentry/sentry-native/pull/2058))
 - Compress TUS attachment uploads when `SENTRY_TRANSPORT_COMPRESSION` is enabled. ([#2222](https://github.com/getsentry/sentry-native/pull/2222))
+- Native: allow crash uploads up to 10 seconds by default in async crash upload mode, unless `shutdown_timeout` is set. ([#2278](https://github.com/getsentry/sentry-native/pull/2278))
 
 **Fixes**:
 

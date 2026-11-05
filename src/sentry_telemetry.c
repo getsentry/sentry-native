@@ -41,8 +41,9 @@ sentry__telemetry_shutdown(const sentry_options_t *options)
     sentry__mutex_lock(&g_telemetry_lock);
 
     SENTRY_DEBUG("shutting down telemetry");
-    sentry__logs_shutdown(options->shutdown_timeout);
-    sentry__metrics_shutdown(options->shutdown_timeout);
+    uint64_t timeout = sentry_options_get_shutdown_timeout(options);
+    sentry__logs_shutdown(timeout);
+    sentry__metrics_shutdown(timeout);
     sentry__threadpool_flush(g_telemetry_pool);
     sentry__threadpool_shutdown(g_telemetry_pool);
     sentry__threadpool_free(g_telemetry_pool);
