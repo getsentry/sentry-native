@@ -1046,7 +1046,7 @@ sentry__span_iter_headers(const sentry_scope_t *scope, sentry_value_t span,
 }
 
 void
-sentry_span_iter_headers(sentry_span_t *span,
+sentry_span_iter_headers(const sentry_span_t *span,
     sentry_iter_headers_function_t callback, void *userdata)
 {
     if (span) {
@@ -1057,7 +1057,7 @@ sentry_span_iter_headers(sentry_span_t *span,
 }
 
 void
-sentry_transaction_iter_headers(sentry_transaction_t *tx,
+sentry_transaction_iter_headers(const sentry_transaction_t *tx,
     sentry_iter_headers_function_t callback, void *userdata)
 {
     if (tx) {
