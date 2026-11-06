@@ -165,7 +165,7 @@ sentry__unwind_stack_dbghelp(
     stack_frame.AddrStack.Mode = AddrModeFlat;
 
     if (addr) {
-        stack_frame.AddrPC.Offset = (DWORD64)addr;
+        stack_frame.AddrPC.Offset = (DWORD64)(uintptr_t)addr;
     }
 
     while (StackWalk64(machine_type, GetCurrentProcess(), GetCurrentThread(),
