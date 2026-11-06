@@ -148,15 +148,14 @@ ensure_installed(void)
     // dl_iterate_phdr for the first time inside the signal handler.
     unw_context_t uc;
     unw_cursor_t cur;
-#        ifdef __clang__
+#        ifdef __GNUC__
 // This pragma is required to build with Werror on ARM64 Ubuntu
-#            pragma clang diagnostic push
-#            pragma clang diagnostic ignored                                   \
-                "-Wgnu-statement-expression-from-macro-expansion"
+#            pragma GCC diagnostic push
+#            pragma GCC diagnostic ignored "-Wpedantic"
 #        endif
     int got_context = unw_getcontext(&uc);
-#        ifdef __clang__
-#            pragma clang diagnostic pop
+#        ifdef __GNUC__
+#            pragma GCC diagnostic pop
 #        endif
     if (got_context == 0 && unw_init_local(&cur, &uc) == 0) {
         for (int i = 0; i < 5 && unw_step(&cur) > 0; i++) { }
