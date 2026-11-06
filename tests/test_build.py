@@ -212,7 +212,9 @@ def test_pkgconfig(cmake, tmp_path, monkeypatch):
         pytest.skip("pkg-config is not installed")
 
     destdir = tmp_path / "install"
-    directory = cmake(["sentry"], {"SENTRY_TRANSPORT": "none"})
+    directory = cmake(
+        ["sentry"], {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"}
+    )
     subprocess.run(
         ["cmake", "--install", directory],
         env=dict(os.environ, DESTDIR=str(destdir)),
