@@ -431,3 +431,23 @@ SENTRY_TEST(options_attach_stacktrace)
     TEST_CHECK_INT_EQUAL(sentry_options_get_attach_stacktrace(options), 0);
     sentry_options_free(options);
 }
+
+SENTRY_TEST(options_shutdown_timeout)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    // not set
+    TEST_CHECK(!sentry__options_has_shutdown_timeout(options));
+    TEST_CHECK_UINT64_EQUAL(sentry_options_get_shutdown_timeout(options), 2000);
+
+    // explicit values are respected
+    sentry_options_set_shutdown_timeout(options, 0);
+    TEST_CHECK(sentry__options_has_shutdown_timeout(options));
+    TEST_CHECK_UINT64_EQUAL(sentry_options_get_shutdown_timeout(options), 0);
+
+    sentry_options_set_shutdown_timeout(options, 60000);
+    TEST_CHECK_UINT64_EQUAL(
+        sentry_options_get_shutdown_timeout(options), 60000);
+
+    sentry_options_free(options);
+}

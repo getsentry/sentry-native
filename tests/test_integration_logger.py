@@ -129,7 +129,8 @@ def parse_logger_output(output):
             "native",
             marks=[
                 pytest.mark.skipif(
-                    not has_native or is_qemu, reason="native backend not available"
+                    not has_native or is_qemu or is_android,
+                    reason="native backend not available",
                 ),
             ],
         ),
@@ -177,7 +178,8 @@ def test_logger_enabled_when_crashed(backend, cmake):
             "native",
             marks=[
                 pytest.mark.skipif(
-                    not has_native or is_qemu, reason="native backend not available"
+                    not has_native or is_qemu or is_android,
+                    reason="native backend not available",
                 ),
             ],
         ),

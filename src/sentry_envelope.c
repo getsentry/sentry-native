@@ -13,7 +13,6 @@
 #include "sentry_value.h"
 #include <assert.h>
 #include <limits.h>
-#include <math.h>
 #include <string.h>
 
 struct sentry_envelope_item_s {
@@ -421,6 +420,7 @@ sentry_envelope_item_t *
 sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event,
     const sentry_options_t *options)
 {
+    (void)options;
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
         return NULL;
@@ -434,9 +434,12 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event,
     sentry_uuid_t event_id;
     sentry__ensure_event_id(event, &event_id);
 
+    sentry_value_t dsc = sentry__value_take_by_key(event, "dsc");
+
     sentry__jsonwriter_write_value(jw, event);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
     if (!item->payload) {
+        sentry_value_decref(dsc);
         return NULL;
     }
     item->event = event;
@@ -448,16 +451,6 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event,
 
     sentry__envelope_set_event_id(envelope, &event_id);
 
-    double traces_sample_rate = options ? options->traces_sample_rate : 0.0;
-    sentry_value_t dsc = sentry_value_new_null();
-    double sample_rand = (double)NAN;
-    SENTRY_WITH_SCOPE (scope) {
-        dsc = sentry__scope_load_dsc(scope);
-        sentry_value_t trace_context = sentry__scope_load_trace_context(scope);
-        sample_rand = sentry_value_as_double(
-            sentry_value_get_by_key(trace_context, "sample_rand"));
-        sentry_value_decref(trace_context);
-    }
     if (!sentry_value_is_null(dsc)) {
         sentry_value_t trace_id = sentry_value_get_by_key(
             sentry_value_get_by_key(
@@ -469,20 +462,6 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event,
         } else {
             SENTRY_WARN("couldn't retrieve trace_id from scope to apply to the "
                         "dynamic sampling context");
-        }
-        if (!isnan(sample_rand)) {
-            if (sample_rand >= traces_sample_rate) {
-                sentry_value_set_by_key(
-                    dsc, "sampled", sentry_value_new_string("false"));
-            } else {
-                sentry_value_set_by_key(
-                    dsc, "sampled", sentry_value_new_string("true"));
-            }
-        } else {
-            // only for testing; in production, the SDK should always have a
-            // non-null sample_rand. We don't set "sampled" to keep dsc empty
-            SENTRY_WARN("couldn't retrieve sample_rand from scope to apply to "
-                        "the dynamic sampling context");
         }
         // only add dsc if it has values
         if (sentry_value_is_true(dsc)) {
@@ -625,39 +604,6 @@ sentry__envelope_add_metrics(
 }
 
 sentry_envelope_item_t *
-sentry__envelope_add_user_report(
-    sentry_envelope_t *envelope, sentry_value_t user_report)
-{
-    sentry_envelope_item_t *item = envelope_add_item(envelope);
-    if (!item) {
-        return NULL;
-    }
-
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-    if (!jw) {
-        return NULL;
-    }
-
-    sentry_uuid_t event_id;
-    sentry__ensure_event_id(user_report, &event_id);
-
-    sentry__jsonwriter_write_value(jw, user_report);
-    item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
-    if (!item->payload) {
-        return NULL;
-    }
-
-    sentry__envelope_item_set_header(
-        item, "type", sentry_value_new_string("user_report"));
-    sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
-    sentry__envelope_item_set_header(item, "length", length);
-
-    sentry__envelope_set_event_id(envelope, &event_id);
-
-    return item;
-}
-
-sentry_envelope_item_t *
 sentry__envelope_add_feedback_event(sentry_envelope_t *envelope,
     sentry_value_t feedback_event, const sentry_options_t *options)
 {
@@ -721,6 +667,10 @@ attachment_ref_payload_to_string(
     if (ref->content_type) {
         sentry_value_set_by_key(
             obj, "content_type", sentry_value_new_string(ref->content_type));
+    }
+    if (ref->chunk_size) {
+        sentry_value_set_by_key(obj, "chunk_size",
+            sentry_value_new_uint64((uint64_t)ref->chunk_size));
     }
     sentry__jsonwriter_write_value(jw, obj);
     sentry_value_decref(obj);
@@ -1641,6 +1591,19 @@ sentry__envelope_item_get_attachment_ref(
         sentry_value_get_by_key(ref->_owner, "content_type"));
     ref->attachment_type = sentry_value_as_string(
         sentry_value_get_by_key(item->headers, "attachment_type"));
+    sentry_value_t value = sentry_value_get_by_key(ref->_owner, "chunk_size");
+    uint64_t chunk_size = 0;
+    if (sentry_value_get_type(value) == SENTRY_VALUE_TYPE_UINT64) {
+        chunk_size = sentry_value_as_uint64(value);
+    } else {
+        int64_t size = sentry_value_as_int64(value);
+        if (size > 0) {
+            chunk_size = (uint64_t)size;
+        }
+    }
+    if (chunk_size <= SIZE_MAX) {
+        ref->chunk_size = (size_t)chunk_size;
+    }
     return true;
 }
 
@@ -1675,8 +1638,8 @@ set_attachment_ref_payload(
 }
 
 bool
-sentry__envelope_item_resolve_attachment_ref(
-    sentry_envelope_item_t *item, const char *location)
+sentry__envelope_item_resolve_attachment_ref(sentry_envelope_item_t *item,
+    const char *path, const char *location, size_t chunk_size)
 {
     if (sentry__string_empty(location)) {
         return false;
@@ -1686,13 +1649,14 @@ sentry__envelope_item_resolve_attachment_ref(
         return false;
     }
     sentry_attachment_ref_t resolved = { 0 };
-    if (!sentry__string_empty(ref.path)) {
-        resolved.path = ref.path;
+    if (!sentry__string_empty(path)) {
+        resolved.path = path;
     }
     if (!sentry__string_empty(ref.attachment_type)) {
         resolved.attachment_type = ref.attachment_type;
     }
     resolved.location = location;
+    resolved.chunk_size = chunk_size;
     if (!sentry__string_empty(ref.content_type)) {
         resolved.content_type = ref.content_type;
     }

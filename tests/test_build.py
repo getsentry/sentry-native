@@ -1,15 +1,73 @@
 import subprocess
 import sys
 import os
+import struct
+import shutil
+import shlex
+from pathlib import Path
+
 import pytest
+
+from . import SENTRY_VERSION, lib_name, run
+from .build_config import get_test_executable_env
 from .conditions import (
     has_breakpad,
     has_crashpad,
     has_native,
+    is_aix,
     is_android,
     is_qemu,
     is_wine,
 )
+
+
+def _assert_symlink(path, target):
+    assert path.is_symlink()
+    assert os.readlink(path) == target
+
+
+def _assert_shared_version(directory):
+    major, minor, _ = SENTRY_VERSION.split(".")
+
+    if sys.platform == "darwin":
+        real_name = f"libsentry.{SENTRY_VERSION}.dylib"
+        abi_name = f"libsentry.{major}.dylib"
+        _assert_symlink(directory / "libsentry.dylib", abi_name)
+        _assert_symlink(directory / abi_name, real_name)
+        output = subprocess.check_output(
+            ["otool", "-L", directory / real_name], text=True
+        )
+        assert abi_name in output
+        assert f"compatibility version {major}.0.0" in output
+        assert f"current version {SENTRY_VERSION}" in output
+    elif sys.platform == "win32":
+        dll = directory / lib_name("sentry")
+        with dll.open("rb") as binary:
+            binary.seek(0x3C)
+            pe_offset = struct.unpack("<I", binary.read(4))[0]
+            binary.seek(pe_offset + 4 + 20 + 44)
+            assert struct.unpack("<HH", binary.read(4)) == (int(major), int(minor))
+    elif is_wine:
+        assert (directory / "libsentry.dll").is_file()
+    else:
+        real_name = f"libsentry.so.{SENTRY_VERSION}"
+        abi_name = f"libsentry.so.{major}"
+        _assert_symlink(directory / "libsentry.so", abi_name)
+        _assert_symlink(directory / abi_name, real_name)
+        output = subprocess.check_output(
+            ["readelf", "-d", directory / real_name], text=True
+        )
+        assert f"Library soname: [{abi_name}]" in output
+
+
+@pytest.mark.skipif(is_android or is_aix, reason="test requires a desktop build")
+def test_shared_lib(cmake):
+    directory = cmake(
+        ["sentry"],
+        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
+    )
+
+    _assert_shared_version(directory)
 
 
 def test_static_lib(cmake):
@@ -139,3 +197,49 @@ def test_static_mpack(cmake):
     assert any(
         symbol.startswith("sentry__mpack_") for symbol in symbols
     ), f"{library.name} contains no Sentry-prefixed MPack symbols"
+
+
+@pytest.mark.skipif(
+    sys.platform not in ("linux", "darwin")
+    or not has_native
+    or is_android
+    or is_qemu
+    or is_wine,
+    reason="test requires a native Unix build",
+)
+def test_pkgconfig(cmake, tmp_path, monkeypatch):
+    if shutil.which("pkg-config") is None:
+        pytest.skip("pkg-config is not installed")
+
+    destdir = tmp_path / "install"
+    directory = cmake(["sentry"], {"SENTRY_TRANSPORT": "none"})
+    subprocess.run(
+        ["cmake", "--install", directory],
+        env=dict(os.environ, DESTDIR=str(destdir)),
+        check=True,
+    )
+
+    (pc,) = destdir.rglob("sentry.pc")
+    (library,) = destdir.rglob(lib_name("sentry"))
+    _assert_shared_version(library.parent)
+
+    monkeypatch.setenv("PKG_CONFIG_PATH", str(pc.parent))
+    monkeypatch.setenv("PKG_CONFIG_LIBDIR", str(pc.parent))
+    monkeypatch.setenv("PKG_CONFIG_SYSROOT_DIR", str(destdir))
+    env = get_test_executable_env()
+    version = subprocess.check_output(
+        ["pkg-config", "--modversion", "sentry"], env=env, text=True
+    )
+    assert version.strip() == SENTRY_VERSION
+    flags = subprocess.check_output(
+        ["pkg-config", "--libs-only-L", "sentry"], env=env, text=True
+    )
+    assert shlex.split(flags) == [f"-L{library.parent}"]
+
+    consumer = cmake(
+        ["sentry_test_pkgconfig"],
+        {"CMAKE_FIND_ROOT_PATH": str(destdir)},
+        source_dir=Path(__file__).parent / "fixtures" / "pkgconfig",
+    )
+    env["SENTRY_DATABASE_PATH"] = str(tmp_path / "database")
+    run(consumer, "sentry_test_pkgconfig", [], env=env)

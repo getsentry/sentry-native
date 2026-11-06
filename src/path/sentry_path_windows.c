@@ -870,3 +870,24 @@ sentry__filewriter_byte_count(const sentry_filewriter_t *filewriter)
 {
     return filewriter ? filewriter->byte_count : 0;
 }
+
+FILE *
+sentry__path_open(const sentry_path_t *path, const char *mode, size_t offset)
+{
+    if (!path || !mode) {
+        return NULL;
+    }
+    wchar_t *mode_w = sentry__string_to_wstr(mode);
+    FILE *file = mode_w ? _wfopen(path->path_w, mode_w) : NULL;
+    sentry_free(mode_w);
+    if (!file) {
+        return NULL;
+    }
+    int result
+        = offset > INT64_MAX ? -1 : _fseeki64(file, (int64_t)offset, SEEK_SET);
+    if (result != 0) {
+        fclose(file);
+        return NULL;
+    }
+    return file;
+}

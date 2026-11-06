@@ -9,6 +9,8 @@ Requires environment variables:
 - SENTRY_E2E_AUTH_TOKEN: Sentry API token with project:read scope
 - SENTRY_E2E_ORG: Sentry organization slug
 - SENTRY_E2E_PROJECT: Sentry project slug
+- SENTRY_E2E_ANDROID_BUILD_DIR: Optional build directory of the prepared
+  Android fixture APKs (defaults to build/android-e2e).
 
 Skip these tests if env vars not set (for regular CI runs).
 """
@@ -18,19 +20,23 @@ import re
 import subprocess
 import sys
 import time
+import uuid
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import pytest
 import requests
 
-from . import run, check_output
+from . import adb, run, check_output, sourcedir, Envelope
 from .conditions import (
     has_breakpad,
     has_crashpad,
     has_http,
     has_native,
     is_asan,
+    is_android,
 )
+from .proxy import start_proxy
 
 # Skip all tests if E2E env vars not configured
 pytestmark = [
@@ -39,7 +45,7 @@ pytestmark = [
         reason="E2E tests require SENTRY_E2E_DSN environment variable",
     ),
     pytest.mark.skipif(
-        not has_http,
+        not has_http and not is_android,
         reason="E2E tests require http transport",
     ),
 ]
@@ -210,6 +216,48 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
     if last_error:
         error_msg += f". Last error: {last_error}"
     raise TimeoutError(error_msg)
+
+
+def poll_sentry_for_attachments(event_id, name, max_attempts=20):
+    """Poll until the event lists the attachment called `name`."""
+    org, project = get_sentry_org_project()
+    headers = get_sentry_headers()
+    api_base = get_sentry_api_base()
+    url = f"{api_base}/projects/{org}/{project}/events/{event_id}/attachments/"
+    last_error = None
+
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            last_error = f"Attachments API returned {response.status_code}: {response.text[:200]}"
+            print(f"  Attempt {attempt + 1}/{max_attempts}: {last_error}")
+            if response.status_code == 200:
+                attachments = response.json()
+                if any(a.get("name") == name for a in attachments):
+                    return attachments
+        except requests.RequestException as e:
+            last_error = str(e)
+            print(f"    Request exception: {last_error}")
+
+        if attempt + 1 < max_attempts:
+            time.sleep(POLL_INTERVAL)
+
+    raise TimeoutError(
+        f"Attachment {name} for event {event_id} not found after {max_attempts} attempts. "
+        f"Last error: {last_error}"
+    )
+
+
+def assert_large_attachment(attachments):
+    large = [a for a in attachments if a.get("name") == ".sentry-large-attachment"]
+    assert len(large) == 1, f"Expected one large attachment, got {attachments}"
+    attachment = large[0]
+    assert (
+        attachment.get("type") == "event.attachment"
+    ), f"Unexpected attachment type: {attachment}"
+    assert (
+        attachment.get("size") == 104857600
+    ), f"Unexpected attachment size: {attachment}"
 
 
 def get_exception_from_event(event):
@@ -384,6 +432,7 @@ def run_crash_e2e(tmp_path, exe, args, env, wait_for_daemon=False):
     not has_native,
     reason="E2E crash mode tests require native backend",
 )
+@pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
 class TestE2ENative:
     """E2E tests for all 3 crash reporting modes against real Sentry."""
 
@@ -691,6 +740,7 @@ class TestE2ENative:
         )
 
 
+@pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
 def test_e2e_inproc(cmake):
     """Verify that inproc can send a signal-handler crash event to Sentry."""
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
@@ -827,3 +877,343 @@ def test_e2e_crashpad(cmake):
     ), f"Crashpad crash should capture threads (>= 1), got {thread_count}"
 
     verify_no_thread_duplication(threads_data, "test_e2e_crashpad")
+
+
+@pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
+def test_e2e_trace_propagation(cmake):
+    """Verify that Sentry links the events of an upstream and a downstream app
+    when the downstream app continues the trace from the upstream headers."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+
+    # upstream: capture an event and print the propagation headers of its trace
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "e2e-test", "iter-trace-headers", "capture-event"],
+        env=env,
+    )
+    upstream_id = extract_test_id(output)
+    headers = dict(
+        re.findall(r"^(sentry-trace|baggage): (.+)$", output.decode(), re.MULTILINE)
+    )
+
+    # downstream: continue the trace from those headers and capture an event
+    env["SENTRY_TEST_SENTRY_TRACE"] = headers["sentry-trace"]
+    env["SENTRY_TEST_BAGGAGE"] = headers["baggage"]
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "e2e-test", "continue-trace", "capture-event"],
+        env=env,
+    )
+    downstream_id = extract_test_id(output)
+
+    upstream_trace = poll_sentry_for_event(upstream_id)["contexts"]["trace"]
+    downstream_trace = poll_sentry_for_event(downstream_id)["contexts"]["trace"]
+
+    assert downstream_trace["trace_id"] == upstream_trace["trace_id"]
+    assert downstream_trace["parent_span_id"] == upstream_trace["span_id"]
+
+
+@pytest.mark.skipif(not has_native, reason="native backend not available")
+@pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
+def test_e2e_tus(cmake):
+    """Verify a large crash attachment reaches Sentry after an interrupted upload."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+
+    # The daemon uploads the crash through a throttled proxy, so its shutdown
+    # timeout interrupts the upload and persists the envelope for the restart.
+    proxy, port = start_proxy("http-proxy", throttle=1024 * 1024)
+    try:
+        output = run_crash_e2e(
+            tmp_path,
+            "sentry_test_integration",
+            [
+                "log",
+                "e2e-test",
+                "http-proxy",
+                "large-attachment",
+                "shutdown-timeout",
+                "10000",
+                "crash",
+            ],
+            env=dict(env, SENTRY_TEST_PROXY_PORT=str(port)),
+            wait_for_daemon=True,
+        )
+        test_id = extract_test_id(output)
+    finally:
+        proxy.terminate()
+        proxy.communicate(timeout=10)
+
+    envelopes = list(tmp_path.glob(".sentry-native/*.run/*.envelope"))
+    assert envelopes, "Interrupted upload should persist its envelope"
+    refs = [
+        item
+        for envelope in envelopes
+        for item in Envelope.deserialize(envelope.read_bytes())
+        if item.headers.get("content_type")
+        == "application/vnd.sentry.attachment-ref+json"
+    ]
+    assert len(refs) == 1, "Interrupted upload should retain its attachment"
+    location = refs[0].payload.json.get("location")
+    assert location, "Upload location should be persisted"
+
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "trace", "no-setup", "shutdown-timeout", "120000"],
+        env=env,
+        stderr=subprocess.STDOUT,
+    )
+    output = output.decode("utf-8", errors="replace")
+
+    # The persisted upload must be resumed, not re-created: only HEAD targets
+    # the persisted location, and nothing may hit the creation URL. The curl
+    # client traces request lines, the winhttp client logs request URLs.
+    target = urlsplit(location)
+    assert (
+        urlunsplit(("", "", target.path, target.query, "")) in output
+    ), "Resumed upload should query the offset of its location"
+    assert not re.search(
+        r'/upload/["\s]', output
+    ), "Resumed upload should not create a new upload"
+
+    event = poll_sentry_for_event(test_id)
+    attachments = poll_sentry_for_attachments(
+        event["eventID"], ".sentry-large-attachment"
+    )
+    assert_large_attachment(attachments)
+
+
+@pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
+def test_e2e_tus_compressed(cmake):
+    """Verify a large attachment reaches Sentry in gzip-compressed chunks."""
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT_COMPRESSION": "On"},
+    )
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        [
+            "log",
+            "trace",
+            "e2e-test",
+            "large-attachment",
+            "capture-event",
+            "shutdown-timeout",
+            "120000",
+        ],
+        env=env,
+        stderr=subprocess.STDOUT,
+    )
+    test_id = extract_test_id(output)
+    output = output.decode("utf-8", errors="replace")
+
+    # Envelopes are compressed too, but only upload chunks carry the decoded
+    # length.
+    assert (
+        "x-decoded-content-length:" in output
+    ), "Upload chunks should be gzip-compressed"
+
+    event = poll_sentry_for_event(test_id)
+    attachments = poll_sentry_for_attachments(
+        event["eventID"], ".sentry-large-attachment"
+    )
+    assert_large_attachment(attachments)
+
+
+@pytest.fixture(scope="module")
+def android_e2e_app(request):
+    get_sentry_headers()
+    get_sentry_org_project()
+    build_dir = (
+        Path(
+            os.environ.get(
+                "SENTRY_E2E_ANDROID_BUILD_DIR", Path(sourcedir) / "build/android-e2e"
+            )
+        )
+        .expanduser()
+        .resolve()
+    )
+    build_type = getattr(request, "param", "debug")
+    apk = build_dir / f"app/build/outputs/apk/{build_type}/app-{build_type}.apk"
+    assert apk.is_file(), "Prepare the APK with scripts/setup-android-e2e.py first"
+    package = "io.sentry.e2e"
+    adb("install", "-r", str(apk), check=True)
+    yield package
+    adb("uninstall", package, check=False)
+
+
+def assert_android_native_event(event, test_id, tombstone, debuggable=True):
+    assert event["platform"] == "native"
+    assert event["release"]["version"] == "sentry-native-e2e"
+    assert event["user"]["id"] == test_id
+
+    exception = get_exception_from_event(event)["values"][0]
+    mechanism = exception["mechanism"]
+    assert mechanism["handled"] is False
+    if tombstone:
+        assert mechanism["type"] == "TombstoneMerged"
+    else:
+        assert mechanism["type"] == "signalhandler"
+    frames = exception["stacktrace"]["frames"]
+    # the frame-pointer walk stops before libart in non-debuggable apps
+    assert len(frames) >= (3 if debuggable else 2)
+    if tombstone:
+        functions = [frame.get("function") or "" for frame in frames]
+        assert {"e2e_segfault", "e2e_native_crash"}.issubset(functions)
+        assert any(
+            "io.sentry.e2e.MainActivity.triggerNativeCrash" in function
+            for function in functions
+        )
+        assert any(
+            "io.sentry.e2e.MainActivity.callNativeCrash" in function
+            for function in functions
+        )
+
+    threads = get_threads_from_event(event)
+    # a single thread means the daemon could not read the app's /proc
+    assert len(threads["values"]) >= 2
+    assert any(thread["crashed"] for thread in threads["values"])
+    verify_no_thread_duplication(threads, "test_e2e_android_native")
+
+    images = get_debug_meta_from_event(event)["images"]
+    # default packaging maps the libraries straight from the APK
+    assert any(
+        image["code_file"].endswith(("libe2e.so", "/base.apk")) for image in images
+    )
+
+
+@pytest.mark.skipif(
+    not is_android or not has_native, reason="Tests need Android + native"
+)
+@pytest.mark.skipif(
+    is_android < 30, reason="The native crash service needs Android API 30+"
+)
+@pytest.mark.parametrize(
+    "android_e2e_app, debuggable",
+    [("debug", True), ("nondebuggable", False)],
+    ids=["debuggable", "nondebuggable"],
+    indirect=["android_e2e_app"],
+    scope="module",
+)
+@pytest.mark.parametrize("tombstone", [False, True], ids=["native", "tombstone"])
+def test_e2e_android_native(android_e2e_app, debuggable, tombstone):
+    """The crash service sends native crashes, optionally merged with a tombstone."""
+    if tombstone and is_android < 31:
+        pytest.skip("Tombstone merging needs Android API 31+")
+    test_id = str(uuid.uuid4())
+    package = android_e2e_app
+    adb("shell", "pm", "clear", package, check=True, capture_output=True)
+    try:
+        adb(
+            "shell",
+            "am",
+            "start",
+            "-n",
+            f"{package}/.MainActivity",
+            "--es",
+            "dsn",
+            os.environ["SENTRY_E2E_DSN"],
+            "--es",
+            "test_id",
+            test_id,
+            "--ez",
+            "tombstone",
+            str(tombstone).lower(),
+            check=True,
+            capture_output=True,
+        )
+        # no restart: delivery must happen from the surviving crash service
+        event = poll_sentry_for_event(test_id)
+        assert_android_native_event(event, test_id, tombstone, debuggable)
+    finally:
+        adb("shell", "am", "force-stop", package, check=False)
+
+
+@pytest.mark.skipif(
+    not is_android or not has_native, reason="Tests need Android + native"
+)
+@pytest.mark.skipif(
+    is_android < 30, reason="The native crash service needs Android API 30+"
+)
+def test_e2e_android_native_broadcast(android_e2e_app):
+    """A process that a broadcast starts in the background gets the crash service."""
+    test_id = str(uuid.uuid4())
+    package = android_e2e_app
+    adb("shell", "pm", "clear", package, check=True, capture_output=True)
+    try:
+        adb(
+            "shell",
+            "am",
+            "broadcast",
+            "--include-stopped-packages",
+            "-n",
+            f"{package}/.CrashReceiver",
+            "--es",
+            "dsn",
+            os.environ["SENTRY_E2E_DSN"],
+            "--es",
+            "test_id",
+            test_id,
+            check=True,
+            capture_output=True,
+        )
+        event = poll_sentry_for_event(test_id)
+        assert_android_native_event(event, test_id, False)
+    finally:
+        adb("shell", "am", "force-stop", package, check=False)
+
+
+@pytest.mark.skipif(
+    not is_android or not has_native, reason="Tests need Android + native"
+)
+@pytest.mark.skipif(
+    is_android < 30, reason="The native crash service needs Android API 30+"
+)
+def test_e2e_android_native_background(android_e2e_app):
+    """The crash service outlives the idle timeout of background services."""
+    test_id = str(uuid.uuid4())
+    package = android_e2e_app
+    adb("shell", "pm", "clear", package, check=True, capture_output=True)
+    try:
+        adb(
+            "shell",
+            "am",
+            "start",
+            "-W",
+            "-n",
+            f"{package}/.MainActivity",
+            "--es",
+            "dsn",
+            os.environ["SENTRY_E2E_DSN"],
+            "--es",
+            "test_id",
+            test_id,
+            "--ez",
+            "crash",
+            "false",
+            check=True,
+            capture_output=True,
+        )
+        adb("shell", "input", "keyevent", "KEYCODE_HOME", check=True)
+        # Android stops idle background services after about a minute
+        time.sleep(90)
+        adb(
+            "shell",
+            "am",
+            "broadcast",
+            "-n",
+            f"{package}/.CrashReceiver",
+            check=True,
+            capture_output=True,
+        )
+        event = poll_sentry_for_event(test_id)
+        assert_android_native_event(event, test_id, False)
+    finally:
+        adb("shell", "am", "force-stop", package, check=False)

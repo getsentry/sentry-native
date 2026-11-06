@@ -34,9 +34,15 @@ typedef struct {
     sentry_remote_register_t values[SENTRY_REMOTE_UNWIND_MAX_REGISTERS];
 } sentry_remote_registers_t;
 
-size_t sentry__unwind_stack_from_thread(pid_t tid,
+/**
+ * Unwinds a thread of another process. Attaches to the thread, or unwinds its
+ * saved `context` if given. Returns 0 if no unwinder supports `context`.
+ */
+size_t sentry__unwind_stack_from_thread(pid_t tid, const ucontext_t *context,
     sentry_remote_frame_t *frames, size_t max_frames,
     sentry_remote_registers_t *registers, bool symbolize);
+
+bool sentry__ptrace_attach_thread(pid_t tid);
 
 #endif
 

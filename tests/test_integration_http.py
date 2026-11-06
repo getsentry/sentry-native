@@ -31,7 +31,6 @@ from .assertions import (
     assert_replay_envelope,
     assert_session,
     assert_user_feedback,
-    assert_user_report,
     assert_minidump,
     assert_breakpad_crash,
     assert_crash_timestamp,
@@ -301,34 +300,6 @@ def test_user_feedback_with_attachments_http(cmake, httpserver):
 
     # Should have 2 attachments (one file, one bytes)
     assert attachment_count == 2
-
-
-def test_user_report_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
-
-    httpserver.expect_request(
-        "/api/123456/envelope/",
-        headers={"x-sentry-auth": auth_header},
-    ).respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-
-    run(
-        tmp_path,
-        "sentry_test_integration",
-        ["log", "capture-user-report"],
-        env=env,
-    )
-
-    assert len(httpserver.log) == 2
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
-
-    assert_event(envelope, "Hello user feedback!")
-
-    output = httpserver.log[1][0].get_data()
-    envelope = Envelope.deserialize(output)
-
-    assert_user_report(envelope)
 
 
 @pytest.mark.parametrize(
@@ -1749,3 +1720,37 @@ def test_early_init(cmake, backend):
 
     result = run(tmp_path, "sentry_early_init", [])
     assert result.returncode == 0
+
+
+@pytest.mark.parametrize("capture", ["capture-event", "capture-with-scope"])
+@pytest.mark.parametrize("clear", [False, True])
+def test_capture_acquired_scope(cmake, httpserver, capture, clear):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    args = ["log", "no-setup", "attachment", "acquire-scope", capture]
+    if clear:
+        args.append("clear-scope")
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        args,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event["release"] == ("test-example-release" if clear else "scope-release")
+    assert event["environment"] == ("development" if clear else "scope-environment")
+    assert event["sdk"]["version"] == SENTRY_VERSION
+    assert event["contexts"]["os"]["name"]
+    assert ("acquired" in event.get("tags", {})) == (not clear)
+    assert any(
+        crumb.get("message") == "acquired breadcrumb"
+        for crumb in (event.get("breadcrumbs") or [])
+    ) == (not clear)
+    filenames = {item.headers.get("filename") for item in envelope}
+    assert "CMakeCache.txt" in filenames
+    assert ("scope.txt" in filenames) == (not clear)
+    if not clear:
+        assert event["user"]["id"] == "scope-user"
