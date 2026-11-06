@@ -1022,12 +1022,16 @@ create_message_pipe(sentry_crash_ipc_t *ipc)
     pipe_attrs.bInheritHandle = TRUE;
     HANDLE read_handle = CreateFileW(
         name, GENERIC_READ, 0, &pipe_attrs, OPEN_EXISTING, 0, NULL);
-    HANDLE write_event = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (read_handle == INVALID_HANDLE_VALUE || !write_event) {
+    if (read_handle == INVALID_HANDLE_VALUE) {
         DWORD error = GetLastError();
-        if (read_handle != INVALID_HANDLE_VALUE) {
-            CloseHandle(read_handle);
-        }
+        CloseHandle(write_handle);
+        SetLastError(error);
+        return false;
+    }
+    HANDLE write_event = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (!write_event) {
+        DWORD error = GetLastError();
+        CloseHandle(read_handle);
         CloseHandle(write_handle);
         SetLastError(error);
         return false;
