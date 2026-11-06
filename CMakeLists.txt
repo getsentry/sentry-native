@@ -124,7 +124,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
-option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in the sentry target as errors on GCC and Clang" OFF)
+option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in sentry and sentry-crash as errors on GCC and Clang" OFF)
 
 option(SENTRY_INTEGRATION_PLATFORM
 	"Enable the downstream-provided platform integration" OFF)
@@ -988,6 +988,12 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	if(SENTRY_WITH_LIBUNWIND AND LINUX)
 		target_compile_definitions(sentry-crash PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)
+	endif()
+
+	# Copy warning options from sentry target
+	if(NOT MSVC)
+		get_target_property(SENTRY_COMPILE_OPTIONS sentry COMPILE_OPTIONS)
+		target_compile_options(sentry-crash PRIVATE ${SENTRY_COMPILE_OPTIONS})
 	endif()
 
 	# Copy include directories from sentry target
