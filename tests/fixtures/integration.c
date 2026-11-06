@@ -1474,7 +1474,7 @@ main(int argc, char **argv)
     const char *allocation_mib = get_arg_value(argc, argv, "large-allocation");
     if (allocation_mib) {
         const size_t size = strtoul(allocation_mib, NULL, 10) * 1024 * 1024;
-        char *allocation = calloc(1, size);
+        char *allocation = malloc(size);
         if (allocation) {
             const size_t touched
                 = has_arg(argc, argv, "sparse-allocation") ? 32 : size;
