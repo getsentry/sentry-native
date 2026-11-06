@@ -43,7 +43,8 @@ static void (*g_crash_callback)(void) = NULL;
 #if (defined(SENTRY_PLATFORM_WINDOWS)                                          \
     && !((defined(_MSC_VER) || defined(__clang__))                             \
         && (defined(_M_AMD64) || defined(_M_ARM64))))                          \
-    || defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    || ((defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID))   \
+        && !defined(__arm__))
 static inline bool
 capture_valid_ip(uint64_t ip)
 {
