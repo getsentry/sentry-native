@@ -44,6 +44,7 @@ def get_platform_cmake_args():
     - 32-bit builds (TEST_X86)
     - Wine cross-builds (TEST_WINE)
     - ASAN/TSAN sanitizers (RUN_ANALYZER)
+    - ERROR_ON_WARNINGS -> SENTRY_ERROR_ON_WARNINGS
     - Additional CMAKE_DEFINES from environment
     """
     args = []
@@ -75,7 +76,10 @@ def get_platform_cmake_args():
     elif sys.platform == "linux" and os.environ.get("TEST_WINE"):
         cc = os.environ.get("CC") or "clang"
         cxx = os.environ.get("CXX") or "clang++"
-        linker_flags = "-fuse-ld=lld -static-libgcc -static-libstdc++"
+        linker_flags = (
+            "-fuse-ld=lld -static-libgcc -static-libstdc++ "
+            "-Wno-unused-command-line-argument"
+        )
         args.extend(
             [
                 "-DCMAKE_SYSTEM_NAME=Windows",
@@ -97,6 +101,9 @@ def get_platform_cmake_args():
     if "tsan" in os.environ.get("RUN_ANALYZER", ""):
         args.append("-DWITH_TSAN_OPTION=ON")
 
+    if os.environ.get("ERROR_ON_WARNINGS"):
+        args.append("-DSENTRY_ERROR_ON_WARNINGS=ON")
+
     if "CMAKE_DEFINES" in os.environ:
         args.extend(os.environ.get("CMAKE_DEFINES").split())
 
@@ -108,7 +115,6 @@ def get_cflags(extra_cflags=None):
     Returns compiler flags (CFLAGS/CXXFLAGS) for the build.
 
     This handles:
-    - ERROR_ON_WARNINGS -> -Werror
     - MSVC parallel builds, warnings as errors, and code analysis
     - GCC analyzer
 
@@ -116,9 +122,6 @@ def get_cflags(extra_cflags=None):
         extra_cflags: Additional flags to include
     """
     cflags = list(extra_cflags) if extra_cflags else []
-
-    if os.environ.get("ERROR_ON_WARNINGS"):
-        cflags.append("-Werror")
 
     if sys.platform == "win32" and not os.environ.get("TEST_MINGW"):
         cpus = os.cpu_count()
