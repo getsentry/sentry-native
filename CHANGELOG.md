@@ -37,6 +37,7 @@
 - Resume interrupted TUS attachment uploads from the server-provided upload offset. ([#2058](https://github.com/getsentry/sentry-native/pull/2058))
 - Compress TUS attachment uploads when `SENTRY_TRANSPORT_COMPRESSION` is enabled. ([#2222](https://github.com/getsentry/sentry-native/pull/2222))
 - Native: allow crash uploads up to 10 seconds by default in async crash upload mode, unless `shutdown_timeout` is set. ([#2278](https://github.com/getsentry/sentry-native/pull/2278))
+- Native: add Android support. ([#1725](https://github.com/getsentry/sentry-native/pull/1725))
 
 **Fixes**:
 
@@ -46,6 +47,7 @@
 - Native/Unix: Preserve existing alternate signal stacks to prevent ASan aborts when the initializing thread exits before SDK shutdown. ([#2219](https://github.com/getsentry/sentry-native/pull/2219))
 - Native/Linux: fix oversized `debug_meta.images` entries that overlapped other libraries when a file was mapped more than once. ([#2228](https://github.com/getsentry/sentry-native/pull/2228))
 - Fix const-correctness of `sentry_options_get_*`, `sentry_span_iter_headers`, and `sentry_transaction_iter_headers`. ([#2277](https://github.com/getsentry/sentry-native/pull/2277))
+- Native/Linux: back the crash context with a memfd to prevent `SIGBUS` during `sentry_init` when `/dev/shm` is full. ([#1725](https://github.com/getsentry/sentry-native/pull/1725))
 
 ## 0.17.6
 

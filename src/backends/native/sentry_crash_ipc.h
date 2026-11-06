@@ -9,7 +9,11 @@
 #include <stdint.h>
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-#    include <semaphore.h>
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include "sentry_sync.h"
+#    else
+#        include <semaphore.h>
+#    endif
 #    include <sys/eventfd.h>
 #    include <sys/mman.h>
 #elif defined(SENTRY_PLATFORM_MACOS)
@@ -125,9 +129,14 @@ typedef struct {
     int ready_fd; // Eventfd for daemon ready signal
     // Anonymous app-to-daemon message stream: app writes, daemon reads.
     int message_fd[2];
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    char shm_name[SENTRY_CRASH_MAX_PATH]; // File path, bionic has no shm_open()
+    sentry_mutex_t *init_mutex; // Process-wide initialization mutex
+#    else
     char shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     sem_t *init_sem; // Named semaphore for initialization synchronization
     char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];
+#    endif
 #elif defined(SENTRY_PLATFORM_MACOS)
     int shm_fd;
     int notify_pipe[2]; // Pipe for crash notifications (fork-safe)
@@ -158,11 +167,24 @@ typedef struct {
 /**
  * Initialize IPC for application process.
  * Creates shared memory and notification mechanism.
+ * @param database_path Android-only directory for the file-backed mapping
  * @param init_sem Optional semaphore for synchronizing init (can be NULL)
  * @param init_mutex Optional mutex for synchronizing init on Windows (can be
  * NULL)
  */
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_ANDROID)
+sentry_crash_ipc_t *sentry__crash_ipc_init_app(
+    const char *database_path, sentry_mutex_t *init_mutex);
+sentry_crash_ipc_t *sentry__crash_ipc_init_app_with_fds(int shm_fd,
+    int notify_fd, int ready_fd, int message_fd, sentry_mutex_t *init_mutex);
+/**
+ * Replaces the app's daemon fds with those of a restarted crash service, and
+ * takes ownership of the new fds. Fails while a crash is being handled. The
+ * caller sends a scope snapshot next.
+ */
+bool sentry__crash_ipc_reattach(
+    sentry_crash_ipc_t *ipc, int notify_fd, int ready_fd, int message_fd);
+#elif defined(SENTRY_PLATFORM_LINUX)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(sem_t *init_sem);
 #elif defined(SENTRY_PLATFORM_MACOS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex);
@@ -170,6 +192,14 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex);
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(HANDLE init_mutex);
 #else
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
+#endif
+
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+/**
+ * Creates anonymous shared memory that depends on neither the disk nor
+ * /dev/shm. Returns -1 on failure.
+ */
+int sentry__crash_ipc_create_memfd(void);
 #endif
 
 /**
@@ -184,7 +214,8 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
  */
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
-    uint64_t app_tid, int notify_eventfd, int ready_eventfd, int message_fd);
+    uint64_t app_tid, int notify_eventfd, int ready_eventfd, int shm_fd,
+    int message_fd);
 #elif defined(SENTRY_PLATFORM_MACOS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
     uint64_t app_tid, int notify_pipe_read, int ready_pipe_write, int shm_fd,
@@ -209,8 +240,9 @@ bool sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms);
 /**
  * Notify daemon that a crash occurred (called from signal handler).
  * This function is signal-safe.
+ * Returns false if no daemon could be notified, for example because it is gone.
  */
-void sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc);
+bool sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc);
 
 /**
  * Wait for crash notification (called by daemon).

@@ -159,34 +159,122 @@ sentry__crash_ipc_message_decode(
 #    include <errno.h>
 #    include <fcntl.h>
 #    include <pthread.h>
+#    include <sched.h>
 #    include <sys/file.h>
 #    include <sys/socket.h>
 #    include <sys/stat.h>
+#    include <sys/syscall.h>
 #    include <unistd.h>
 
-sentry_crash_ipc_t *
-sentry__crash_ipc_init_app(sem_t *init_sem)
+#    ifndef MFD_CLOEXEC
+#        define MFD_CLOEXEC 0x0001U
+#    endif
+
+int
+sentry__crash_ipc_create_memfd(void)
 {
-    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
-    if (!ipc) {
-        return NULL;
+#    ifdef SYS_memfd_create
+    return (int)syscall(SYS_memfd_create, "sentry-crash", MFD_CLOEXEC);
+#    else
+    errno = ENOSYS;
+    return -1;
+#    endif
+}
+
+#    if defined(SENTRY_PLATFORM_ANDROID)
+// Bionic implements neither shm_open() nor sem_open(). Map a file in the
+// database directory instead, and lock initialization with a mutex.
+static int
+shm_create(sentry_crash_ipc_t *ipc)
+{
+    return open(ipc->shm_name, O_CREAT | O_RDWR | O_EXCL | O_CLOEXEC, 0600);
+}
+
+static int
+shm_reopen(sentry_crash_ipc_t *ipc)
+{
+    return open(ipc->shm_name, O_RDWR | O_CLOEXEC);
+}
+
+static void
+shm_remove(sentry_crash_ipc_t *ipc)
+{
+    unlink(ipc->shm_name);
+}
+
+static bool
+init_lock(sentry_crash_ipc_t *ipc)
+{
+    if (ipc->init_mutex) {
+        sentry__mutex_lock(ipc->init_mutex);
     }
+    return true;
+}
+
+static void
+init_unlock(sentry_crash_ipc_t *ipc)
+{
+    if (ipc->init_mutex) {
+        sentry__mutex_unlock(ipc->init_mutex);
+    }
+}
+#    else
+static int
+shm_create(sentry_crash_ipc_t *ipc)
+{
+    // shm_open() memory raises SIGBUS on write when /dev/shm is full
+    int fd = sentry__crash_ipc_create_memfd();
+    if (fd >= 0) {
+        ipc->shm_name[0] = '\0';
+        return fd;
+    }
+    return shm_open(ipc->shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
+}
+
+static int
+shm_reopen(sentry_crash_ipc_t *ipc)
+{
+    return shm_open(ipc->shm_name, O_RDWR, 0600);
+}
+
+static void
+shm_remove(sentry_crash_ipc_t *ipc)
+{
+    shm_unlink(ipc->shm_name);
+}
+
+static bool
+init_lock(sentry_crash_ipc_t *ipc)
+{
+    return !ipc->init_sem || sem_wait(ipc->init_sem) == 0;
+}
+
+static void
+init_unlock(sentry_crash_ipc_t *ipc)
+{
+    if (ipc->init_sem) {
+        sem_post(ipc->init_sem);
+    }
+}
+#    endif
+
+/**
+ * Creates what was not handed over (-1): the shared memory, or reuses that
+ * named by `ipc->shm_name`, and the notification and message fds.
+ */
+static sentry_crash_ipc_t *
+init_app(sentry_crash_ipc_t *ipc, int shm_fd, int notify_fd, int ready_fd,
+    int message_fd)
+{
     ipc->is_daemon = false;
-    ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
-    ipc->message_fd[0] = -1;
+    ipc->shm_fd = shm_fd;
+    ipc->notify_fd = notify_fd;
+    ipc->ready_fd = ready_fd;
+    ipc->message_fd[0] = message_fd;
     ipc->message_fd[1] = -1;
 
-    // Create shared memory with unique name based on PID and thread ID
-    // macOS has a 31-character limit for POSIX shared memory names (PSEMNAMLEN)
-    // Format: /s-{8_hex_chars} = 11 chars total (well under 31 limit)
-    // We mix PID and TID to create a unique 32-bit identifier, allowing
-    // multiple sentry_init() calls from different threads in the same process.
-    uint64_t tid = (uint64_t)pthread_self();
-    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
-
-    // Acquire semaphore for exclusive access during initialization
-    if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {
+    // Acquire exclusive access during initialization
+    if (!init_lock(ipc)) {
         SENTRY_WARNF(
             "failed to acquire initialization semaphore: %s", strerror(errno));
         sentry_free(ipc);
@@ -195,20 +283,18 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 
     // Try to create or open shared memory
     bool shm_exists = false;
-    ipc->shm_fd = shm_open(ipc->shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
+    if (ipc->shm_fd < 0) {
+        ipc->shm_fd = shm_create(ipc);
+    }
     if (ipc->shm_fd < 0 && errno == EEXIST) {
         // Shared memory already exists - reuse it
         shm_exists = true;
-        ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
+        ipc->shm_fd = shm_reopen(ipc);
     }
 
     if (ipc->shm_fd < 0) {
         SENTRY_WARNF("failed to open shared memory: %s", strerror(errno));
-        if (ipc->init_sem) {
-            sem_post(ipc->init_sem);
-        }
-        sentry_free(ipc);
-        return NULL;
+        goto fail;
     }
 
     // Verify and resize shared memory (both new and existing)
@@ -217,37 +303,21 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         struct stat st;
         if (fstat(ipc->shm_fd, &st) < 0) {
             SENTRY_WARNF("failed to stat shared memory: %s", strerror(errno));
-            close(ipc->shm_fd);
-            if (ipc->init_sem) {
-                sem_post(ipc->init_sem);
-            }
-            sentry_free(ipc);
-            return NULL;
+            goto fail;
         }
         if (st.st_size != SENTRY_CRASH_SHM_SIZE) {
             // Existing shm has wrong size, resize it
             if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
                 SENTRY_WARNF("failed to resize existing shared memory: %s",
                     strerror(errno));
-                close(ipc->shm_fd);
-                if (ipc->init_sem) {
-                    sem_post(ipc->init_sem);
-                }
-                sentry_free(ipc);
-                return NULL;
+                goto fail;
             }
         }
     } else {
         // New shared memory, set size
         if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
             SENTRY_WARNF("failed to resize shared memory: %s", strerror(errno));
-            close(ipc->shm_fd);
-            shm_unlink(ipc->shm_name);
-            if (ipc->init_sem) {
-                sem_post(ipc->init_sem);
-            }
-            sentry_free(ipc);
-            return NULL;
+            goto fail;
         }
     }
 
@@ -256,66 +326,34 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         MAP_SHARED, ipc->shm_fd, 0);
     if (ipc->shmem == MAP_FAILED) {
         SENTRY_WARNF("failed to map shared memory: %s", strerror(errno));
-        close(ipc->shm_fd);
-        if (!shm_exists) {
-            shm_unlink(ipc->shm_name);
-        }
-        if (ipc->init_sem) {
-            sem_post(ipc->init_sem);
-        }
-        sentry_free(ipc);
-        return NULL;
+        ipc->shmem = NULL;
+        goto fail;
     }
 
     // Create eventfd for crash notifications
-    ipc->notify_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     if (ipc->notify_fd < 0) {
-        SENTRY_WARNF("failed to create eventfd: %s", strerror(errno));
-        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
-        close(ipc->shm_fd);
-        if (!shm_exists) {
-            shm_unlink(ipc->shm_name);
+        ipc->notify_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        if (ipc->notify_fd < 0) {
+            SENTRY_WARNF("failed to create eventfd: %s", strerror(errno));
+            goto fail;
         }
-        if (ipc->init_sem) {
-            sem_post(ipc->init_sem);
-        }
-        sentry_free(ipc);
-        return NULL;
     }
 
     // Create eventfd for daemon ready signal
-    ipc->ready_fd = eventfd(0, EFD_CLOEXEC);
     if (ipc->ready_fd < 0) {
-        SENTRY_WARNF("failed to create ready eventfd: %s", strerror(errno));
-        close(ipc->notify_fd);
-        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
-        close(ipc->shm_fd);
-        if (!shm_exists) {
-            shm_unlink(ipc->shm_name);
+        ipc->ready_fd = eventfd(0, EFD_CLOEXEC);
+        if (ipc->ready_fd < 0) {
+            SENTRY_WARNF("failed to create ready eventfd: %s", strerror(errno));
+            goto fail;
         }
-        if (ipc->init_sem) {
-            sem_post(ipc->init_sem);
-        }
-        sentry_free(ipc);
-        return NULL;
     }
 
-    if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, ipc->message_fd)
-        < 0) {
+    if (ipc->message_fd[0] < 0
+        && socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, ipc->message_fd)
+            < 0) {
         SENTRY_WARNF(
             "failed to create message socketpair: %s", strerror(errno));
-        close(ipc->ready_fd);
-        close(ipc->notify_fd);
-        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
-        close(ipc->shm_fd);
-        if (!shm_exists) {
-            shm_unlink(ipc->shm_name);
-        }
-        if (ipc->init_sem) {
-            sem_post(ipc->init_sem);
-        }
-        sentry_free(ipc);
-        return NULL;
+        goto fail;
     }
 
     struct timeval send_timeout = { 1, 0 };
@@ -327,23 +365,140 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         sentry__crash_context_init(ipc->shmem);
     }
 
-    // Release semaphore after initialization
-    if (ipc->init_sem) {
-        sem_post(ipc->init_sem);
-    }
+    // Release exclusive access after initialization
+    init_unlock(ipc);
 
     SENTRY_DEBUGF("initialized crash IPC (shm=%s, notify_fd=%d)", ipc->shm_name,
         ipc->notify_fd);
 
     return ipc;
+
+fail:
+    if (ipc->message_fd[0] >= 0) {
+        close(ipc->message_fd[0]);
+    }
+    if (ipc->message_fd[1] >= 0) {
+        close(ipc->message_fd[1]);
+    }
+    if (ipc->ready_fd >= 0) {
+        close(ipc->ready_fd);
+    }
+    if (ipc->notify_fd >= 0) {
+        close(ipc->notify_fd);
+    }
+    if (ipc->shmem) {
+        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
+    }
+    if (ipc->shm_fd >= 0) {
+        close(ipc->shm_fd);
+        if (!shm_exists) {
+            sentry__crash_ipc_unlink(ipc);
+        }
+    }
+    init_unlock(ipc);
+    sentry_free(ipc);
+    return NULL;
+}
+
+#    if defined(SENTRY_PLATFORM_ANDROID)
+sentry_crash_ipc_t *
+sentry__crash_ipc_init_app(
+    const char *database_path, sentry_mutex_t *init_mutex)
+{
+    if (!database_path || !database_path[0]) {
+        SENTRY_WARN("Android crash IPC requires a database path");
+        return NULL;
+    }
+
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    if (!ipc) {
+        return NULL;
+    }
+    ipc->init_mutex = init_mutex;
+
+    uint64_t tid = (uint64_t)pthread_self();
+    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "%s/.sentry-shm-%08x",
+        database_path, id);
+
+    return init_app(ipc, -1, -1, -1, -1);
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
-    int notify_eventfd, int ready_eventfd, int message_fd)
+sentry__crash_ipc_init_app_with_fds(int shm_fd, int notify_fd, int ready_fd,
+    int message_fd, sentry_mutex_t *init_mutex)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
+        return NULL;
+    }
+    ipc->init_mutex = init_mutex;
+
+    return init_app(ipc, shm_fd, notify_fd, ready_fd, message_fd);
+}
+
+bool
+sentry__crash_ipc_reattach(
+    sentry_crash_ipc_t *ipc, int notify_fd, int ready_fd, int message_fd)
+{
+    bool reattached = false;
+    if (ipc && !ipc->is_daemon
+        && sentry__atomic_fetch(&ipc->shmem->state)
+            == SENTRY_CRASH_STATE_READY) {
+        // stop new frames, and let one in flight finish
+        sentry__atomic_store(&ipc->message_failed, 1);
+        while (!sentry__atomic_compare_swap(&ipc->writing, 0, 1)) {
+            sched_yield();
+        }
+        // in place, so that the crash handler never reads a closed fd
+        reattached = dup3(notify_fd, ipc->notify_fd, O_CLOEXEC) >= 0
+            && dup3(ready_fd, ipc->ready_fd, O_CLOEXEC) >= 0
+            && dup3(message_fd, ipc->message_fd[0], O_CLOEXEC) >= 0;
+        if (reattached) {
+            struct timeval send_timeout = { 1, 0 };
+            setsockopt(ipc->message_fd[0], SOL_SOCKET, SO_SNDTIMEO,
+                &send_timeout, sizeof(send_timeout));
+            // a new daemon starts at a snapshot with sequence 1
+            ipc->sequence = 0;
+            sentry__atomic_store(&ipc->message_failed, 0);
+        }
+        sentry__atomic_store(&ipc->writing, 0);
+    }
+    close(notify_fd);
+    close(ready_fd);
+    close(message_fd);
+    return reattached;
+}
+#    else
+sentry_crash_ipc_t *
+sentry__crash_ipc_init_app(sem_t *init_sem)
+{
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    if (!ipc) {
+        return NULL;
+    }
+    ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
+
+    // Create shared memory with unique name based on PID and thread ID
+    // macOS has a 31-character limit for POSIX shared memory names (PSEMNAMLEN)
+    // Format: /s-{8_hex_chars} = 11 chars total (well under 31 limit)
+    // We mix PID and TID to create a unique 32-bit identifier, allowing
+    // multiple sentry_init() calls from different threads in the same process.
+    uint64_t tid = (uint64_t)pthread_self();
+    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
+
+    return init_app(ipc, -1, -1, -1, -1);
+}
+#    endif
+
+sentry_crash_ipc_t *
+sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
+    int notify_eventfd, int ready_eventfd, int shm_fd, int message_fd)
+{
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    if (!ipc) {
+        close(shm_fd);
         return NULL;
     }
     ipc->is_daemon = true;
@@ -351,18 +506,13 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     ipc->message_fd[1] = message_fd;
     fcntl(message_fd, F_SETFD, FD_CLOEXEC);
 
-    // Open existing shared memory created by app (using PID and thread ID)
+    // Shared memory is handed over open, its name is only needed to unlink it
     // Must match the format in sentry__crash_ipc_init_app
     uint32_t id = (uint32_t)((app_pid ^ (app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+    ipc->shm_fd = shm_fd;
+#    if !defined(SENTRY_PLATFORM_ANDROID)
     snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
-
-    ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
-    if (ipc->shm_fd < 0) {
-        SENTRY_WARNF(
-            "daemon: failed to open shared memory: %s", strerror(errno));
-        sentry_free(ipc);
-        return NULL;
-    }
+#    endif
 
     // Map shared memory
     ipc->shmem = mmap(NULL, SENTRY_CRASH_SHM_SIZE, PROT_READ | PROT_WRITE,
@@ -384,6 +534,13 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
         return NULL;
     }
 
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    if (ipc->shmem->database_path[0]) {
+        snprintf(ipc->shm_name, sizeof(ipc->shm_name), "%s/.sentry-shm-%08x",
+            ipc->shmem->database_path, id);
+    }
+#    endif
+
     // Eventfds are inherited from parent after fork - assign them
     ipc->notify_fd = notify_eventfd;
     ipc->ready_fd = ready_eventfd;
@@ -395,18 +552,24 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     return ipc;
 }
 
-static void
+static bool
 notify_fallback(sentry_crash_ipc_t *ipc)
 {
     if (!ipc || ipc->notify_fd < 0) {
-        return;
+        return false;
+    }
+
+    // a pipe without a reader would raise SIGPIPE, the daemon is gone
+    struct pollfd pfd = { .fd = ipc->notify_fd, .events = POLLOUT };
+    if (poll(&pfd, 1, 0) == 1 && (pfd.revents & (POLLERR | POLLHUP))) {
+        return false;
     }
 
     // Write to eventfd to wake up daemon
     // This is signal-safe
     uint64_t val = 1;
     ssize_t written = write(ipc->notify_fd, &val, sizeof(val));
-    (void)written; // Ignore errors in signal handler
+    return written == (ssize_t)sizeof(val);
 }
 
 bool
@@ -443,7 +606,7 @@ void
 sentry__crash_ipc_unlink(sentry_crash_ipc_t *ipc)
 {
     if (ipc && ipc->shm_name[0]) {
-        shm_unlink(ipc->shm_name);
+        shm_remove(ipc);
     }
 }
 
@@ -723,16 +886,16 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     return ipc;
 }
 
-static void
+static bool
 notify_fallback(sentry_crash_ipc_t *ipc)
 {
     if (!ipc) {
-        return;
+        return false;
     }
 
     // Write byte to pipe (signal-safe)
     char byte = 1;
-    write(ipc->notify_pipe[1], &byte, 1);
+    return write(ipc->notify_pipe[1], &byte, 1) == 1;
 }
 
 bool
@@ -1040,17 +1203,18 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     return ipc;
 }
 
-static void
+static bool
 notify_fallback(sentry_crash_ipc_t *ipc)
 {
     if (!ipc || !ipc->event_handle) {
         // No logging - called from signal handler/exception filter
-        return;
+        return false;
     }
 
     // SetEvent is safe to call from exception filter
     // Ignore errors silently - we're crashing anyway
     SetEvent(ipc->event_handle);
+    return true;
 }
 
 bool
@@ -1511,16 +1675,15 @@ sentry__crash_ipc_send(
     return sent;
 }
 
-void
+bool
 sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
 {
     if (!ipc) {
-        return;
+        return false;
     }
     if (sentry__atomic_fetch(&ipc->shmem->state)
         == SENTRY_CRASH_STATE_CRASHING) {
-        notify_fallback(ipc);
-        return;
+        return notify_fallback(ipc);
     }
     sentry__atomic_store(&ipc->stopped, 1);
 #if !defined(SENTRY_PLATFORM_WINDOWS)
@@ -1533,12 +1696,12 @@ sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
         bool sent = write_message(ipc, frame, sizeof(frame), true);
         sentry__atomic_store(&ipc->writing, 0);
         if (sent) {
-            return;
+            return true;
         }
     }
 #endif
     // also used by WER; the daemon drains complete frames before freezing
-    notify_fallback(ipc);
+    return notify_fallback(ipc);
 }
 
 static void

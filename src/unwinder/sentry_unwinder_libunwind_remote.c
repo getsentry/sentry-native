@@ -68,14 +68,15 @@ capture_registers(unw_cursor_t *cursor, sentry_remote_registers_t *registers)
 
 size_t
 sentry__unwind_stack_from_thread_libunwind_remote(pid_t tid,
-    sentry_remote_frame_t *frames, size_t max_frames,
+    const ucontext_t *context, sentry_remote_frame_t *frames, size_t max_frames,
     sentry_remote_registers_t *registers, bool symbolize)
 {
     if (registers) {
         memset(registers, 0, sizeof(*registers));
     }
 
-    if (!sentry__ptrace_attach_thread(tid)) {
+    // libunwind only unwinds attached threads
+    if (context || !sentry__ptrace_attach_thread(tid)) {
         return 0;
     }
 
@@ -148,10 +149,11 @@ detach:
 
 size_t
 sentry__unwind_stack_from_thread_libunwind_remote(pid_t tid,
-    sentry_remote_frame_t *frames, size_t max_frames,
+    const ucontext_t *context, sentry_remote_frame_t *frames, size_t max_frames,
     sentry_remote_registers_t *registers, bool symbolize)
 {
     (void)tid;
+    (void)context;
     (void)frames;
     (void)max_frames;
     (void)registers;

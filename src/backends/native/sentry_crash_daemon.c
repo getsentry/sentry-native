@@ -41,6 +41,7 @@
 #    include <fcntl.h>
 #    include <inttypes.h>
 #    include <signal.h>
+#    include <sys/mman.h>
 #    include <sys/stat.h>
 #    include <sys/types.h>
 #    include <sys/uio.h>
@@ -95,11 +96,12 @@ typedef struct {
     bool write;
     bool exec;
 } vma_range_t;
-static vma_range_t *g_vmas = NULL;
-static size_t g_vma_count = 0;
-static size_t g_vma_capacity = 0;
-static bool g_vma_alloc_failed = false;
-static bool g_vma_complete = false;
+// per daemon thread, the Android crash service hosts several in one process
+static __thread vma_range_t *g_vmas = NULL;
+static __thread size_t g_vma_count = 0;
+static __thread size_t g_vma_capacity = 0;
+static __thread bool g_vma_alloc_failed = false;
+static __thread bool g_vma_complete = false;
 
 static bool
 vma_record(uint64_t start, uint64_t end, const char *perms)
@@ -203,6 +205,88 @@ static HANDLE g_stack_walk_process = NULL;
 static size_t walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
     const CONTEXT *ctx_record, const sentry_crash_context_t *crash_ctx,
     sentry_frame_info_t *frames, size_t max_frames);
+#endif
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+// matches io.sentry.ndk.SentryNdk.CrashDaemon.SendResult
+typedef enum {
+    SENTRY_ANDROID_SEND_FAILED,
+    SENTRY_ANDROID_SEND_SENT,
+    SENTRY_ANDROID_SEND_KEPT,
+} sentry_android_send_result_t;
+
+struct sentry_crash_daemon_s {
+    sentry_options_t *options;
+    sentry_crash_ipc_t *ipc;
+    sentry_transport_t *transport;
+    FILE *log_file;
+    char envelope_path[SENTRY_CRASH_MAX_PATH];
+    bool transport_shutdown;
+};
+
+static void android_cleanup_pending_crash_daemon(
+    sentry_crash_daemon_t *daemon, bool discard_envelope);
+
+static pthread_once_t g_android_logcat_once = PTHREAD_ONCE_INIT;
+
+// daemons in one crash service process share the global logger
+static void
+android_install_logcat_logger(void)
+{
+    sentry_logger_t logger = { .logger_func = sentry__logger_defaultlogger,
+        .logger_data = NULL,
+        .logger_level = SENTRY_LEVEL_DEBUG };
+    sentry__logger_set_global(logger);
+}
+
+__attribute__((visibility("default"))) sentry_crash_daemon_t *
+sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
+    int ready_fd, int message_fd, int shm_fd, sentry_transport_t *transport)
+{
+    if (!transport || shm_fd < 0) {
+        goto fail;
+    }
+
+    // app configuration must be complete before attaching to shm
+    sentry_crash_ipc_t ipc = { .notify_fd = notify_fd };
+    if (!sentry__crash_ipc_wait(&ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS)) {
+        goto fail;
+    }
+
+    sentry_crash_daemon_t *daemon = SENTRY_MAKE(sentry_crash_daemon_t);
+    if (!daemon) {
+        goto fail;
+    }
+    daemon->transport = transport;
+
+    int rv = sentry__crash_daemon_main(
+        app_pid, app_tid, notify_fd, ready_fd, shm_fd, message_fd, daemon);
+
+    if (rv != 0 || !daemon->envelope_path[0]) {
+        android_cleanup_pending_crash_daemon(daemon, true);
+        return NULL;
+    }
+
+    return daemon;
+
+fail:
+    // the daemon owns the fds, even when it does not start
+    close(notify_fd);
+    close(ready_fd);
+    close(message_fd);
+    if (shm_fd >= 0) {
+        close(shm_fd);
+    }
+    sentry_transport_free(transport);
+    return NULL;
+}
+
+__attribute__((visibility("default"))) const char *
+sentry_android_crash_daemon_get_envelope_path(
+    const sentry_crash_daemon_t *daemon)
+{
+    return daemon->envelope_path;
+}
 #endif
 
 // Provide default ASAN options for sentry-crash daemon executable
@@ -468,6 +552,30 @@ read_crash_event(const sentry_path_t *run_folder)
     }
     return event;
 }
+#if defined(SENTRY_PLATFORM_ANDROID)
+static sentry_path_t *
+make_run_envelope_path(
+    const sentry_run_t *run, const sentry_envelope_t *envelope)
+{
+    if (!run || !envelope || !run->run_path) {
+        return NULL;
+    }
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    if (sentry_uuid_is_nil(&event_id)) {
+        return NULL;
+    }
+
+    char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    if (!filename) {
+        return NULL;
+    }
+
+    sentry_path_t *path = sentry__path_join_str(run->run_path, filename);
+    sentry_free(filename);
+    return path;
+}
+#endif
 
 // cache large staged attachments as attachment-ref items
 static void
@@ -722,6 +830,21 @@ static void enrich_stacktrace(
     const sentry_crash_context_t *ctx, sentry_value_t stacktrace);
 
 /**
+ * Does the handler's capture hold the crashed thread's stack? The fault IP
+ * alone does not count with libunwindstack, which can unwind the saved context.
+ */
+static bool
+has_captured_stack(const sentry_crash_context_t *ctx)
+{
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE
+    return ctx->capture.count > 1;
+#else
+    return ctx->capture.count > 1
+        || (ctx->capture.count == 1 && ctx->capture.ips[0] != 0);
+#endif
+}
+
+/**
  * Build stacktrace frames for a specific thread using frame pointer-based
  * unwinding. Reads the captured stack memory and walks the frame chain.
  *
@@ -734,9 +857,7 @@ static sentry_value_t
 build_stacktrace_for_thread(
     const sentry_crash_context_t *ctx, size_t thread_idx)
 {
-    if (thread_idx == SIZE_MAX
-        && (ctx->capture.count > 1
-            || (ctx->capture.count == 1 && ctx->capture.ips[0] != 0))) {
+    if (thread_idx == SIZE_MAX && has_captured_stack(ctx)) {
         sentry_value_t captured = sentry__crash_context_build_stacktrace(
             ctx, build_registers_from_ctx(ctx, SIZE_MAX));
         enrich_stacktrace(ctx, captured);
@@ -1009,8 +1130,8 @@ build_stacktrace_for_thread(
     int frame_count = 0;
 
 #if defined(SENTRY_PLATFORM_LINUX)
-    // Remote DWARF unwinding via ptrace. Do not attach to
-    // the crashed thread from the daemon; use the saved fault context below.
+    // Remote DWARF unwinding. Do not attach to the crashed thread from the
+    // daemon. Unwind its saved fault context instead.
     {
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)                         \
         || defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE)
@@ -1024,13 +1145,15 @@ build_stacktrace_for_thread(
         bool is_crashed_thread
             = thread_idx == SIZE_MAX || tid == ctx->crashed_tid;
 
-        if (tid > 0 && !is_crashed_thread) {
+        if (tid > 0) {
             sentry_remote_registers_t registers = { 0 };
             sentry_remote_frame_t *remote_frames
                 = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
             size_t remote_count = remote_frames
-                ? sentry__unwind_stack_from_thread(tid, remote_frames,
-                      MAX_STACK_FRAMES, &registers, ctx->symbolize_stacktraces)
+                ? sentry__unwind_stack_from_thread(tid,
+                      is_crashed_thread ? &ctx->platform.context : NULL,
+                      remote_frames, MAX_STACK_FRAMES, &registers,
+                      ctx->symbolize_stacktraces)
                 : 0;
 
             if (remote_count > 0) {
@@ -1427,7 +1550,13 @@ typedef struct {
 
 // Direct-mapped by module index; see get_sym_source. Being BSS, only the
 // slots touched during resolution are committed to physical memory.
+#    if defined(SENTRY_PLATFORM_ANDROID)
+// Each daemon thread of the Android crash service maps its own instead, which
+// is zero-filled on demand the same way.
+static __thread sym_source_t *g_sym_sources = NULL;
+#    else
 static sym_source_t g_sym_sources[SENTRY_CRASH_MAX_MODULES];
+#    endif
 
 /**
  * Parse the ELF file at `path` and record the location of its symbol table
@@ -1584,6 +1713,11 @@ get_sym_source(const sentry_module_info_t *mod, uint32_t mod_idx)
     // most once and reused for every frame in that module. This covers all
     // modules the context can hold, so no frame is left unsymbolicated for
     // want of a cache slot.
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    if (!g_sym_sources) {
+        return NULL;
+    }
+#    endif
     sym_source_t *slot = &g_sym_sources[mod_idx];
     if (slot->state != 0) {
         return slot->state > 0 ? slot : NULL;
@@ -3278,6 +3412,13 @@ build_native_event(const sentry_crash_context_t *ctx, sentry_value_t base,
         sentry_event_add_exception(event, exc);
     } else {
         sentry_value_t stacktrace = sentry_value_get_by_key(exc, "stacktrace");
+        sentry_value_t unwound = has_captured_stack(ctx)
+            ? sentry_value_new_null()
+            : build_stacktrace_from_ctx(ctx);
+        if (!sentry_value_is_null(unwound)) {
+            sentry_value_set_by_key(exc, "stacktrace", unwound);
+            stacktrace = unwound;
+        }
         enrich_stacktrace(ctx, stacktrace);
     }
 
@@ -4045,8 +4186,10 @@ ensure_device_arch(sentry_value_t event)
 #endif
 
 bool
-sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
+sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
+    sentry_crash_daemon_t *daemon)
 {
+    (void)daemon;
     SENTRY_DEBUG("Processing crash - START");
     bool crash_captured = false;
 
@@ -4333,22 +4476,58 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     add_attachment_refs(envelope, options, attachments);
 
+#if defined(SENTRY_PLATFORM_ANDROID)
+    sentry_path_t *android_native_envelope_path
+        = make_run_envelope_path(options ? options->run : NULL, envelope);
+#endif
+
     SENTRY_DEBUG("Envelope loaded, capturing");
 
     // Launch reporter, or fall back to transport (consent/caching in core).
     if (!sentry__launch_external_crash_reporter(options, envelope)) {
-        if (options && options->transport && options->run) {
-            SENTRY_DEBUG("Capturing crash envelope");
-            sentry__capture_envelope(options->transport, envelope, options);
-            crash_captured = true;
-            SENTRY_DEBUG("Crash envelope captured (queued)");
-        } else {
-            SENTRY_WARN("No transport available for sending envelope");
-            sentry_envelope_free(envelope);
+#if defined(SENTRY_PLATFORM_ANDROID)
+        // Tombstone merging needs the sentry-java crash service. The
+        // standalone daemon is only used in tests and is not supported in
+        // apps, so it handles the envelope as on Linux.
+        if (daemon) {
+            if (!options || !options->run
+                || !sentry__run_write_envelope(options->run, envelope)) {
+                SENTRY_WARN("Failed to dump crash envelope to run folder");
+            } else {
+                SENTRY_DEBUG(
+                    "Crash envelope written for Android tombstone merging");
+                sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_DONE);
+                SENTRY_DEBUG("Released crashed process for Android tombstone");
+                if (android_native_envelope_path) {
+                    strncpy(daemon->envelope_path,
+                        android_native_envelope_path->path,
+                        sizeof(daemon->envelope_path) - 1);
+                    daemon->envelope_path[sizeof(daemon->envelope_path) - 1]
+                        = '\0';
+                }
+                sentry_envelope_free(envelope);
+                envelope = NULL;
+            }
+        }
+#endif
+        if (envelope) {
+            if (options && options->transport && options->run) {
+                SENTRY_DEBUG("Capturing crash envelope");
+                sentry__capture_envelope(options->transport, envelope, options);
+                crash_captured = true;
+                SENTRY_DEBUG("Crash envelope captured (queued)");
+            } else {
+                SENTRY_WARN("No transport available for sending envelope");
+                sentry_envelope_free(envelope);
+            }
         }
     } else {
         crash_captured = true;
     }
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+    sentry__path_free(android_native_envelope_path);
+#endif
 
     // Keep the original crash envelope for the callback on the next launch.
     if (!ctx->has_on_crashed_last_run) {
@@ -4381,6 +4560,133 @@ done:
     SENTRY_DEBUG("Crash processing complete");
     return crash_captured;
 }
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+__attribute__((visibility("default"))) int
+sentry_android_crash_daemon_send(
+    sentry_crash_daemon_t *daemon, const char *path, uint64_t timeout)
+{
+    if (!path || !path[0]) {
+        android_cleanup_pending_crash_daemon(daemon, false);
+        return SENTRY_ANDROID_SEND_FAILED;
+    }
+
+    sentry_path_t *envelope_path = sentry__path_from_str(path);
+    sentry_envelope_t *envelope
+        = envelope_path ? sentry__envelope_from_path(envelope_path) : NULL;
+    if (envelope_path) {
+        sentry__path_free(envelope_path);
+    }
+    if (!envelope) {
+        SENTRY_WARN("Failed to read merged Android crash envelope");
+        android_cleanup_pending_crash_daemon(daemon, false);
+        return SENTRY_ANDROID_SEND_FAILED;
+    }
+
+    sentry_android_send_result_t result = SENTRY_ANDROID_SEND_FAILED;
+    if (daemon->options->transport && daemon->options->run) {
+        SENTRY_DEBUG("Capturing merged Android crash envelope");
+        // keep a failed upload in the run folder for the next launch
+        sentry__http_transport_set_dump_failed(
+            daemon->options->transport, true);
+
+        // keep a copy for the next launch until the send has finished
+        sentry_path_t *raw_path = sentry__path_from_str(daemon->envelope_path);
+        sentry_path_t *pending_path = sentry__path_join_str(
+            daemon->options->run->run_path, "__sentry-pending.envelope");
+        if (raw_path && strcmp(path, daemon->envelope_path) != 0) {
+            sentry_path_t *merged_path = sentry__path_from_str(path);
+            if (merged_path
+                && sentry__path_rename(merged_path, raw_path) != 0) {
+                sentry__path_remove(merged_path);
+            }
+            sentry__path_free(merged_path);
+        }
+        bool pending = raw_path && pending_path
+            && sentry__path_rename(raw_path, pending_path) == 0;
+        if (raw_path && !pending) {
+            sentry__path_remove(raw_path);
+        }
+
+        sentry__capture_envelope(
+            daemon->options->transport, envelope, daemon->options);
+
+        daemon->options->shutdown_timeout = timeout;
+        int rv = sentry__transport_shutdown(
+            daemon->options->transport, daemon->options->shutdown_timeout);
+        daemon->transport_shutdown = true;
+        if (rv != 0) {
+            SENTRY_WARN("transport did not shut down cleanly");
+        }
+        sentry__transport_dump_queue(
+            daemon->options->transport, daemon->options->run);
+        sentry__http_transport_set_retry_enabled(
+            daemon->options->transport, false);
+        sentry__http_transport_set_dump_failed(
+            daemon->options->transport, false);
+        // the dump and a failed upload both write the raw envelope path
+        if (raw_path && sentry__path_is_file(raw_path)) {
+            result = SENTRY_ANDROID_SEND_KEPT;
+        } else if (rv == 0) {
+            result = SENTRY_ANDROID_SEND_SENT;
+        }
+        if (pending) {
+            if (result == SENTRY_ANDROID_SEND_FAILED) {
+                // the next launch sends the pending copy
+                result = SENTRY_ANDROID_SEND_KEPT;
+            } else {
+                sentry__path_remove(pending_path);
+            }
+        }
+        sentry__path_free(pending_path);
+        sentry__path_free(raw_path);
+    } else {
+        SENTRY_WARN(
+            "No transport available for sending Android crash envelope");
+        sentry_envelope_free(envelope);
+    }
+
+    android_cleanup_pending_crash_daemon(daemon, false);
+    return result;
+}
+
+__attribute__((visibility("default"))) void
+sentry_android_crash_daemon_close(sentry_crash_daemon_t *daemon)
+{
+    // the next launch sends the unsent envelope
+    android_cleanup_pending_crash_daemon(daemon, false);
+}
+
+static void
+android_cleanup_pending_crash_daemon(
+    sentry_crash_daemon_t *daemon, bool discard_envelope)
+{
+    if (discard_envelope && daemon->envelope_path[0]) {
+        sentry_path_t *path = sentry__path_from_str(daemon->envelope_path);
+        if (path) {
+            sentry__path_remove(path);
+            sentry__path_free(path);
+        }
+    }
+    if (daemon->options) {
+        if (daemon->options->transport && !daemon->transport_shutdown) {
+            sentry__transport_shutdown(daemon->options->transport, 0);
+        }
+        sentry_options_free(daemon->options);
+    }
+    sentry_transport_free(daemon->transport);
+    if (daemon->ipc) {
+        sentry__crash_ipc_unlink(daemon->ipc);
+        sentry__crash_ipc_free(daemon->ipc);
+    }
+    if (daemon->log_file) {
+        sentry__logger_disable();
+        fclose(daemon->log_file);
+    }
+
+    sentry_free(daemon);
+}
+#endif
 
 /**
  * Check if parent process is still alive
@@ -4461,10 +4767,15 @@ dump_crash_queue(void)
 #endif
 }
 
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_ANDROID)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
-    int ready_eventfd, int message_fd)
+    int ready_eventfd, int shm_fd, int message_fd,
+    sentry_crash_daemon_t *daemon)
+#elif defined(SENTRY_PLATFORM_LINUX)
+int
+sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
+    int ready_eventfd, int shm_fd, int message_fd)
 #elif defined(SENTRY_PLATFORM_MACOS)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
@@ -4479,7 +4790,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // We need this to get the database path for logging
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(
-        app_pid, app_tid, notify_eventfd, ready_eventfd, message_fd);
+        app_pid, app_tid, notify_eventfd, ready_eventfd, shm_fd, message_fd);
 #elif defined(SENTRY_PLATFORM_MACOS)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(app_pid, app_tid,
         notify_pipe_read, ready_pipe_write, shm_fd, message_fd);
@@ -4488,8 +4799,20 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         event_handle, ready_event_handle, message_read_handle);
 #endif
     if (!ipc) {
+#if defined(SENTRY_PLATFORM_ANDROID)
+        close(notify_eventfd);
+        close(ready_eventfd);
+        close(message_fd);
+#endif
         return 1;
     }
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+    // the crash service hosts a daemon for each app process
+    bool shared_process = daemon != NULL;
+#else
+    bool shared_process = false;
+#endif
 
     // Set up logging to file for daemon BEFORE redirecting streams
     char log_path[SENTRY_CRASH_MAX_PATH];
@@ -4512,7 +4835,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     int log_path_len = snprintf(log_path, sizeof(log_path),
         "%s/sentry-daemon.log", ipc->shmem->run_path);
 
-    if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
+    if (!shared_process && log_path_len > 0
+        && log_path_len < (int)sizeof(log_path)) {
         log_file = fopen(log_path, "w");
     }
 #endif
@@ -4537,20 +4861,29 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_DEBUGF("Database path: %s", ipc->shmem->database_path);
     }
 
-#if defined(SENTRY_PLATFORM_UNIX)
-    // Close standard streams to avoid interfering with parent
-    close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
+#if defined(SENTRY_PLATFORM_ANDROID)
+    if (shared_process && ipc->shmem->debug_enabled) {
+        pthread_once(&g_android_logcat_once, android_install_logcat_logger);
+    }
+#endif
 
-    // Open /dev/null for std streams
-    int devnull = open("/dev/null", O_RDWR);
-    if (devnull >= 0) {
-        dup2(devnull, STDIN_FILENO);
-        dup2(devnull, STDOUT_FILENO);
-        dup2(devnull, STDERR_FILENO);
-        if (devnull > STDERR_FILENO) {
-            close(devnull);
+#if defined(SENTRY_PLATFORM_UNIX)
+    // other threads of a shared process own the standard streams
+    if (!shared_process) {
+        // Close standard streams to avoid interfering with parent
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
+
+        // Open /dev/null for std streams
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) {
+            dup2(devnull, STDIN_FILENO);
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            if (devnull > STDERR_FILENO) {
+                close(devnull);
+            }
         }
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -4566,11 +4899,19 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     sentry_options_t *options = sentry_options_new();
     if (!options) {
         SENTRY_ERROR("sentry_options_new() failed");
+        sentry__crash_ipc_free(ipc);
         if (log_file) {
+            sentry__logger_disable();
             fclose(log_file);
         }
         return 1;
     }
+#if defined(SENTRY_PLATFORM_ANDROID)
+    if (daemon) {
+        sentry_options_set_transport(options, daemon->transport);
+        daemon->transport = NULL;
+    }
+#endif
 
     sentry_options_set_database_path(options, ipc->shmem->database_path);
 
@@ -4680,6 +5021,18 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         return 1;
     }
 
+#if defined(SENTRY_PLATFORM_ANDROID)
+    // mapped ahead of the crash, which then goes without symbols on failure
+    void *sym_sources
+        = mmap(NULL, SENTRY_CRASH_MAX_MODULES * sizeof(*g_sym_sources),
+            PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (sym_sources != MAP_FAILED) {
+        g_sym_sources = sym_sources;
+    } else {
+        SENTRY_WARN("Failed to map the symbol cache");
+    }
+#endif
+
     // Signal to parent that daemon is ready
     SENTRY_DEBUG("Signaling ready to parent");
     sentry__crash_ipc_signal_ready(ipc);
@@ -4704,13 +5057,17 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_WARN("No transport available");
     }
 
-    sentry__options_set(options);
-    bool crash_handler_installed
-        = sentry__crash_handler_init(
-              NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, dump_crash_queue)
-        == 0;
-    if (!crash_handler_installed) {
-        SENTRY_WARN("Failed to install daemon crash handler");
+    // process-wide, not per daemon
+    bool crash_handler_installed = false;
+    if (!shared_process) {
+        sentry__options_set(options);
+        crash_handler_installed
+            = sentry__crash_handler_init(
+                  NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, dump_crash_queue)
+            == 0;
+        if (!crash_handler_installed) {
+            SENTRY_WARN("Failed to install daemon crash handler");
+        }
     }
 
     SENTRY_DEBUG("Entering main loop");
@@ -4735,7 +5092,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         }
         if (state == SENTRY_CRASH_STATE_CRASHED) {
             SENTRY_DEBUG("Crash notification received, processing");
-            bool crash_captured = sentry__process_crash(options, ipc);
+#if defined(SENTRY_PLATFORM_ANDROID)
+            bool crash_captured = sentry__process_crash(options, ipc, daemon);
+#else
+            bool crash_captured = sentry__process_crash(options, ipc, NULL);
+#endif
             crash_processed = true;
 
             if (crash_captured
@@ -4794,6 +5155,29 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     SENTRY_DEBUG("Daemon exiting");
 
+#if defined(SENTRY_PLATFORM_ANDROID)
+    if (g_sym_sources) {
+        munmap(
+            g_sym_sources, SENTRY_CRASH_MAX_MODULES * sizeof(*g_sym_sources));
+        g_sym_sources = NULL;
+    }
+#endif
+#if defined(SENTRY_PLATFORM_UNIX) && defined(__arm__)
+    sentry_free(g_vmas);
+    g_vmas = NULL;
+    g_vma_count = 0;
+    g_vma_capacity = 0;
+#endif
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+    if (daemon && daemon->envelope_path[0]) {
+        daemon->options = options;
+        daemon->ipc = ipc;
+        daemon->log_file = log_file;
+        return 0;
+    }
+#endif
+
     // Cleanup
     if (options) {
         if (options->transport) {
@@ -4817,7 +5201,9 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     if (crash_handler_installed) {
         sentry__crash_handler_shutdown();
     }
-    sentry__options_set(NULL);
+    if (!shared_process) {
+        sentry__options_set(NULL);
+    }
 
     if (crash_processed) {
         // Mark as done
@@ -4866,15 +5252,16 @@ int
 main(int argc, char **argv)
 {
     // Expected arguments:
-    //   Linux:  <app_pid> <app_tid> <notify_handle> <ready_handle>
-    //           <message_fd>
-    //   macOS:  <app_pid> <app_tid> <notify_handle> <ready_handle> <shm_fd>
-    //           <message_fd>
-#    if defined(SENTRY_PLATFORM_MACOS)
+    //   Linux/macOS/Android: <app_pid> <app_tid> <notify_handle> <ready_handle>
+    //                        <shm_fd> <message_fd>
+    //   Windows: <app_pid> <app_tid> <notify_handle> <ready_handle>
+    //            <message_handle>
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_MACOS)       \
+        || defined(SENTRY_PLATFORM_ANDROID)
     if (argc < 7) {
         fprintf(stderr,
-            "Usage: sentry-crash <app_pid> <app_tid> <notify_pipe> "
-            "<ready_pipe> <shm_fd> <message_fd>\n");
+            "Usage: sentry-crash <app_pid> <app_tid> <notify_handle> "
+            "<ready_handle> <shm_fd> <message_fd>\n");
         return 1;
     }
 #    else
@@ -4890,12 +5277,20 @@ main(int argc, char **argv)
     pid_t app_pid = (pid_t)strtoul(argv[1], NULL, 10);
     uint64_t app_tid = strtoull(argv[2], NULL, 16);
 
-#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
     int notify_eventfd = atoi(argv[3]);
     int ready_eventfd = atoi(argv[4]);
-    int message_fd = atoi(argv[5]);
-    return sentry__crash_daemon_main(
-        app_pid, app_tid, notify_eventfd, ready_eventfd, message_fd);
+    int shm_fd_arg = atoi(argv[5]);
+    int message_fd = atoi(argv[6]);
+    return sentry__crash_daemon_main(app_pid, app_tid, notify_eventfd,
+        ready_eventfd, shm_fd_arg, message_fd, NULL);
+#    elif defined(SENTRY_PLATFORM_LINUX)
+    int notify_eventfd = atoi(argv[3]);
+    int ready_eventfd = atoi(argv[4]);
+    int shm_fd_arg = atoi(argv[5]);
+    int message_fd = atoi(argv[6]);
+    return sentry__crash_daemon_main(app_pid, app_tid, notify_eventfd,
+        ready_eventfd, shm_fd_arg, message_fd);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     int notify_pipe_read = atoi(argv[3]);
     int ready_pipe_write = atoi(argv[4]);

@@ -17,6 +17,7 @@
 #    endif
 #    if defined(SENTRY_PLATFORM_ANDROID)
 #        include <android/api-level.h>
+#        include <dlfcn.h>
 #    endif
 #endif
 
@@ -52,9 +53,10 @@
 // This lives for the entire backend lifetime and is shared across all threads
 #if defined(SENTRY_PLATFORM_WINDOWS)
 static HANDLE g_ipc_mutex = NULL;
-#elif defined(SENTRY_PLATFORM_MACOS)
-// macOS uses a plain pthread mutex instead of named semaphores (sem_open)
-// because App Sandbox blocks POSIX named semaphores.
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
+// macOS/Android use a plain pthread mutex instead of named semaphores
+// (sem_open) because App Sandbox blocks POSIX named semaphores and Android has
+// no shm_open.
 static sentry_mutex_t g_ipc_sync_mutex = SENTRY__MUTEX_INIT;
 #else
 #    include <semaphore.h>
@@ -62,10 +64,140 @@ static sem_t *g_ipc_init_sem = SEM_FAILED;
 static char g_ipc_sem_name[64] = { 0 };
 #endif
 
-// Mutex to protect IPC initialization (Windows and Linux only, not macOS/iOS)
-// macOS uses g_ipc_sync_mutex directly; iOS has no out-of-process daemon.
+#if defined(SENTRY_PLATFORM_ANDROID)
+typedef struct {
+    bool configured;
+    int shm_fd;
+    int notify_fd;
+    int ready_fd;
+    int message_fd;
+} android_crash_daemon_config_t;
+
+static android_crash_daemon_config_t g_android_crash_daemon_config
+    = { false, -1, -1, -1, -1 };
+
+__attribute__((visibility("default"))) int
+sentry_android_crash_daemon_create_shm(void)
+{
+    return sentry__crash_ipc_create_memfd();
+}
+
+__attribute__((visibility("default"))) void
+sentry_android_crash_daemon_init(
+    int shm_fd, int notify_fd, int ready_fd, int message_fd)
+{
+    if (shm_fd < 0 || notify_fd < 0 || ready_fd < 0 || message_fd < 0) {
+        // the backend owns the fds, even when it rejects them
+        close(shm_fd);
+        close(notify_fd);
+        close(ready_fd);
+        close(message_fd);
+        return;
+    }
+
+    sentry__mutex_lock(&g_ipc_sync_mutex);
+    // replaces a configuration that no backend startup took
+    if (g_android_crash_daemon_config.configured) {
+        close(g_android_crash_daemon_config.shm_fd);
+        close(g_android_crash_daemon_config.notify_fd);
+        close(g_android_crash_daemon_config.ready_fd);
+        close(g_android_crash_daemon_config.message_fd);
+    }
+    g_android_crash_daemon_config.shm_fd = shm_fd;
+    g_android_crash_daemon_config.notify_fd = notify_fd;
+    g_android_crash_daemon_config.ready_fd = ready_fd;
+    g_android_crash_daemon_config.message_fd = message_fd;
+    g_android_crash_daemon_config.configured = true;
+    sentry__mutex_unlock(&g_ipc_sync_mutex);
+}
+
+static bool
+take_android_crash_daemon_config(
+    int *shm_fd, int *notify_fd, int *ready_fd, int *message_fd)
+{
+    bool configured = false;
+    sentry__mutex_lock(&g_ipc_sync_mutex);
+    if (g_android_crash_daemon_config.configured) {
+        *shm_fd = g_android_crash_daemon_config.shm_fd;
+        *notify_fd = g_android_crash_daemon_config.notify_fd;
+        *ready_fd = g_android_crash_daemon_config.ready_fd;
+        *message_fd = g_android_crash_daemon_config.message_fd;
+        g_android_crash_daemon_config.shm_fd = -1;
+        g_android_crash_daemon_config.notify_fd = -1;
+        g_android_crash_daemon_config.ready_fd = -1;
+        g_android_crash_daemon_config.message_fd = -1;
+        g_android_crash_daemon_config.configured = false;
+        configured = true;
+    }
+    sentry__mutex_unlock(&g_ipc_sync_mutex);
+    return configured;
+}
+#endif
+
+static char *
+resolve_handler_path(const sentry_options_t *options)
+{
+    if (options->handler_path) {
+        return sentry__string_clone(options->handler_path->path);
+    }
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+    Dl_info info;
+    if (dladdr((void *)resolve_handler_path, &info) == 0 || !info.dli_fname) {
+        SENTRY_WARN("unable to resolve sentry library path for crash daemon");
+        return NULL;
+    }
+
+    sentry_path_t *library_path = sentry__path_from_str(info.dli_fname);
+    if (!library_path) {
+        return NULL;
+    }
+
+    sentry_path_t *library_dir = sentry__path_dir(library_path);
+    sentry__path_free(library_path);
+    if (!library_dir) {
+        return NULL;
+    }
+
+    sentry_path_t *handler_path
+        = sentry__path_join_str(library_dir, "libsentry-crash.so");
+    sentry__path_free(library_dir);
+    if (!handler_path) {
+        return NULL;
+    }
+
+    if (!sentry__path_is_file(handler_path)) {
+        // fall back to sentry-crash next to the executable (as in adb runs)
+        sentry__path_free(handler_path);
+        sentry_path_t *exe_path = sentry__path_current_exe();
+        sentry_path_t *exe_dir = exe_path ? sentry__path_dir(exe_path) : NULL;
+        handler_path
+            = exe_dir ? sentry__path_join_str(exe_dir, "sentry-crash") : NULL;
+        sentry__path_free(exe_dir);
+        sentry__path_free(exe_path);
+    }
+
+    if (!handler_path || !sentry__path_is_file(handler_path)) {
+        SENTRY_WARN("Android crash daemon is missing");
+        sentry__path_free(handler_path);
+        return NULL;
+    }
+
+    SENTRY_DEBUGF("resolved Android crash daemon path: %s", handler_path->path);
+    char *handler_path_str = sentry__string_clone(handler_path->path);
+    sentry__path_free(handler_path);
+    return handler_path_str;
+#else
+    return NULL;
+#endif
+}
+
+// Mutex to protect IPC initialization (Windows and Linux only, not macOS/iOS or
+// Android) macOS/Android use g_ipc_sync_mutex directly; iOS has no
+// out-of-process daemon.
 #if defined(SENTRY_PLATFORM_WINDOWS)                                           \
-    || (!defined(SENTRY_PLATFORM_MACOS) && !defined(SENTRY_PLATFORM_IOS))
+    || (!defined(SENTRY_PLATFORM_MACOS) && !defined(SENTRY_PLATFORM_ANDROID)   \
+        && !defined(SENTRY_PLATFORM_IOS))
 #    ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_ipc_init_mutex)
 #    else
@@ -242,6 +374,7 @@ typedef struct {
     sentry_path_t *run_path;
     sentry_path_t *envelope_path;
     const sentry_options_t *options;
+    bool android_service_daemon;
     sentry_scope_observer_t *scope_observer;
     volatile long crashed;
 } native_backend_state_t;
@@ -339,7 +472,7 @@ native_backend_process_old_run(sentry_backend_t *backend,
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
-    int ready_eventfd, int message_fd, const char *handler_path)
+    int ready_eventfd, int shm_fd, int message_fd, const char *handler_path)
 #elif defined(SENTRY_PLATFORM_MACOS)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
@@ -466,17 +599,23 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             fcntl(message_fd, F_SETFD, message_flags & ~FD_CLOEXEC);
         }
 
+        int shm_flags = fcntl(shm_fd, F_GETFD);
+        if (shm_flags != -1) {
+            fcntl(shm_fd, F_SETFD, shm_flags & ~FD_CLOEXEC);
+        }
+
         // Convert arguments to strings for exec
         char pid_str[32], tid_str[32], notify_str[32], ready_str[32],
-            message_str[32];
+            shm_str[32], message_str[32];
         snprintf(pid_str, sizeof(pid_str), "%d", (int)app_pid);
         snprintf(tid_str, sizeof(tid_str), "%" PRIx64, app_tid);
         snprintf(notify_str, sizeof(notify_str), "%d", notify_eventfd);
         snprintf(ready_str, sizeof(ready_str), "%d", ready_eventfd);
+        snprintf(shm_str, sizeof(shm_str), "%d", shm_fd);
         snprintf(message_str, sizeof(message_str), "%d", message_fd);
 
         char *argv[] = { "sentry-crash", pid_str, tid_str, notify_str,
-            ready_str, message_str, NULL };
+            ready_str, shm_str, message_str, NULL };
 
         if (!sentry__string_empty(handler_path)) {
             execv(handler_path, argv);
@@ -674,9 +813,10 @@ native_backend_startup(
     }
 
     sentry__mutex_unlock(&g_ipc_init_mutex);
-#elif defined(SENTRY_PLATFORM_MACOS)
-    // macOS uses a plain pthread mutex (no sem_open which is blocked by App
-    // Sandbox). The mutex is statically initialized - no setup needed.
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
+    // macOS/Android use a plain pthread mutex (no sem_open/shm_open which is
+    // blocked by App Sandbox, or missing on Android). The mutex is statically
+    // initialized - no setup needed.
     (void)0;
 #elif !defined(SENTRY_PLATFORM_IOS)
     // Create process-wide IPC initialization semaphore (singleton pattern)
@@ -715,6 +855,23 @@ native_backend_startup(
     state->ipc = sentry__crash_ipc_init_app(g_ipc_mutex);
 #elif defined(SENTRY_PLATFORM_IOS)
     state->ipc = sentry__crash_ipc_init_app(NULL);
+#elif defined(SENTRY_PLATFORM_ANDROID)
+    int service_shm_fd = -1;
+    int service_notify_fd = -1;
+    int service_ready_fd = -1;
+    int service_message_fd = -1;
+    state->android_service_daemon
+        = take_android_crash_daemon_config(&service_shm_fd, &service_notify_fd,
+            &service_ready_fd, &service_message_fd);
+    if (state->android_service_daemon) {
+        state->ipc = sentry__crash_ipc_init_app_with_fds(service_shm_fd,
+            service_notify_fd, service_ready_fd, service_message_fd,
+            &g_ipc_sync_mutex);
+    } else {
+        state->ipc = sentry__crash_ipc_init_app(
+            options->database_path ? options->database_path->path : NULL,
+            &g_ipc_sync_mutex);
+    }
 #elif defined(SENTRY_PLATFORM_MACOS)
     state->ipc = sentry__crash_ipc_init_app(&g_ipc_sync_mutex);
 #else
@@ -743,7 +900,7 @@ native_backend_startup(
             return 1;
         }
     }
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
     sentry__mutex_lock(&g_ipc_sync_mutex);
 #elif !defined(SENTRY_PLATFORM_IOS)
     if (g_ipc_init_sem && sem_wait(g_ipc_init_sem) < 0) {
@@ -892,7 +1049,7 @@ native_backend_startup(
     if (g_ipc_mutex) {
         ReleaseMutex(g_ipc_mutex);
     }
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
     sentry__mutex_unlock(&g_ipc_sync_mutex);
 #elif !defined(SENTRY_PLATFORM_IOS)
     // Release semaphore after context configuration
@@ -917,23 +1074,44 @@ native_backend_startup(
 #else
     // Other platforms: Use out-of-process daemon
     // Pass the notification handles (eventfd/pipe on Unix, events on Windows)
-    const char *daemon_handler_path
-        = options->handler_path ? options->handler_path->path : NULL;
-#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    char *daemon_handler_path = NULL;
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    if (state->android_service_daemon) {
+        // not a child process, so there is no PID to signal or wait for
+        state->daemon_pid = 0;
+        SENTRY_DEBUG("using Android service-hosted crash daemon");
+        uint64_t ready = 1;
+        ssize_t written = write(state->ipc->notify_fd, &ready, sizeof(ready));
+        (void)written;
+    } else {
+        daemon_handler_path = resolve_handler_path(options);
+        uint64_t tid = (uint64_t)pthread_self();
+        state->daemon_pid = daemon_handler_path
+            ? daemon_start(getpid(), tid, state->ipc->notify_fd,
+                  state->ipc->ready_fd, state->ipc->shm_fd,
+                  state->ipc->message_fd[1], daemon_handler_path)
+            : -1;
+    }
+#    elif defined(SENTRY_PLATFORM_LINUX)
+    daemon_handler_path = resolve_handler_path(options);
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = daemon_start(getpid(), tid, state->ipc->notify_fd,
-        state->ipc->ready_fd, state->ipc->message_fd[1], daemon_handler_path);
+        state->ipc->ready_fd, state->ipc->shm_fd, state->ipc->message_fd[1],
+        daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
+    daemon_handler_path = resolve_handler_path(options);
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
         state->ipc->ready_pipe[1], state->ipc->shm_fd,
         state->ipc->message_fd[1], daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
+    daemon_handler_path = resolve_handler_path(options);
     uint64_t tid = (uint64_t)GetCurrentThreadId();
     state->daemon_pid = daemon_start(GetCurrentProcessId(), tid,
         state->ipc->event_handle, state->ipc->ready_event_handle,
         state->ipc->message_read_handle, daemon_handler_path);
 #    endif
+    sentry_free(daemon_handler_path);
 
     // On Windows, pid_t is DWORD (unsigned), so (pid_t)-1 == 0xFFFFFFFF.
     // On Unix, pid_t is signed and fork returns -1 on failure.
@@ -950,7 +1128,9 @@ native_backend_startup(
         return 1;
     }
 
-    SENTRY_DEBUGF("crash daemon started with PID %d", state->daemon_pid);
+    if (!state->android_service_daemon) {
+        SENTRY_DEBUGF("crash daemon started with PID %d", state->daemon_pid);
+    }
 
 #    if defined(SENTRY_PLATFORM_MACOS)
     // Close unused pipe ends in parent process
@@ -975,6 +1155,9 @@ native_backend_startup(
 
     // On Linux, allow the daemon to ptrace this process
     // This is required when Yama LSM ptrace_scope is enabled
+    // On Android, the crash handler allows any ptracer at crash time instead,
+    // which also covers the service-hosted daemon
+#        if !defined(SENTRY_PLATFORM_ANDROID)
     if (prctl(PR_SET_PTRACER, state->daemon_pid, 0, 0, 0) != 0) {
         SENTRY_WARNF(
             "prctl(PR_SET_PTRACER) failed: %s - daemon may not be able to "
@@ -983,6 +1166,7 @@ native_backend_startup(
     } else {
         SENTRY_DEBUGF("Set daemon PID %d as ptracer", state->daemon_pid);
     }
+#        endif
 #    endif
 
 #    if defined(SENTRY_PLATFORM_WINDOWS)
@@ -1026,7 +1210,9 @@ native_backend_startup(
     if (sentry__crash_handler_init(state->ipc, strategy, NULL) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
 #    if defined(SENTRY_PLATFORM_UNIX)
-        kill(state->daemon_pid, SIGTERM);
+        if (state->daemon_pid > 0) {
+            kill(state->daemon_pid, SIGTERM);
+        }
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
         wer_unregister_module();
         // On Windows, terminate the daemon process
@@ -1483,6 +1669,69 @@ init_scope_observer(void *data, const sentry_scope_t *scope)
     sentry_value_decref(attachments);
     return snapshot_scope(state, scope);
 }
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+static native_backend_state_t *
+android_service_backend_state(const sentry_options_t *options)
+{
+    native_backend_state_t *state
+        = options->backend ? options->backend->data : NULL;
+    if (!state || !state->android_service_daemon
+        || sentry__atomic_fetch(&state->crashed)) {
+        return NULL;
+    }
+    return state;
+}
+
+__attribute__((visibility("default"))) int
+sentry_android_crash_daemon_dup_shm_fd(void)
+{
+    int fd = -1;
+    SENTRY_WITH_OPTIONS (options) {
+        native_backend_state_t *state = android_service_backend_state(options);
+        if (state) {
+            fd = fcntl(state->ipc->shm_fd, F_DUPFD_CLOEXEC, 0);
+        }
+    }
+    return fd;
+}
+
+__attribute__((visibility("default"))) bool
+sentry_android_crash_daemon_reattach(
+    int notify_fd, int ready_fd, int message_fd)
+{
+    bool reattached = false;
+    bool taken = false;
+    SENTRY_WITH_OPTIONS (options) {
+        native_backend_state_t *state = android_service_backend_state(options);
+        if (!state) {
+            continue;
+        }
+        // scope changes notify under this lock, so none lands before the
+        // snapshot
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            sentry__mutex_lock(&scope->observers_lock);
+            taken = true;
+            if (sentry__crash_ipc_reattach(
+                    state->ipc, notify_fd, ready_fd, message_fd)) {
+                // as at startup, the new daemon waits for the configured app
+                uint64_t ready = 1;
+                ssize_t written
+                    = write(state->ipc->notify_fd, &ready, sizeof(ready));
+                (void)written;
+                reattached = snapshot_scope(state, scope);
+            }
+            sentry__mutex_unlock(&scope->observers_lock);
+        }
+    }
+    if (!taken) {
+        close(notify_fd);
+        close(ready_fd);
+        close(message_fd);
+    }
+    return reattached;
+}
+#endif
 
 static bool
 observe_scope(native_backend_state_t *state)

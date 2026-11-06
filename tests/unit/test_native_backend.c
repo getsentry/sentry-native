@@ -1337,7 +1337,11 @@ SENTRY_TEST(native_scope_updates)
 static sentry_crash_ipc_t *
 new_test_ipc(void)
 {
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_app(".", NULL);
+#    else
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_app(NULL);
+#    endif
     TEST_ASSERT(ipc != NULL);
     TEST_ASSERT(sentry__crash_scope_init(&ipc->scope, 2));
     sentry_value_t snapshot = scope_snapshot();
@@ -1523,20 +1527,22 @@ SENTRY_TEST(crash_daemon_shutdown_during_crash)
     TEST_ASSERT(sentry__crash_ipc_send(
         ipc, SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN, sentry_value_new_null()));
 
-    char pid[32], tid[32], notify[32], ready[32], message[32];
+    char pid[32], tid[32], notify[32], ready[32], shm[32], message[32];
     snprintf(pid, sizeof(pid), "%d", (int)getpid());
     snprintf(tid, sizeof(tid), "%llx", (unsigned long long)pthread_self());
     snprintf(notify, sizeof(notify), "%d", ipc->notify_fd);
     snprintf(ready, sizeof(ready), "%d", ipc->ready_fd);
+    snprintf(shm, sizeof(shm), "%d", ipc->shm_fd);
     snprintf(message, sizeof(message), "%d", ipc->message_fd[1]);
     pid_t child = fork();
     TEST_ASSERT(child >= 0);
     if (child == 0) {
-        int fds[] = { ipc->notify_fd, ipc->ready_fd, ipc->message_fd[1] };
+        int fds[] = { ipc->notify_fd, ipc->ready_fd, ipc->shm_fd,
+            ipc->message_fd[1] };
         for (size_t i = 0; i < sizeof(fds) / sizeof(fds[0]); i++) {
             fcntl(fds[i], F_SETFD, 0);
         }
-        execl(daemon, daemon, pid, tid, notify, ready, message, NULL);
+        execl(daemon, daemon, pid, tid, notify, ready, shm, message, NULL);
         _exit(1);
     }
     TEST_CHECK(sentry__crash_ipc_wait_for_ready(ipc, 5000));
@@ -1565,5 +1571,30 @@ SENTRY_TEST(crash_daemon_shutdown_during_crash)
     sentry__crash_ipc_free(ipc);
     sentry__run_free(run);
     sentry_options_free(options);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_notify_without_daemon)
+{
+#if !defined(SENTRY_BACKEND_NATIVE)                                            \
+    || !(defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID))
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    // the daemon's ends are gone, as in a killed crash service
+    close(ipc->message_fd[1]);
+    ipc->message_fd[1] = -1;
+    int notify_pipe[2];
+    TEST_ASSERT(pipe(notify_pipe) == 0);
+    close(notify_pipe[0]);
+    TEST_ASSERT(dup2(notify_pipe[1], ipc->notify_fd) == ipc->notify_fd);
+    close(notify_pipe[1]);
+
+    void (*previous)(int) = signal(SIGPIPE, SIG_DFL);
+    TEST_CHECK(!sentry__crash_ipc_notify(ipc));
+    sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_CRASHING);
+    TEST_CHECK(!sentry__crash_ipc_notify(ipc));
+    signal(SIGPIPE, previous);
+    sentry__crash_ipc_free(ipc);
 #endif
 }

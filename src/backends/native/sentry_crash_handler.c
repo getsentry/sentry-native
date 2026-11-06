@@ -28,6 +28,9 @@
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #        include <sys/uio.h>
 #    endif
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include <sys/prctl.h>
+#    endif
 #    include <unistd.h>
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <tlhelp32.h>
@@ -474,6 +477,14 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    // Let the daemon ptrace and read this process. Non-debuggable apps are not
+    // dumpable, and Yama requires a declared ptracer (EINVAL without Yama).
+    // Not restored, since the process terminates after the crash.
+    prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
+    prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
+#    endif
+
     // Fill crash context
     ctx->crashed_pid = getpid();
     ctx->crashed_tid = get_tid();
@@ -911,13 +922,13 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
             SENTRY_CRASH_STATE_CRASHED)) {
 
         // Successfully claimed crash slot, notify daemon
-        sentry__crash_ipc_notify(ipc);
+        bool notified = sentry__crash_ipc_notify(ipc);
 
         // Wait for daemon to finish processing (keep process alive for
-        // minidump)
+        // minidump), unless no daemon was there to notify
         bool processing_started = false;
         int elapsed_ms = 0;
-        while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
+        while (notified && elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
             long state = sentry__atomic_fetch(&ctx->state);
             if (state == SENTRY_CRASH_STATE_PROCESSING && !processing_started) {
                 // Daemon started processing (no logging - signal-safe)
