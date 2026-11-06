@@ -16,6 +16,7 @@
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
 #include "sentry_tracing.h"
+#include "sentry_utils.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,6 +26,9 @@
 #    include "../../src/backends/native/minidump/sentry_minidump_format.h"
 #    include "../../src/backends/native/sentry_crash_context.h"
 #    include "../../src/backends/native/sentry_crash_ipc.h"
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include <sys/socket.h>
+#    endif
 
 static void
 noop_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
@@ -1653,6 +1657,54 @@ SENTRY_TEST(crash_ipc_stalled_notify)
     TEST_CHECK(sentry__crash_ipc_receive(ipc, 100));
     TEST_CHECK(!ipc->message_closed);
     TEST_CHECK_INT_EQUAL(ipc->scope.sequence, 1);
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_reattach_stalled)
+{
+#if !defined(SENTRY_BACKEND_NATIVE) || !defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    size_t size = 8 * 1024 * 1024;
+    char *large = sentry_malloc(size);
+    TEST_ASSERT(large != NULL);
+    memset(large, 'x', size);
+    sentry_value_t value = sentry_value_new_string_n(large, size);
+    sentry_free(large);
+    TEST_CHECK(!sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
+    TEST_CHECK(ipc->stalled);
+    TEST_CHECK(ipc->torn_frame != NULL);
+
+    int fds[2];
+    TEST_ASSERT(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0);
+    int notify_fd = eventfd(0, EFD_CLOEXEC);
+    int ready_fd = eventfd(0, EFD_CLOEXEC);
+    TEST_CHECK(sentry__crash_ipc_reattach(ipc, notify_fd, ready_fd, fds[0]));
+    TEST_CHECK(!ipc->stalled);
+    TEST_CHECK(ipc->torn_frame == NULL);
+    TEST_CHECK_INT_EQUAL(ipc->sequence, 0);
+
+    // the new daemon starts at a snapshot with sequence 1
+    sentry_value_t snapshot = scope_snapshot();
+    TEST_CHECK(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, snapshot));
+    sentry_value_decref(snapshot);
+    char header[SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE];
+    TEST_CHECK_INT_EQUAL(read(fds[1], header, sizeof(header)), sizeof(header));
+    TEST_CHECK_INT_EQUAL((uint8_t)header[8], 1);
+
+    // the send timeout applies to the new stream
+    uint64_t started = sentry__monotonic_time();
+    TEST_CHECK(!sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
+    TEST_CHECK(sentry__monotonic_time() - started < 3000);
+    TEST_CHECK(ipc->stalled);
+    sentry_value_decref(value);
+    close(fds[1]);
     sentry__crash_ipc_free(ipc);
 #endif
 }
