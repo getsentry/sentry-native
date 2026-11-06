@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Crashpad/Linux: fix a handler crash after launching an external crash reporter. ([#2287](https://github.com/getsentry/sentry-native/pull/2287), [crashpad#179](https://github.com/getsentry/crashpad/pull/179))
+
 ## 0.17.6
 
 **Features**:
