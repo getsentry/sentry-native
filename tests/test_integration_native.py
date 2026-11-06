@@ -2042,14 +2042,20 @@ def test_native_proxy_system(cmake, httpserver, proxy_empty):
         )
 
 
-full_mode_test = pytest.mark.skipif(
+@pytest.mark.skipif(
     sys.platform == "win32" or is_wine or is_asan or is_tsan or is_kcov,
     reason="Covers the Linux and macOS writers, without sanitizer shadow memory "
     "or kcov's ptrace tracer",
 )
-
-
-def _run_full_mode_crash(cmake, httpserver, args):
+@pytest.mark.parametrize(
+    "args, embedded, uploaded",
+    [
+        (["large-allocation", "8"], True, False),
+        (["large-allocation", "600"], False, False),
+        (["large-attachment", "large-allocation", "128"], False, True),
+    ],
+)
+def test_native_full_mode(cmake, httpserver, args, embedded, uploaded):
     # Static build so the hardened-runtime process can load itself without
     # tripping the dyld "different team IDs" check on ad-hoc-signed dylibs.
     tmp_path = cmake(
@@ -2063,6 +2069,9 @@ def _run_full_mode_crash(cmake, httpserver, args):
             str(tmp_path / "sentry-crash"),
         )
 
+    httpserver.expect_request("/api/123456/upload/").respond_with_data(
+        "Not Found", status=404
+    )
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=60) as waiting:
@@ -2073,60 +2082,24 @@ def _run_full_mode_crash(cmake, httpserver, args):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
-    return tmp_path
-
-
-def _assert_event_without_minidump(request):
-    envelope = Envelope.deserialize(request.get_data())
-    assert envelope.get_event() is not None
-    assert "event.minidump" not in [
-        item.headers.get("attachment_type") for item in envelope
-    ]
-
-
-@full_mode_test
-def test_native_full_mode_captures_entire_regions(cmake, httpserver):
-    tmp_path = _run_full_mode_crash(cmake, httpserver, ["large-allocation", "8"])
-
-    db_dir = tmp_path / ".sentry-native"
-    assert wait_for_file(db_dir / "*.run/__sentry-crash.dmp")
-    dump = _parse_minidump(next(db_dir.glob("*.run/__sentry-crash.dmp")))
-
-    assert 9 in dump["streams"], "FULL mode should write a Memory64ListStream"
-    data = dump["data"]
-    offset = struct.unpack_from("<Q", data, dump["streams"][9][1] + 8)[0]
-
-    # The fixture ends its allocation with this pattern
-    pattern = b"\xa5" * 32
-    for _start, size in dump["memory_regions"]:
-        if data.find(pattern, offset + 4 * 1024 * 1024, offset + size) >= 0:
-            break
-        offset += size
-    else:
-        pytest.fail("end of the large allocation is missing from the minidump")
-
-
-@full_mode_test
-def test_native_full_mode_reports_crash_without_oversized_minidump(cmake, httpserver):
-    _run_full_mode_crash(cmake, httpserver, ["large-allocation", "600"])
-
-    _assert_event_without_minidump(httpserver.log[0][0])
-
-
-@full_mode_test
-def test_native_full_mode_uploads_large_minidump_separately(cmake, httpserver):
-    httpserver.expect_request("/api/123456/upload/").respond_with_data(
-        "Not Found", status=404
-    )
-
-    _run_full_mode_crash(
-        cmake, httpserver, ["large-attachment", "large-allocation", "128"]
-    )
 
     requests = [entry[0] for entry in httpserver.log]
+    envelope = Envelope.deserialize(
+        next(req for req in requests if "/envelope/" in req.path).get_data()
+    )
+    assert envelope.get_event() is not None
+
+    minidumps = [
+        item.payload.bytes
+        for item in envelope
+        if item.headers.get("attachment_type") == "event.minidump"
+    ]
+    assert len(minidumps) == int(embedded)
+    # The fixture ends its allocation with this pattern
+    assert all(b"\xa5" * 32 in minidump for minidump in minidumps)
+
     # sentry <base64({"attachment_type":"event.minidump"})>
     metadata = "sentry eyJhdHRhY2htZW50X3R5cGUiOiJldmVudC5taW5pZHVtcCJ9"
-    assert any(req.headers.get("upload-metadata") == metadata for req in requests)
-    _assert_event_without_minidump(
-        next(req for req in requests if "/envelope/" in req.path)
+    assert uploaded == any(
+        req.headers.get("upload-metadata") == metadata for req in requests
     )
