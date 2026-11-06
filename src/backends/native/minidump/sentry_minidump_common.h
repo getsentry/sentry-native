@@ -86,4 +86,20 @@ int sentry__minidump_write_memory64_list(minidump_writer_base_t *writer,
     minidump_directory_t *dir, minidump_memory64_list_t *list,
     sentry_minidump_read_fn_t read_memory);
 
+/**
+ * Add a range of a region to the list, growing the list as needed
+ *
+ * Extends the last range if it is contiguous and in the same region. Regions
+ * stay separate, because a range ends at its first unreadable byte.
+ *
+ * @param list List to add to, replaced when it grows
+ * @param capacity Number of ranges the list can hold
+ * @param region Start address of the region
+ * @param start Start address of the range
+ * @param size Size of the range
+ * @return true on success, false on allocation failure
+ */
+bool sentry__minidump_add_range(minidump_memory64_list_t **list,
+    uint64_t *capacity, uint64_t region, uint64_t start, uint64_t size);
+
 #endif // SENTRY_MINIDUMP_COMMON_H_INCLUDED

@@ -287,5 +287,37 @@ sentry__minidump_write_memory64_list(minidump_writer_base_t *writer,
     return 0;
 }
 
+bool
+sentry__minidump_add_range(minidump_memory64_list_t **list, uint64_t *capacity,
+    uint64_t region, uint64_t start, uint64_t size)
+{
+    minidump_memory64_list_t *old = *list;
+    if (old->count > 0 && start > region) {
+        minidump_memory64_descriptor_t *last = &old->ranges[old->count - 1];
+        if (last->start_address + last->size == start) {
+            last->size += size;
+            return true;
+        }
+    }
+
+    if (old->count == *capacity) {
+        minidump_memory64_list_t *grown = sentry_malloc(sizeof(*grown)
+            + *capacity * 2 * sizeof(minidump_memory64_descriptor_t));
+        if (!grown) {
+            return false;
+        }
+        memcpy(grown, old,
+            sizeof(*old) + old->count * sizeof(minidump_memory64_descriptor_t));
+        sentry_free(old);
+        *list = grown;
+        *capacity *= 2;
+    }
+
+    minidump_memory64_descriptor_t *range = &(*list)->ranges[(*list)->count++];
+    range->start_address = start;
+    range->size = size;
+    return true;
+}
+
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID ||
        // SENTRY_PLATFORM_MACOS

@@ -1557,41 +1557,6 @@ read_region(
     return kr == KERN_SUCCESS ? (ssize_t)size : -1;
 }
 
-/**
- * Add a range to the list, extending the last range if they are contiguous.
- */
-static bool
-add_range(minidump_memory64_list_t **list, uint64_t *capacity, uint64_t start,
-    uint64_t size)
-{
-    minidump_memory64_list_t *old = *list;
-    if (old->count > 0) {
-        minidump_memory64_descriptor_t *last = &old->ranges[old->count - 1];
-        if (last->start_address + last->size == start) {
-            last->size += size;
-            return true;
-        }
-    }
-
-    if (old->count == *capacity) {
-        minidump_memory64_list_t *grown = sentry_malloc(sizeof(*grown)
-            + *capacity * 2 * sizeof(minidump_memory64_descriptor_t));
-        if (!grown) {
-            return false;
-        }
-        memcpy(grown, old,
-            sizeof(*old) + old->count * sizeof(minidump_memory64_descriptor_t));
-        sentry_free(old);
-        *list = grown;
-        *capacity *= 2;
-    }
-
-    minidump_memory64_descriptor_t *range = &(*list)->ranges[(*list)->count++];
-    range->start_address = start;
-    range->size = size;
-    return true;
-}
-
 // Pages to query at a time
 #    define PAGE_QUERY_COUNT 1024
 
@@ -1618,13 +1583,14 @@ add_region_pages(minidump_writer_t *writer, const memory_region_t *region,
         kern_return_t kr = mach_vm_page_range_query(writer->task, address, size,
             (mach_vm_address_t)(uintptr_t)pages, &count);
         if (kr != KERN_SUCCESS) {
-            return add_range(list, capacity, address, end - address);
+            return sentry__minidump_add_range(
+                list, capacity, region->address, address, end - address);
         }
 
         for (mach_vm_size_t i = 0; i < count; i++) {
             if (pages[i] != 0
-                && !add_range(
-                    list, capacity, address + i * vm_page_size, vm_page_size)) {
+                && !sentry__minidump_add_range(list, capacity, region->address,
+                    address + i * vm_page_size, vm_page_size)) {
                 return false;
             }
         }

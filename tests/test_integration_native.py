@@ -2051,6 +2051,7 @@ def test_native_proxy_system(cmake, httpserver, proxy_empty):
     "args, embedded, uploaded",
     [
         (["large-allocation", "8"], True, False),
+        (["sparse-allocation", "large-allocation", "600"], True, False),
         (["large-allocation", "600"], False, False),
         (["large-attachment", "large-allocation", "128"], False, True),
     ],

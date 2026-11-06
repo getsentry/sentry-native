@@ -2206,30 +2206,84 @@ read_region(
     return read_process_memory((minidump_writer_t *)writer, addr, buf, size);
 }
 
+// Pages to query at a time
+#    define PAGE_QUERY_COUNT 1024
+// Pagemap entry bits of pages in memory or swap
+#    define PAGEMAP_IN_USE ((1ULL << 63) | (1ULL << 62))
+
+/**
+ * Add the pages of a mapping that are in memory or swap to the list. Other
+ * pages were never touched and read back as zeros, or are still in the mapped
+ * file. Add the whole mapping if the pagemap is not available.
+ */
+static bool
+add_mapping_pages(int pagemap, const memory_mapping_t *mapping,
+    minidump_memory64_list_t **list, uint64_t *capacity)
+{
+    uint64_t pages[PAGE_QUERY_COUNT];
+    uint64_t page_size = (uint64_t)sysconf(_SC_PAGESIZE);
+    uint64_t address = mapping->start;
+
+    while (address < mapping->end) {
+        uint64_t count = (mapping->end - address) / page_size;
+        if (count > PAGE_QUERY_COUNT) {
+            count = PAGE_QUERY_COUNT;
+        }
+
+        ssize_t nread = pread(pagemap, pages, count * sizeof(pages[0]),
+            (off_t)(address / page_size * sizeof(pages[0])));
+        if (nread < (ssize_t)sizeof(pages[0])) {
+            return sentry__minidump_add_range(list, capacity, mapping->start,
+                address, mapping->end - address);
+        }
+
+        count = (uint64_t)nread / sizeof(pages[0]);
+        for (uint64_t i = 0; i < count; i++) {
+            if ((pages[i] & PAGEMAP_IN_USE) != 0
+                && !sentry__minidump_add_range(list, capacity, mapping->start,
+                    address + i * page_size, page_size)) {
+                return false;
+            }
+        }
+        address += count * page_size;
+    }
+    return true;
+}
+
 /**
  * Write memory64 list stream (all readable mappings)
  */
 static int
 write_memory64_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
-    minidump_memory64_list_t *list = sentry_malloc(sizeof(*list)
-        + writer->mapping_count * sizeof(minidump_memory64_descriptor_t));
+    uint64_t capacity = writer->mapping_count;
+    minidump_memory64_list_t *list = sentry_malloc(
+        sizeof(*list) + capacity * sizeof(minidump_memory64_descriptor_t));
     if (!list) {
         return -1;
     }
 
+    char pagemap_path[64];
+    snprintf(pagemap_path, sizeof(pagemap_path), "/proc/%d/pagemap",
+        writer->crash_ctx->crashed_pid);
+    int pagemap = open(pagemap_path, O_RDONLY | O_CLOEXEC);
+
+    bool added = true;
     list->count = 0;
-    for (size_t i = 0; i < writer->mapping_count; i++) {
+    for (size_t i = 0; added && i < writer->mapping_count; i++) {
         const memory_mapping_t *mapping = &writer->mappings[i];
         if (should_include_region(mapping, SENTRY_MINIDUMP_MODE_FULL, 0)) {
-            list->ranges[list->count].start_address = mapping->start;
-            list->ranges[list->count].size = mapping->end - mapping->start;
-            list->count++;
+            added = add_mapping_pages(pagemap, mapping, &list, &capacity);
         }
     }
+    if (pagemap >= 0) {
+        close(pagemap);
+    }
 
-    int rv = sentry__minidump_write_memory64_list(
-        (minidump_writer_base_t *)writer, dir, list, read_region);
+    int rv = added
+        ? sentry__minidump_write_memory64_list(
+              (minidump_writer_base_t *)writer, dir, list, read_region)
+        : -1;
     sentry_free(list);
     return rv;
 }

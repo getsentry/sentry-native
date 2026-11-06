@@ -1476,7 +1476,9 @@ main(int argc, char **argv)
         const size_t size = strtoul(allocation_mib, NULL, 10) * 1024 * 1024;
         char *allocation = calloc(1, size);
         if (allocation) {
-            memset(allocation, 0xA5, size);
+            const size_t touched
+                = has_arg(argc, argv, "sparse-allocation") ? 32 : size;
+            memset(allocation + size - touched, 0xA5, touched);
         }
     }
 
