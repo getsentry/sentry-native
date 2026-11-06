@@ -124,6 +124,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
+option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in the sentry target as errors on GCC and Clang" OFF)
 
 option(SENTRY_INTEGRATION_PLATFORM
 	"Enable the downstream-provided platform integration" OFF)
@@ -632,6 +633,9 @@ if(MSVC)
 	endif()
 else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	if(SENTRY_ERROR_ON_WARNINGS)
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Werror>)
+	endif()
 	# The crashpad and breakpad headers generate the following warnings that we
 	# ignore specifically
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
