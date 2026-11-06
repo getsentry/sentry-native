@@ -430,6 +430,10 @@ sentry__crash_ipc_init_app_with_fds(int shm_fd, int notify_fd, int ready_fd,
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
+        close(shm_fd);
+        close(notify_fd);
+        close(ready_fd);
+        close(message_fd);
         return NULL;
     }
     ipc->init_mutex = init_mutex;
