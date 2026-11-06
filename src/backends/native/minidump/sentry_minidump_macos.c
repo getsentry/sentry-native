@@ -9,6 +9,7 @@
 #    include <mach-o/loader.h>
 #    include <mach/mach.h>
 #    include <mach/mach_vm.h>
+#    include <mach/shared_region.h>
 #    include <pthread.h>
 #    include <signal.h>
 #    include <stdbool.h>
@@ -47,7 +48,6 @@ typedef struct {
     mach_vm_address_t address;
     mach_vm_size_t size;
     vm_prot_t protection;
-    bool submap;
 } memory_region_t;
 
 /**
@@ -139,7 +139,6 @@ enumerate_memory_regions(minidump_writer_t *writer)
         region->address = address;
         region->size = size;
         region->protection = info.protection;
-        region->submap = info.reserved;
 
         address += size;
     }
@@ -1267,11 +1266,13 @@ should_include_region_macos(const memory_region_t *region,
         return false;
     }
 
-    // FULL: Include all readable regions, except for submaps. Those hold the
-    // dyld shared cache, gigabytes of system libraries shared between
-    // processes.
+    // FULL: Include all readable regions, except for the shared region. That
+    // holds the dyld shared cache, gigabytes of system libraries shared
+    // between processes.
     if (mode == SENTRY_MINIDUMP_MODE_FULL) {
-        return (region->protection & VM_PROT_READ) != 0 && !region->submap;
+        bool shared = region->address >= SHARED_REGION_BASE
+            && region->address < SHARED_REGION_BASE + SHARED_REGION_SIZE;
+        return (region->protection & VM_PROT_READ) != 0 && !shared;
     }
 
     // SMART: Include only regions containing the crash address, matching the
