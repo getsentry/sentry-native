@@ -737,8 +737,9 @@ if(MINGW)
 		-Wno-unused-variable
 		-Wno-unused-parameter
 		-Wno-format
-		-Wno-incompatible-pointer-types
+		$<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-pointer-types>
 		-Wno-incompatible-function-pointer-types
+		-Wno-cast-function-type
 	)
 endif()
 
