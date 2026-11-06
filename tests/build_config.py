@@ -75,7 +75,10 @@ def get_platform_cmake_args():
     elif sys.platform == "linux" and os.environ.get("TEST_WINE"):
         cc = os.environ.get("CC") or "clang"
         cxx = os.environ.get("CXX") or "clang++"
-        linker_flags = "-fuse-ld=lld -static-libgcc -static-libstdc++"
+        linker_flags = (
+            "-fuse-ld=lld -static-libgcc -static-libstdc++ "
+            "-Wno-unused-command-line-argument"
+        )
         args.extend(
             [
                 "-DCMAKE_SYSTEM_NAME=Windows",
