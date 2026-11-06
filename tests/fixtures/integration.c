@@ -1078,6 +1078,10 @@ main(int argc, char **argv)
         sentry_options_set_crash_upload_mode(
             options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     }
+    const char *minidump_mode = get_arg_value(argc, argv, "minidump-mode");
+    if (minidump_mode) {
+        sentry_options_set_minidump_mode(options, atoi(minidump_mode));
+    }
 
     // E2E test mode: generate unique test ID for event correlation
     char e2e_test_id[37] = { 0 };
@@ -1465,6 +1469,15 @@ main(int argc, char **argv)
             = sentry_transaction_start_child(otx, "open.span", NULL);
         sentry_set_span(
             sentry_span_start_child(ospan, "open.grand.span", NULL));
+    }
+
+    const char *allocation_mib = get_arg_value(argc, argv, "large-allocation");
+    if (allocation_mib) {
+        const size_t size = strtoul(allocation_mib, NULL, 10) * 1024 * 1024;
+        char *allocation = calloc(1, size);
+        if (allocation) {
+            memset(allocation, 0xA5, size);
+        }
     }
 
     if (has_arg(argc, argv, "crash")) {

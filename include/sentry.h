@@ -1370,6 +1370,11 @@ typedef enum {
      * Most comprehensive debugging information but slowest to generate
      * and upload. Best for development/staging environments or critical
      * crash investigations.
+     *
+     * On macOS, the application and `sentry-crash` must be signed with the
+     * `com.apple.security.cs.debugger` and `com.apple.security.get-task-allow`
+     * entitlements. Uploading large dumps requires
+     * `sentry_options_set_enable_large_attachments`.
      */
     SENTRY_MINIDUMP_MODE_FULL = 2,
 } sentry_minidump_mode_t;

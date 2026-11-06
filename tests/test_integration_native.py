@@ -2040,3 +2040,66 @@ def test_native_proxy_system(cmake, httpserver, proxy_empty):
             proxy_process,
             expected_proxy_logsize=0 if proxy_empty else None,
         )
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or is_wine or is_asan or is_tsan or is_kcov,
+    reason="Covers the Linux and macOS writers, without sanitizer shadow memory "
+    "or kcov's ptrace tracer",
+)
+@pytest.mark.parametrize(
+    "args, embedded, uploaded",
+    [
+        (["large-allocation", "8"], True, False),
+        (["large-allocation", "600"], False, False),
+        (["large-attachment", "large-allocation", "128"], False, True),
+    ],
+)
+def test_native_full_mode(cmake, httpserver, args, embedded, uploaded):
+    # Static build so the hardened-runtime process can load itself without
+    # tripping the dyld "different team IDs" check on ad-hoc-signed dylibs.
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {"SENTRY_BACKEND": "native", "BUILD_SHARED_LIBS": "OFF"},
+    )
+
+    if sys.platform == "darwin":
+        _codesign_for_task_for_pid(
+            str(tmp_path / "sentry_test_integration"),
+            str(tmp_path / "sentry-crash"),
+        )
+
+    httpserver.expect_request("/api/123456/upload/").respond_with_data(
+        "Not Found", status=404
+    )
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=60) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "stdout", "minidump-mode", "2", *args, "crash"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    requests = [entry[0] for entry in httpserver.log]
+    envelope = Envelope.deserialize(
+        next(req for req in requests if "/envelope/" in req.path).get_data()
+    )
+    assert envelope.get_event() is not None
+
+    minidumps = [
+        item.payload.bytes
+        for item in envelope
+        if item.headers.get("attachment_type") == "event.minidump"
+    ]
+    assert len(minidumps) == int(embedded)
+    # The fixture ends its allocation with this pattern
+    assert all(b"\xa5" * 32 in minidump for minidump in minidumps)
+
+    # sentry <base64({"attachment_type":"event.minidump"})>
+    metadata = "sentry eyJhdHRhY2htZW50X3R5cGUiOiJldmVudC5taW5pZHVtcCJ9"
+    assert uploaded == any(
+        req.headers.get("upload-metadata") == metadata for req in requests
+    )

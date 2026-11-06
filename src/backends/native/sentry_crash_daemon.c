@@ -607,6 +607,22 @@ add_attachment_refs(sentry_envelope_t *envelope,
     }
 }
 
+// cache a large minidump as an attachment-ref item
+static void
+add_minidump_ref(sentry_envelope_t *envelope, const sentry_options_t *options,
+    const char *path, const sentry_path_t *run_folder)
+{
+    sentry_value_t attachment = sentry__attachment_from_file(path);
+    sentry_attachment_set_filename(attachment, "minidump.dmp");
+    sentry_attachment_set_type(attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+    if (!sentry__envelope_materialize(envelope)
+        || !sentry__cache_attachment_ref(
+            envelope, attachment, options->run->cache_path, run_folder)) {
+        SENTRY_WARN("failed to cache minidump attachment-ref");
+    }
+    sentry_value_decref(attachment);
+}
+
 /**
  * Build registers value from crash context for a specific thread.
  *
@@ -4402,6 +4418,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     }
 #endif
 
+    // Upload large minidumps separately, and keep them out of the envelope
+    bool minidump_ref = options->run && !sentry__string_empty(minidump_path)
+        && attachment_is_placeholder(options, minidump_path);
+    const char *embedded_minidump = minidump_ref ? "" : minidump_path;
+
     // Write envelope based on mode
     bool envelope_written = false;
     SENTRY_DEBUGF("Envelope decision: mode=%d, use_native_mode=%d, "
@@ -4412,15 +4433,15 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         // Mode 1 (NATIVE) or Mode 2 (NATIVE_WITH_MINIDUMP)
         SENTRY_DEBUGF("Writing envelope with native stacktrace, passing "
                       "minidump_path=%s",
-            minidump_path[0] ? minidump_path : "NULL");
-        envelope_written = write_envelope_with_native_stacktrace(options,
-            envelope_path, ctx, base, minidump_path[0] ? minidump_path : NULL,
-            run_folder, attachments);
+            embedded_minidump[0] ? embedded_minidump : "NULL");
+        envelope_written
+            = write_envelope_with_native_stacktrace(options, envelope_path, ctx,
+                base, embedded_minidump, run_folder, attachments);
     } else {
         // Mode 0 (MINIDUMP only)
         SENTRY_DEBUG("Writing envelope with minidump");
         envelope_written = write_envelope_with_minidump(options, ctx,
-            envelope_path, base, minidump_path, run_folder, attachments);
+            envelope_path, base, embedded_minidump, run_folder, attachments);
     }
 
     if (!envelope_written) {
@@ -4469,6 +4490,14 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     }
 
     sentry_envelope_t *envelope = sentry__envelope_from_path(env_path);
+    if (!envelope && embedded_minidump[0]) {
+        // Report the crash with a native stacktrace, which needs no minidump
+        SENTRY_WARN("Failed to read envelope file, retrying without minidump");
+        if (write_envelope_with_native_stacktrace(options, envelope_path, ctx,
+                base, NULL, run_folder, attachments)) {
+            envelope = sentry__envelope_from_path(env_path);
+        }
+    }
     sentry__path_free(env_path);
 
     if (!envelope) {
@@ -4477,6 +4506,9 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     }
 
     add_attachment_refs(envelope, options, attachments);
+    if (minidump_ref) {
+        add_minidump_ref(envelope, options, minidump_path, run_folder);
+    }
 
 #if defined(SENTRY_PLATFORM_ANDROID)
     sentry_path_t *android_native_envelope_path
