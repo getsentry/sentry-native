@@ -28,6 +28,8 @@
 #define SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE 16u
 #define SENTRY_CRASH_IPC_MESSAGE_MIN_LEN 12u
 #define SENTRY_CRASH_IPC_MESSAGE_MAX_LEN (256u * 1024u * 1024u)
+#define SENTRY_CRASH_IPC_SEND_TIMEOUT_MS 1000
+#define SENTRY_CRASH_IPC_PIPE_SIZE (64u * 1024u)
 
 /**
  * Frames use little-endian length/type/flags/sequence, followed by one msgpack
@@ -113,7 +115,13 @@ typedef struct {
     volatile long writing;
     volatile long message_failed;
     volatile long stopped;
+    // set from a torn frame until a snapshot reaches the daemon
+    volatile long stalled;
     uint64_t sequence;
+    // frame with an unsent tail, owned by the writer guard
+    char *torn_frame;
+    size_t torn_len;
+    size_t torn_sent;
 
     // daemon-only staged state and incremental frame reader
     sentry_crash_scope_t scope;
@@ -150,10 +158,10 @@ typedef struct {
     HANDLE shm_handle;
     HANDLE event_handle; // Event for crash notifications (parent -> daemon)
     HANDLE ready_event_handle; // Event for ready signal (daemon -> parent)
-    HANDLE message_read_handle; // Anonymous app-to-daemon message stream read
-                                // end
-    HANDLE message_write_handle; // Anonymous app-to-daemon message stream write
-                                 // end
+    HANDLE message_read_handle; // App-to-daemon message stream read end
+    HANDLE message_write_handle; // App-to-daemon message stream write end
+    OVERLAPPED message_write; // Write of the current frame
+    bool message_write_pending; // Set while that write is in flight
     wchar_t shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     wchar_t event_name[SENTRY_CRASH_IPC_NAME_SIZE];
     wchar_t ready_event_name[SENTRY_CRASH_IPC_NAME_SIZE];
@@ -254,9 +262,20 @@ bool sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms);
 /**
  * Send a borrowed value. Scope updates must hold the scope observer lock.
  * Returns false on failure or if a crash interrupted another writer.
+ * A send that times out keeps the unsent tail of its frame and stalls the
+ * stream. Later sends first flush the tail, and return false if it stays
+ * unsent. That flush blocks only for a shutdown frame, up to the send timeout.
+ * Only a scope snapshot clears the stall.
  */
 bool sentry__crash_ipc_send(
     sentry_crash_ipc_t *ipc, uint16_t type, sentry_value_t value);
+
+/**
+ * Flush the tail of a stalled stream without blocking.
+ * Returns true once the tail is through, and the stream is ready for a scope
+ * snapshot.
+ */
+bool sentry__crash_ipc_flush(sentry_crash_ipc_t *ipc);
 
 /**
  * Receive and apply ordered frames, returning true on a crash notification.
