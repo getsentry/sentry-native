@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793883538094,
+  "lastUpdate": 1793960934144,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -91084,6 +91084,306 @@ window.BENCHMARK_DATA = {
             "range": "logarithmic",
             "unit": "ms",
             "extra": "Min 0.017ms\nMax 0.017ms\nMean 0.017ms\nMedian 0.017ms\nCPU 0.017ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "eb2b95bb4226d65042e95a833890347fb8c28df8",
+          "message": "feat(native): Add Android support for out-of-process crash handling (#1725)\n\n* feat(transport): Optionally keep envelopes that fail to upload\n\nAdd `sentry__http_transport_set_dump_failed()`. When enabled, a network\nerror makes the HTTP transport write the envelope to the run folder,\nlike the shutdown dump does, instead of queuing it for retry or\ndiscarding it, so that the next launch sends it.\n\nThis prepares the Android crash daemon to keep crash envelopes that\nfail to upload (#1725).\n\n* feat(native): Add Android support for out-of-process crash handling\n\nRun the crash daemon on Android in one of two ways. With the Sentry\nAndroid SDK, its crash service hands the IPC fds to the app with\n`sentry_android_crash_daemon_init()` and runs the daemon from\n`libsentry.so` with `sentry_android_crash_daemon_run()`. Otherwise, the\nbackend forks and execs `libsentry-crash.so` next to `libsentry.so`,\nlike the `sentry-crash` executable on Linux.\n\nShare the Linux crash IPC, but back the shared memory with a file in\nthe database directory and guard initialization with a mutex, because\nbionic has no `shm_open()` or `sem_open()`. Before notifying the\ndaemon, the crash handler makes the app dumpable and allows any\nptracer, as debuggerd does, because the kernel otherwise denies the\ndaemon `ptrace`, `process_vm_readv` and `/proc` access to\nnon-debuggable apps.\n\nThe service-hosted daemon writes the crash envelope to the run folder\nand releases the crashed process so that the platform can write a\ntombstone. It returns a handle that defers the upload to the service,\nwhich can merge the tombstone into the envelope first, and keeps the\nenvelope for the next launch if the upload fails.\n\nThe native backend on Android is experimental.\n\n* feat(android): Add the outproc NDK package with the native backend\n\nAdd the opt-in `sentry-native-ndk-outproc` package, which builds the\nsame Java and JNI sources as `sentry-native-ndk` with the experimental\nnative backend instead of inproc. Both provide `libsentry.so` and must\nnot be used together. Android SDK apps select it through the Sentry\nGradle plugin.\n\nExpose the crash daemon to the sentry-java crash service through\n`SentryNdk.initCrashDaemon()` and `SentryNdk.runCrashDaemon()`. The\nreturned `CrashDaemon` owns the daemon handle. `sendEnvelope()` uploads\nthe possibly tombstone-merged envelope and reports whether it was sent,\nkept for the next launch or neither, and `close()` discards the\nenvelope if nothing was sent.\n\nUpload through a `sentry_http_client_t` that calls `HttpURLConnection`\nover JNI, so the crash service uses the platform network and TLS stack\ninstead of a curl build. Use `SENTRY_CRASH_REPORTING_MODE_NATIVE`, like\ninproc, because a minidump takes precedence over the native stacktrace\nduring processing and makes crash envelopes about 3 MB.\n\nPackage `libsentry-crash.so` only for the instrumented tests, which\nfork/exec it, and run them in the Android CI job.\n\n* test(android): Verify native crash delivery end to end\n\nAdd an Android job to the e2e workflow. It builds a fixture app against\nthe local native and Java SDKs in an isolated Maven repository and runs\nit on an API 36 emulator.\n\nVerify native crash events with and without tombstone merging, for\ndebuggable and non-debuggable builds, including threads, debug images,\nuser/release metadata, and Java/native frames in merged stacks. Verify\nthat a process that a broadcast starts in the background gets the crash\nservice, and that the service survives more than a minute in the\nbackground. The fixture uses default packaging, so native libraries\nstay inside the APK as in consuming apps.\n\nSkip the standalone e2e tests on Android, since they cannot send events\nwithout the http transport.\n\n* fix(native): Drop tombstone handling from the standalone Android daemon\n\nOnly the sentry-java crash service merges tombstones, and apps always\nrun the daemon there. The standalone daemon, which only tests use,\nstill wrote the crash envelope to the run folder and waited 10 seconds\nfor a merged envelope that nothing writes. Handle the envelope as on\nLinux instead.\n\nSkip the init-time `PR_SET_PTRACER` on Android, because the crash\nhandler already allows any ptracer at crash time in both modes. Drop\nthe redundant service checks on `daemon_pid`, which is 0 for the\nservice-hosted daemon.\n\n* fix(native): Isolate daemons that share the Android crash service\n\nThe crash service hosts a daemon thread for each app process. Each\ndaemon redirected the process-wide stdio, took over and closed the\nglobal logger, and shared the symbol cache and the VMA table with the\nothers. A daemon start could close an fd that another thread owned,\nwhich aborted the service in fdsan, and a later crash could reuse the\nsymbol files of an earlier one by module index.\n\nSkip the stdio redirect for service-hosted daemons, and install a\nlogcat logger once when debug is enabled instead of opening a per-run\nlog file. Give each daemon thread its own VMA table, and on Android\nits own symbol cache, mapped at startup so that it is still committed\non demand only.\n\n* fix(native): Skip the crash wait when the daemon is gone\n\nWhen the Android crash service died, the crash handler still wrote its\nnotification to a pipe without a reader, which raises `SIGPIPE` in app\nprocesses, and then waited the full 10 seconds for a daemon that no\nlonger existed.\n\nCheck the notify pipe for a closed reader before writing, report\nwhether a daemon was notified, and chain at once when none was.\n\n* fix(android): Reattach the crash IPC to a restarted crash service\n\nWhen Android restarts the crash service process, the app kept the fds\nof the dead daemon, so its crashes went unreported for the rest of the\nprocess. Let the app swap its crash IPC fds in place for those of a new\ndaemon, and send a full scope snapshot under the scope's observer lock,\nso that no scope change lands before it. The first daemon unlinked the\nshared memory file, so the app hands over a duplicate of its fd, and\nthe daemon accepts it in place of the path.\n\n* build(ndk): Declare the backend capability for the inproc package\n\nOnly sentry-native-ndk-outproc declared `io.sentry:sentry-ndk-backend`,\nso Gradle accepted a graph with both native backends, and only the\nduplicate `libsentry.so` failed the build. Declare it for every\npublished package, and publish sentry-android-ndk for the Android e2e\nfixture, which the outproc package now depends on.\n\n* test(e2e): Skip the TUS tests on Android\n\nLike the other standalone E2E tests, they require the HTTP transport,\nso the Android E2E job must skip them.\n\n* fix(android): Close the crash daemon fds when it does not start\n\nThe JNI wrappers returned without closing the detached fds when the\nshared memory path lookup failed or the daemon symbols were missing,\nand `sentry_android_crash_daemon_init` kept them open when it rejected\nits arguments. Close them on those paths, as the run and reattach\nentry points already do.\n\n* fix(android): Keep the crash envelope until it is sent\n\nThe crash service deleted the merged and raw envelope files before the\nupload, so a service process that was frozen and killed during the send\nlost the crash. Move the envelope to a pending file in the run folder,\nwhich the next launch sends, and remove it once the upload has finished\nor the envelope was written back for the next launch.\n\nRename before queueing the envelope, so that a fast failed upload can no\nlonger write the envelope back before it is removed.\n\n* test(e2e): Drop the sentry-java branch name from the Android setup\n\nA branch name in the setup instructions goes stale once the native\ncrash service is merged.\n\n* fix(native): Keep the global options out of the Android crash service\n\nEach daemon in the crash service set its options as the process's\nglobal options and installed the daemon crash handler process-wide.\nA daemon that captured a crash returned without clearing them, so the\nservice kept the crashed run's options, and with them its\n`.daemon.lock`, until the next daemon replaced them. A relaunched app\ncould process its old runs first and skip the run with the envelope\nthat was kept for it. The first daemon to exit also removed the crash\nhandler of the others.\n\nSkip both for daemons in the crash service. They keep their crash\nenvelope on disk until it is sent, so the queue dump of the handler\nhas nothing to add there.\n\n* docs(android): Remove the Gradle plugin from the NDK README\n\nThe `ndkBackend` option of the Gradle plugin is parked for now, so the\noutproc package is selected through its dependency only.\n\n* fix(android): Keep the crash envelope when the daemon closes\n\n`CrashDaemon.close()` runs whenever the crash service exits before\n`sendEnvelope()`, for example on an exception while waiting for the\ntombstone. It deleted the envelope, which was the only copy of the\ncrash on API 30 and with tombstones disabled.\n\nLeave the envelope in the run folder, so that the next launch sends it\nlike any other envelope that was not uploaded.\n\n* fix(android): Fail startup when the crash daemon is missing\n\nWithout `libsentry-crash.so`, `resolve_handler_path()` returned `NULL`\nand startup forked anyway. The child exited after `execv()` failed, but\n`sentry_init()` blocked for 10 seconds waiting for the daemon, and the\ncrash handler waited another 10 seconds after notifying it.\n\nAlso look for the `sentry-crash` executable next to the current\nexecutable, which is where `adb` runs have it. `NULL` then means that\nthere is no daemon, so fail right away.\n\n* fix(android): Resolve the HTTP client when the daemon needs it\n\n`JNI_OnLoad` looked up `SentryHttpClient` in every `sentry-android`\nlibrary, including the inproc package, which never uses it. A failed\nlookup made `System.loadLibrary()` throw and turned native crash\nreporting off.\n\nLook the class up when the crash daemon creates its transport. That\ncall comes from Java, which `FindClass` needs to find the app's classes.\nWithout a transport the daemon does not start, because the null\ntransport would report a crash as sent while dropping it.\n\n* fix(android): Stream only the requested file range in HTTP uploads\n\n`SentryHttpClient` ignored `sentry_http_request_get_body_file_offset()`\nand read file bodies until EOF. Every TUS chunk but the first starts at\nan offset, and any chunk shorter than the file ends before EOF, so\nchunked uploads would have sent the wrong bytes.\n\nPass the offset through JNI, and stop reading at the body length like\nthe curl and WinHTTP transports do.\n\n* fix(android): Unwind ARM32 crashes from the saved context\n\nThe crash handler has no frame-pointer walk on ARM32, so the crashed\nthread had a single frame unless a tombstone was merged.\n\nWhen the handler captures only the fault IP, unwind the saved context\nin the daemon instead. `sentry__unwind_stack_from_thread()` takes an\noptional context for this, because the daemon must not attach to the\ncrashed thread. Only libunwindstack supports it.\n\nVerified on an old Pixel 5 running Android 12, which still supports\nthe ARM32 ABI. The crashed thread in `sentry_test_integration` went\nfrom 1 frame to 4. The native Android e2e tests pass through the crash\nservice, with the fixture linked using `--no-rosegment`. At minSdk 30+,\nthe default link still stops at 1 frame, because libunwindstack fails\nto look up `.ARM.exidx` when it is in a different segment from the\ncode.\n\n* fix(native): Back the Linux crash IPC with a memfd\n\n`ftruncate()` leaves `shm_open()` memory sparse, so the first write\nraises `SIGBUS` during `sentry_init()` when `/dev/shm` is full.\n\nUse a memfd, which does not depend on the size of `/dev/shm`, and fall\nback to `shm_open()` where it is not available. The daemon now inherits\nthe fd like on macOS and Android, instead of reopening the memory by\nname.\n\n* fix(android): Back the crash service IPC with a memfd\n\nThe shared memory was a sparse file in the database directory, so the\nfirst write raised `SIGBUS` during `sentry_init()` on a full disk.\n\nThe crash service already needs API 30+, so use a memfd instead. The\ndaemon starts waiting as soon as the service is configured, so\n`SentryNdk.createCrashShm()` creates the memfd up front, and it replaces\nthe shared memory path in `initCrashDaemon()` and `runCrashDaemon()`.\nThe forked daemon is test-only and stays file-backed.",
+          "timestamp": "2026-11-06T11:23:20+01:00",
+          "tree_id": "3bb234d34c583f15819398d6f143f22250354ba8",
+          "url": "https://github.com/getsentry/sentry-native/commit/eb2b95bb4226d65042e95a833890347fb8c28df8"
+        },
+        "date": 1793960913441,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7740890000036416,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.749ms\nMax 0.789ms\nMean 0.771ms\nStdDev 0.017ms\nMedian 0.774ms\nCPU 0.738ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7913449999961131,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.767ms\nMax 0.847ms\nMean 0.797ms\nStdDev 0.030ms\nMedian 0.791ms\nCPU 0.796ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.484958999990795,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 3.078ms\nMax 11.405ms\nMean 6.494ms\nStdDev 4.370ms\nMedian 3.485ms\nCPU 1.701ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 2.323428000011063,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 2.213ms\nMax 2.360ms\nMean 2.297ms\nStdDev 0.066ms\nMedian 2.323ms\nCPU 1.390ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.09252800001036121,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.091ms\nMax 0.099ms\nMean 0.093ms\nStdDev 0.003ms\nMedian 0.093ms\nCPU 0.058ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.023985999973774597,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.025ms\nMean 0.024ms\nStdDev 0.001ms\nMedian 0.024ms\nCPU 0.023ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.647136000002547,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 1.582ms\nMax 1.730ms\nMean 1.652ms\nStdDev 0.059ms\nMedian 1.647ms\nCPU 0.551ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 1.2991049999868665,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 1.268ms\nMax 1.383ms\nMean 1.311ms\nStdDev 0.043ms\nMedian 1.299ms\nCPU 0.564ms"
+          },
+          {
+            "name": "Tags (inproc)",
+            "value": 0.002570918999992955,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Tags (breakpad)",
+            "value": 0.0024759169999981623,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Tags (crashpad)",
+            "value": 0.0023811140000020714,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Tags (native)",
+            "value": 0.0036536899999930483,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Breadcrumbs (inproc)",
+            "value": 0.0003594080000084432,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.000ms\nMax 0.000ms\nMean 0.000ms\nMedian 0.000ms\nCPU 0.000ms"
+          },
+          {
+            "name": "Breadcrumbs (breakpad)",
+            "value": 0.00037940799998636976,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.000ms\nMax 0.000ms\nMean 0.000ms\nMedian 0.000ms\nCPU 0.000ms"
+          },
+          {
+            "name": "Breadcrumbs (crashpad)",
+            "value": 0.006816455000006272,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Breadcrumbs (native)",
+            "value": 0.002830086000017218,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.005940124999881391,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.006631375000010209,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.0063624707030696115,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.005858967773553214,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Metrics (1 thread)",
+            "value": 0.0051880624996059055,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Metrics (8 threads)",
+            "value": 0.006471742187486029,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Metrics (16 threads)",
+            "value": 0.004839896484420958,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Metrics (32 threads)",
+            "value": 0.005520237304684761,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 647040,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 647040b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 776976,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 776976b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 1070688,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 1070688b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 670296,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 670296b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 4720,
+            "unit": "bytes",
+            "extra": "Peak 4720b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 3136,
+            "unit": "bytes",
+            "extra": "Peak 3136b, Segments 1"
+          },
+          {
+            "name": "Stack usage (crashpad)",
+            "value": 2088,
+            "unit": "bytes",
+            "extra": "Peak 2088b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 3488,
+            "unit": "bytes",
+            "extra": "Peak 3488b, Segments 1"
+          },
+          {
+            "name": "Contexts (inproc)",
+            "value": 0.0026844860000210247,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Contexts (breakpad)",
+            "value": 0.0027151719999665147,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Contexts (crashpad)",
+            "value": 0.0025367929999902117,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Contexts (native)",
+            "value": 0.005511807999994289,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Scope apply (event, 10 frames)",
+            "value": 0.012390589000915497,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nMedian 0.012ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Scope apply (event, 256 frames)",
+            "value": 0.018865828000173224,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.019ms\nMax 0.019ms\nMean 0.019ms\nMedian 0.019ms\nCPU 0.019ms"
+          },
+          {
+            "name": "Scope apply (transaction, 100 spans)",
+            "value": 0.012065418000190675,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nMedian 0.012ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Scope apply (transaction, 1000 spans)",
+            "value": 0.012549500998773055,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.013ms\nMean 0.013ms\nMedian 0.013ms\nCPU 0.013ms"
           }
         ]
       }
