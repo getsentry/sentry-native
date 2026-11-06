@@ -28,7 +28,6 @@
 
 static sem_t g_done;
 static volatile sig_atomic_t g_active = 0;
-static void *g_ips[SENTRY_APP_HANG_MAX_FRAMES];
 static volatile sig_atomic_t g_count = 0;
 static volatile sig_atomic_t g_want = 0;
 
@@ -38,6 +37,8 @@ static sem_t
     g_unwind_done; // watchdog -> handler: unwind complete, you may return
 static volatile sig_atomic_t g_abort_park = 0;
 static ucontext_t *volatile g_park_uctx = NULL;
+#    else
+static void *g_ips[SENTRY_APP_HANG_MAX_FRAMES];
 #    endif
 
 static void
@@ -89,7 +90,7 @@ handler(int sig, siginfo_t *info, void *ucontext)
         }
     }
     g_park_uctx = NULL;
-    // watchdog wrote g_ips/g_count before releasing us
+    // watchdog wrote g_count before releasing us
     n = (size_t)__atomic_load_n(&g_count, __ATOMIC_RELAXED);
 #    else
     (void)ucontext;
