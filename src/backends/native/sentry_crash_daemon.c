@@ -222,6 +222,7 @@ struct sentry_crash_daemon_s {
     FILE *log_file;
     char envelope_path[SENTRY_CRASH_MAX_PATH];
     bool transport_shutdown;
+    sentry_value_t event;
 };
 
 static void android_cleanup_pending_crash_daemon(
@@ -258,6 +259,7 @@ sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
         goto fail;
     }
     daemon->transport = transport;
+    daemon->event = sentry_value_new_null();
 
     int rv = sentry__crash_daemon_main(
         app_pid, app_tid, notify_fd, ready_fd, shm_fd, message_fd, daemon);
@@ -4505,6 +4507,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
                     daemon->envelope_path[sizeof(daemon->envelope_path) - 1]
                         = '\0';
                 }
+                daemon->event = sentry_value_incref(base);
                 sentry_envelope_free(envelope);
                 envelope = NULL;
             }
@@ -4611,6 +4614,12 @@ sentry_android_crash_daemon_send(
         sentry__capture_envelope(
             daemon->options->transport, envelope, daemon->options);
 
+        // flush replay only after the crash itself was captured
+        if (sentry__session_replay_has_pending(daemon->options)) {
+            sentry__session_replay_flush_pending(
+                daemon->options, daemon->options->transport, daemon->event);
+        }
+
         daemon->options->shutdown_timeout = timeout;
         int rv = sentry__transport_shutdown(
             daemon->options->transport, daemon->options->shutdown_timeout);
@@ -4684,6 +4693,7 @@ android_cleanup_pending_crash_daemon(
         fclose(daemon->log_file);
     }
 
+    sentry_value_decref(daemon->event);
     sentry_free(daemon);
 }
 #endif
