@@ -638,6 +638,8 @@ else()
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-multichar>)
 	else()
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-gnu-include-next -Wno-multichar>)
+		# glibc 2.43 headers expand `memchr` and friends to `_Generic`
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-c11-extensions>)
 	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
