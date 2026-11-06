@@ -6,14 +6,18 @@ multi-thread capture, and FPU/SIMD register capture on all platforms.
 """
 
 import os
+import queue
 import subprocess
 import sys
+import threading
 import time
 import struct
 
+import psutil
 import pytest
 
 from . import (
+    crash_env,
     is_feedback_envelope,
     is_replay_envelope,
     lib_name,
@@ -56,6 +60,10 @@ pytestmark = pytest.mark.skipif(
 # Sanitizer builds are slower, so selected native crash tests use the same 10s
 # timeout the native daemon used before it respected the SDK shutdown timeout.
 SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
+
+# A stall costs one 1s send timeout, and later updates only try a nonblocking write.
+STALL_UPDATES_TIMEOUT = 5
+STALL_STEP_TIMEOUT = 30
 
 STATUS_STACK_OVERFLOW = 0xC00000FD
 STATUS_STACK_BUFFER_OVERRUN = 0xC0000409
@@ -508,6 +516,142 @@ def test_native_scope_updates_without_snapshot(cmake, httpserver, mode, scoped_t
         "__sentry-attachments",
     ):
         assert not list((tmp_path / ".sentry-native").glob(f"*.run/{name}"))
+
+
+class StallChild:
+    """Runs the `native_stall` unit test, which waits for `proceed` at each step."""
+
+    def __init__(self, tmp_path, mode, dsn):
+        self.child = subprocess.Popen(
+            [
+                *run_command(str(tmp_path / "sentry_test_unit")),
+                "--no-exec",
+                "native_stall",
+            ],
+            cwd=tmp_path,
+            env=crash_env(
+                dict(os.environ, SENTRY_DSN=dsn, SENTRY_TEST_NATIVE_STALL=mode)
+            ),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
+        self.lines = queue.Queue()
+        threading.Thread(target=self._read_lines, daemon=True).start()
+
+    def _read_lines(self):
+        for line in self.child.stdout:
+            self.lines.put(line)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.child.kill()
+        self.child.wait()
+
+    def wait_for_step(self, step, timeout=STALL_STEP_TIMEOUT):
+        deadline = time.monotonic() + timeout
+        while f"stall:{step}".encode() not in self.lines.get(
+            timeout=max(0, deadline - time.monotonic())
+        ):
+            pass
+
+    def proceed(self):
+        self.child.stdin.write(b"\n")
+        self.child.stdin.flush()
+
+    def daemon(self):
+        # Wine reparents the processes it spawns
+        procs = (
+            psutil.process_iter()
+            if is_wine
+            else psutil.Process(self.child.pid).children()
+        )
+        for proc in procs:
+            if "sentry-crash" in proc.name():
+                return proc
+        pytest.fail("native crash daemon not found")
+
+
+def is_gone(proc):
+    try:
+        return proc.status() == psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return True
+
+
+def test_native_stall_bounds_updates(cmake, unreachable_dsn):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    with StallChild(tmp_path, "updates", unreachable_dsn) as stall:
+        stall.wait_for_step("ready")
+        daemon = stall.daemon()
+        daemon.suspend()
+        try:
+            started_at = time.monotonic()
+            stall.proceed()
+            stall.wait_for_step("done")
+            assert time.monotonic() - started_at < STALL_UPDATES_TIMEOUT
+        finally:
+            daemon.resume()
+        started_at = time.monotonic()
+        stall.proceed()
+        assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) == 0
+        # the resumed daemon exits on its shutdown frame, before the 5s kill
+        assert time.monotonic() - started_at < 4
+
+
+def test_native_stall_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=STALL_STEP_TIMEOUT) as waiting:
+        with StallChild(tmp_path, "crash", make_dsn(httpserver)) as stall:
+            stall.wait_for_step("ready")
+            daemon = stall.daemon()
+            daemon.suspend()
+            try:
+                stall.proceed()
+                # the crash handler reaches on_crash behind the stalled sender
+                stall.wait_for_step("crash")
+            finally:
+                daemon.resume()
+            assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) != 0
+    assert waiting.result
+
+
+def test_native_stall_recovery(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=STALL_STEP_TIMEOUT) as waiting:
+        with StallChild(tmp_path, "recover", make_dsn(httpserver)) as stall:
+            stall.wait_for_step("ready")
+            daemon = stall.daemon()
+            daemon.suspend()
+            try:
+                stall.proceed()
+                stall.wait_for_step("done")
+            finally:
+                daemon.resume()
+            stall.proceed()
+            assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) != 0
+    assert waiting.result
+    event = Envelope.deserialize(httpserver.log[0][0].get_data()).get_event()
+    assert [crumb["index"] for crumb in event["breadcrumbs"]] == list(range(74))
+    assert event["extra"]["large"] == "x" * (2 * 1024 * 1024)
+
+
+def test_native_stall_killed_daemon(cmake, unreachable_dsn):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    with StallChild(tmp_path, "killed", unreachable_dsn) as stall:
+        stall.wait_for_step("ready")
+        daemon = stall.daemon()
+        daemon.kill()
+        assert wait_for(lambda: is_gone(daemon))
+        started_at = time.monotonic()
+        stall.proceed()
+        stall.wait_for_step("done")
+        assert time.monotonic() - started_at < 1
+        stall.proceed()
+        assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) == 0
 
 
 def test_native_byte_attachment_is_confined(cmake, unreachable_dsn):

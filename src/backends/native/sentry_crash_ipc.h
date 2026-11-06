@@ -29,6 +29,7 @@
 #define SENTRY_CRASH_IPC_MESSAGE_MIN_LEN 12u
 #define SENTRY_CRASH_IPC_MESSAGE_MAX_LEN (256u * 1024u * 1024u)
 #define SENTRY_CRASH_IPC_SEND_TIMEOUT_MS 1000
+#define SENTRY_CRASH_IPC_PIPE_SIZE (64u * 1024u)
 
 /**
  * Frames use little-endian length/type/flags/sequence, followed by one msgpack
@@ -157,10 +158,10 @@ typedef struct {
     HANDLE shm_handle;
     HANDLE event_handle; // Event for crash notifications (parent -> daemon)
     HANDLE ready_event_handle; // Event for ready signal (daemon -> parent)
-    HANDLE message_read_handle; // Anonymous app-to-daemon message stream read
-                                // end
-    HANDLE message_write_handle; // Anonymous app-to-daemon message stream write
-                                 // end
+    HANDLE message_read_handle; // App-to-daemon message stream read end
+    HANDLE message_write_handle; // App-to-daemon message stream write end
+    OVERLAPPED message_write; // Write of the current frame
+    bool message_write_pending; // Set while that write is in flight
     wchar_t shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     wchar_t event_name[SENTRY_CRASH_IPC_NAME_SIZE];
     wchar_t ready_event_name[SENTRY_CRASH_IPC_NAME_SIZE];

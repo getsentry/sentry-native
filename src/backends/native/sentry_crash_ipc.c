@@ -3,6 +3,7 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_logger.h"
+#include "sentry_random.h"
 #include "sentry_sync.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
@@ -997,6 +998,46 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 
+// a named pipe, because CreatePipe handles can't be overlapped
+static bool
+create_message_pipe(sentry_crash_ipc_t *ipc)
+{
+    uint64_t id = 0;
+    sentry__getrandom(&id, sizeof(id));
+    wchar_t name[SENTRY_CRASH_IPC_NAME_SIZE];
+    swprintf(name, SENTRY_CRASH_IPC_NAME_SIZE,
+        L"\\\\.\\pipe\\sentry-crash-%lu-%llx", GetCurrentProcessId(), id);
+    HANDLE write_handle = CreateNamedPipeW(name,
+        PIPE_ACCESS_OUTBOUND | FILE_FLAG_OVERLAPPED
+            | FILE_FLAG_FIRST_PIPE_INSTANCE,
+        PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS, 1,
+        SENTRY_CRASH_IPC_PIPE_SIZE, 0, 0, NULL);
+    if (write_handle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    SECURITY_ATTRIBUTES pipe_attrs;
+    ZeroMemory(&pipe_attrs, sizeof(pipe_attrs));
+    pipe_attrs.nLength = sizeof(pipe_attrs);
+    pipe_attrs.bInheritHandle = TRUE;
+    HANDLE read_handle = CreateFileW(
+        name, GENERIC_READ, 0, &pipe_attrs, OPEN_EXISTING, 0, NULL);
+    HANDLE write_event = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (read_handle == INVALID_HANDLE_VALUE || !write_event) {
+        DWORD error = GetLastError();
+        if (read_handle != INVALID_HANDLE_VALUE) {
+            CloseHandle(read_handle);
+        }
+        CloseHandle(write_handle);
+        SetLastError(error);
+        return false;
+    }
+    ipc->message_read_handle = read_handle;
+    ipc->message_write_handle = write_handle;
+    ipc->message_write.hEvent = write_event;
+    return true;
+}
+
 sentry_crash_ipc_t *
 sentry__crash_ipc_init_app(HANDLE init_mutex)
 {
@@ -1101,12 +1142,7 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
         return NULL;
     }
 
-    SECURITY_ATTRIBUTES pipe_attrs;
-    ZeroMemory(&pipe_attrs, sizeof(pipe_attrs));
-    pipe_attrs.nLength = sizeof(pipe_attrs);
-    pipe_attrs.bInheritHandle = TRUE;
-    if (!CreatePipe(&ipc->message_read_handle, &ipc->message_write_handle,
-            &pipe_attrs, 0)) {
+    if (!create_message_pipe(ipc)) {
         SENTRY_WARNF("failed to create message pipe: %lu", GetLastError());
         CloseHandle(ipc->ready_event_handle);
         CloseHandle(ipc->event_handle);
@@ -1118,7 +1154,6 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
         sentry_free(ipc);
         return NULL;
     }
-    SetHandleInformation(ipc->message_write_handle, HANDLE_FLAG_INHERIT, 0);
 
     // Initialize shared memory only if newly created
     if (!shm_exists) {
@@ -1265,6 +1300,13 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
         return;
     }
 
+    if (ipc->message_write_pending) {
+        // the pending write owns the torn frame until it completes
+        DWORD written = 0;
+        CancelIoEx(ipc->message_write_handle, &ipc->message_write);
+        GetOverlappedResult(
+            ipc->message_write_handle, &ipc->message_write, &written, TRUE);
+    }
     sentry_free(ipc->message_buf);
     sentry_free(ipc->torn_frame);
     sentry__crash_scope_free(&ipc->scope);
@@ -1290,6 +1332,9 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     }
     if (ipc->message_write_handle) {
         CloseHandle(ipc->message_write_handle);
+    }
+    if (ipc->message_write.hEvent) {
+        CloseHandle(ipc->message_write.hEvent);
     }
 
     if (ipc->parent_handle) {
@@ -1629,17 +1674,36 @@ static bool
 write_message(sentry_crash_ipc_t *ipc, const char *buf, size_t len,
     bool nonblocking, size_t *sent)
 {
-    (void)nonblocking;
     *sent = 0;
-    while (*sent < len) {
-        DWORD written = 0;
-        if (!WriteFile(ipc->message_write_handle, buf + *sent,
-                (DWORD)(len - *sent), &written, NULL)
-            || !written) {
+    if (!ipc->message_write_pending) {
+        HANDLE event = ipc->message_write.hEvent;
+        memset(&ipc->message_write, 0, sizeof(ipc->message_write));
+        ipc->message_write.hEvent = event;
+        if (!WriteFile(ipc->message_write_handle, buf, (DWORD)len, NULL,
+                &ipc->message_write)
+            && GetLastError() != ERROR_IO_PENDING) {
             return false;
         }
-        *sent += written;
+        ipc->message_write_pending = true;
     }
+    // a timed out write stays pending, and the next call picks it up
+    uint64_t deadline
+        = sentry__monotonic_time() + SENTRY_CRASH_IPC_SEND_TIMEOUT_MS;
+    DWORD written = 0;
+    while (!GetOverlappedResult(
+        ipc->message_write_handle, &ipc->message_write, &written, FALSE)) {
+        if (GetLastError() != ERROR_IO_INCOMPLETE) {
+            ipc->message_write_pending = false;
+            return false;
+        }
+        if (nonblocking || sentry__atomic_fetch(&ipc->stopped)
+            || sentry__monotonic_time() >= deadline) {
+            return true;
+        }
+        WaitForSingleObject(ipc->message_write.hEvent, 10);
+    }
+    ipc->message_write_pending = false;
+    *sent = written;
     return true;
 }
 #else
