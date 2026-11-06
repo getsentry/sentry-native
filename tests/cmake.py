@@ -63,7 +63,7 @@ class CMake:
 
         if options is None:
             options = dict()
-        key = ";".join(f"{k}={v}" for k, v in options.items())
+        key = ";".join(f"{k}={v}" for k, v in sorted(options.items()))
         if cflags:
             key += ";" + ";".join(cflags)
         key = (source_dir, key)
