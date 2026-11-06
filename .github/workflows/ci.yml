@@ -541,7 +541,7 @@ jobs:
             adb shell cmd alarm set-time $(date +%s000) || adb shell su root date $(date -u +%m%d%H%M%Y.%S)
             scripts/setup-android-sanitizer.sh "$RUN_ANALYZER"
             pip install --upgrade --requirement tests/requirements.txt
-            pytest --capture=no --verbose tests
+            pytest --capture=no -vv tests
             (cd ndk && ./gradlew :sentry-native-ndk:connectedDebugAndroidTest --stacktrace)
             (cd ndk && ./gradlew :sentry-native-ndk-outproc:connectedDebugAndroidTest --stacktrace)
 
@@ -555,7 +555,7 @@ jobs:
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
-          pytest --capture=no --verbose tests
+          pytest --capture=no -vv tests
 
       - name: Check NDK
         if: ${{ env['ANDROID_API'] }}
