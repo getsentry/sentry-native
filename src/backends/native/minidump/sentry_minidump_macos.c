@@ -1558,13 +1558,90 @@ read_region(
 }
 
 /**
+ * Add a range to the list, extending the last range if they are contiguous.
+ */
+static bool
+add_range(minidump_memory64_list_t **list, uint64_t *capacity, uint64_t start,
+    uint64_t size)
+{
+    minidump_memory64_list_t *old = *list;
+    if (old->count > 0) {
+        minidump_memory64_descriptor_t *last = &old->ranges[old->count - 1];
+        if (last->start_address + last->size == start) {
+            last->size += size;
+            return true;
+        }
+    }
+
+    if (old->count == *capacity) {
+        minidump_memory64_list_t *grown = sentry_malloc(sizeof(*grown)
+            + *capacity * 2 * sizeof(minidump_memory64_descriptor_t));
+        if (!grown) {
+            return false;
+        }
+        memcpy(grown, old,
+            sizeof(*old) + old->count * sizeof(minidump_memory64_descriptor_t));
+        sentry_free(old);
+        *list = grown;
+        *capacity *= 2;
+    }
+
+    minidump_memory64_descriptor_t *range = &(*list)->ranges[(*list)->count++];
+    range->start_address = start;
+    range->size = size;
+    return true;
+}
+
+// Pages to query at a time
+#    define PAGE_QUERY_COUNT 1024
+
+/**
+ * Add the pages of a region to the list, except for anonymous pages that were
+ * never touched. Those have no disposition and read back as zeros, and
+ * allocators reserve hundreds of megabytes of them.
+ */
+static bool
+add_region_pages(minidump_writer_t *writer, const memory_region_t *region,
+    minidump_memory64_list_t **list, uint64_t *capacity)
+{
+    int pages[PAGE_QUERY_COUNT];
+    uint64_t address = region->address;
+    uint64_t end = region->address + region->size;
+
+    while (address < end) {
+        uint64_t size = PAGE_QUERY_COUNT * vm_page_size;
+        if (size > end - address) {
+            size = end - address;
+        }
+
+        mach_vm_size_t count = PAGE_QUERY_COUNT;
+        kern_return_t kr = mach_vm_page_range_query(writer->task, address, size,
+            (mach_vm_address_t)(uintptr_t)pages, &count);
+        if (kr != KERN_SUCCESS) {
+            return add_range(list, capacity, address, end - address);
+        }
+
+        for (mach_vm_size_t i = 0; i < count; i++) {
+            if (pages[i] != 0
+                && !add_range(
+                    list, capacity, address + i * vm_page_size, vm_page_size)) {
+                return false;
+            }
+        }
+        address += size;
+    }
+    return true;
+}
+
+/**
  * Write memory64 list stream with all readable regions.
  */
 static int
 write_memory64_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
-    minidump_memory64_list_t *list = sentry_malloc(sizeof(*list)
-        + writer->region_count * sizeof(minidump_memory64_descriptor_t));
+    uint64_t capacity = writer->region_count;
+    minidump_memory64_list_t *list = sentry_malloc(
+        sizeof(*list) + capacity * sizeof(minidump_memory64_descriptor_t));
     if (!list) {
         return -1;
     }
@@ -1572,10 +1649,10 @@ write_memory64_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     list->count = 0;
     for (size_t i = 0; i < writer->region_count; i++) {
         const memory_region_t *region = &writer->regions[i];
-        if (should_include_region_macos(region, writer->crash_ctx, 0)) {
-            list->ranges[list->count].start_address = region->address;
-            list->ranges[list->count].size = region->size;
-            list->count++;
+        if (should_include_region_macos(region, writer->crash_ctx, 0)
+            && !add_region_pages(writer, region, &list, &capacity)) {
+            sentry_free(list);
+            return -1;
         }
     }
 
