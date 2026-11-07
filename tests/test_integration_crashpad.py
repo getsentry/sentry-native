@@ -1564,7 +1564,10 @@ def start_until_handler(tmp_path, args, env=None):
             stdout=log,
             stderr=subprocess.STDOUT,
         )
-    assert wait_for(lambda: "started crashpad client handler" in log_path.read_text())
+    assert wait_for(
+        lambda: "started crashpad client handler"
+        in log_path.read_text(encoding="utf-8", errors="replace")
+    )
     handler = next(
         p
         for p in psutil.Process(child.pid).children()
