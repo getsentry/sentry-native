@@ -1545,10 +1545,11 @@ def test_crashpad_breadcrumbs(cmake, httpserver, count, reinstall, crash_arg):
 
 
 def start_until_handler(tmp_path, args, env=None):
-    # with no-setup, nothing reaches the handler between its start and the
-    # fixture's sleep, which leaves the test time to stall the handler before
-    # the scope updates that follow. The handler inherits stdout, so the output
-    # goes to a file instead of a pipe.
+    # sentry_init flushes the scope to the handler before it processes old
+    # runs. With no-setup, nothing else reaches the handler until the fixture's
+    # sleep ends, which leaves the test time to stall it before the scope
+    # updates that follow. The handler inherits stdout, so the output goes to a
+    # file instead of a pipe.
     log_path = tmp_path / "stalled-handler.log"
     with open(log_path, "w") as log:
         child = subprocess.Popen(
@@ -1565,7 +1566,7 @@ def start_until_handler(tmp_path, args, env=None):
             stderr=subprocess.STDOUT,
         )
     assert wait_for(
-        lambda: "started crashpad client handler"
+        lambda: "processing and pruning old runs"
         in log_path.read_text(encoding="utf-8", errors="replace")
     )
     handler = next(
