@@ -1565,15 +1565,19 @@ def start_until_handler(tmp_path, args, env=None):
             stdout=log,
             stderr=subprocess.STDOUT,
         )
-    assert wait_for(
-        lambda: "processing and pruning old runs"
-        in log_path.read_text(encoding="utf-8", errors="replace")
-    )
-    handler = next(
-        p
-        for p in psutil.Process(child.pid).children()
-        if p.name() == "crashpad_handler.exe"
-    )
+    try:
+        assert wait_for(
+            lambda: "processing and pruning old runs"
+            in log_path.read_text(encoding="utf-8", errors="replace")
+        )
+        handler = next(
+            p
+            for p in psutil.Process(child.pid).children()
+            if p.name() == "crashpad_handler.exe"
+        )
+    except BaseException:
+        child.kill()
+        raise
     return child, handler
 
 
@@ -1607,14 +1611,16 @@ def test_crashpad_busy_handler_crash(cmake, httpserver):
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     child, _ = start_until_handler(tmp_path, ["crash"], env)
-    pipe = next(
-        name
-        for name in os.listdir("\\\\.\\pipe\\")
-        if name.startswith(f"crashpad_{child.pid}_")
-    )
-    # occupy both of the handler's pipe instances
-    instances = [open(f"\\\\.\\pipe\\{pipe}", "r+b", buffering=0) for _ in range(2)]
+    instances = []
     try:
+        pipe = next(
+            name
+            for name in os.listdir("\\\\.\\pipe\\")
+            if name.startswith(f"crashpad_{child.pid}_")
+        )
+        # occupy both of the handler's pipe instances
+        for _ in range(2):
+            instances.append(open(f"\\\\.\\pipe\\{pipe}", "r+b", buffering=0))
         with httpserver.wait(timeout=30) as waiting:
             child.wait(timeout=30)
     finally:
