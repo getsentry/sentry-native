@@ -3,7 +3,9 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_logger.h"
+#include "sentry_random.h"
 #include "sentry_sync.h"
+#include "sentry_utils.h"
 #include "sentry_value.h"
 
 #include <stdio.h>
@@ -356,7 +358,8 @@ init_app(sentry_crash_ipc_t *ipc, int shm_fd, int notify_fd, int ready_fd,
         goto fail;
     }
 
-    struct timeval send_timeout = { 1, 0 };
+    struct timeval send_timeout
+        = { SENTRY_CRASH_IPC_SEND_TIMEOUT_MS / 1000, 0 };
     setsockopt(ipc->message_fd[0], SOL_SOCKET, SO_SNDTIMEO, &send_timeout,
         sizeof(send_timeout));
 
@@ -459,11 +462,15 @@ sentry__crash_ipc_reattach(
             && dup3(ready_fd, ipc->ready_fd, O_CLOEXEC) >= 0
             && dup3(message_fd, ipc->message_fd[0], O_CLOEXEC) >= 0;
         if (reattached) {
-            struct timeval send_timeout = { 1, 0 };
+            struct timeval send_timeout
+                = { SENTRY_CRASH_IPC_SEND_TIMEOUT_MS / 1000, 0 };
             setsockopt(ipc->message_fd[0], SOL_SOCKET, SO_SNDTIMEO,
                 &send_timeout, sizeof(send_timeout));
             // a new daemon starts at a snapshot with sequence 1
             ipc->sequence = 0;
+            sentry_free(ipc->torn_frame);
+            ipc->torn_frame = NULL;
+            sentry__atomic_store(&ipc->stalled, 0);
             sentry__atomic_store(&ipc->message_failed, 0);
         }
         sentry__atomic_store(&ipc->writing, 0);
@@ -622,6 +629,7 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     }
 
     sentry_free(ipc->message_buf);
+    sentry_free(ipc->torn_frame);
     sentry__crash_scope_free(&ipc->scope);
 
     if (ipc->shmem && ipc->shmem != MAP_FAILED) {
@@ -821,7 +829,8 @@ sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
     int no_sigpipe = 1;
     setsockopt(ipc->message_fd[0], SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe,
         sizeof(no_sigpipe));
-    struct timeval send_timeout = { 1, 0 };
+    struct timeval send_timeout
+        = { SENTRY_CRASH_IPC_SEND_TIMEOUT_MS / 1000, 0 };
     setsockopt(ipc->message_fd[0], SOL_SOCKET, SO_SNDTIMEO, &send_timeout,
         sizeof(send_timeout));
     fcntl(ipc->message_fd[0], F_SETFD, FD_CLOEXEC);
@@ -946,6 +955,7 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     }
 
     sentry_free(ipc->message_buf);
+    sentry_free(ipc->torn_frame);
     sentry__crash_scope_free(&ipc->scope);
 
     if (ipc->shmem && ipc->shmem != MAP_FAILED) {
@@ -987,6 +997,50 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 }
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
+
+// a named pipe, because CreatePipe handles can't be overlapped
+static bool
+create_message_pipe(sentry_crash_ipc_t *ipc)
+{
+    uint64_t id = 0;
+    sentry__getrandom(&id, sizeof(id));
+    wchar_t name[SENTRY_CRASH_IPC_NAME_SIZE];
+    swprintf(name, SENTRY_CRASH_IPC_NAME_SIZE,
+        L"\\\\.\\pipe\\sentry-crash-%lu-%llx", GetCurrentProcessId(), id);
+    HANDLE write_handle = CreateNamedPipeW(name,
+        PIPE_ACCESS_OUTBOUND | FILE_FLAG_OVERLAPPED
+            | FILE_FLAG_FIRST_PIPE_INSTANCE,
+        PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS, 1,
+        SENTRY_CRASH_IPC_PIPE_SIZE, 0, 0, NULL);
+    if (write_handle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    SECURITY_ATTRIBUTES pipe_attrs;
+    ZeroMemory(&pipe_attrs, sizeof(pipe_attrs));
+    pipe_attrs.nLength = sizeof(pipe_attrs);
+    pipe_attrs.bInheritHandle = TRUE;
+    HANDLE read_handle = CreateFileW(
+        name, GENERIC_READ, 0, &pipe_attrs, OPEN_EXISTING, 0, NULL);
+    if (read_handle == INVALID_HANDLE_VALUE) {
+        DWORD error = GetLastError();
+        CloseHandle(write_handle);
+        SetLastError(error);
+        return false;
+    }
+    HANDLE write_event = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (!write_event) {
+        DWORD error = GetLastError();
+        CloseHandle(read_handle);
+        CloseHandle(write_handle);
+        SetLastError(error);
+        return false;
+    }
+    ipc->message_read_handle = read_handle;
+    ipc->message_write_handle = write_handle;
+    ipc->message_write.hEvent = write_event;
+    return true;
+}
 
 sentry_crash_ipc_t *
 sentry__crash_ipc_init_app(HANDLE init_mutex)
@@ -1092,12 +1146,7 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
         return NULL;
     }
 
-    SECURITY_ATTRIBUTES pipe_attrs;
-    ZeroMemory(&pipe_attrs, sizeof(pipe_attrs));
-    pipe_attrs.nLength = sizeof(pipe_attrs);
-    pipe_attrs.bInheritHandle = TRUE;
-    if (!CreatePipe(&ipc->message_read_handle, &ipc->message_write_handle,
-            &pipe_attrs, 0)) {
+    if (!create_message_pipe(ipc)) {
         SENTRY_WARNF("failed to create message pipe: %lu", GetLastError());
         CloseHandle(ipc->ready_event_handle);
         CloseHandle(ipc->event_handle);
@@ -1109,7 +1158,6 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
         sentry_free(ipc);
         return NULL;
     }
-    SetHandleInformation(ipc->message_write_handle, HANDLE_FLAG_INHERIT, 0);
 
     // Initialize shared memory only if newly created
     if (!shm_exists) {
@@ -1256,7 +1304,15 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
         return;
     }
 
+    if (ipc->message_write_pending) {
+        // the pending write owns the torn frame until it completes
+        DWORD written = 0;
+        CancelIoEx(ipc->message_write_handle, &ipc->message_write);
+        GetOverlappedResult(
+            ipc->message_write_handle, &ipc->message_write, &written, TRUE);
+    }
     sentry_free(ipc->message_buf);
+    sentry_free(ipc->torn_frame);
     sentry__crash_scope_free(&ipc->scope);
 
     if (ipc->shmem) {
@@ -1280,6 +1336,9 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     }
     if (ipc->message_write_handle) {
         CloseHandle(ipc->message_write_handle);
+    }
+    if (ipc->message_write.hEvent) {
+        CloseHandle(ipc->message_write.hEvent);
     }
 
     if (ipc->parent_handle) {
@@ -1613,45 +1672,142 @@ sentry__crash_scope_event(const sentry_crash_scope_t *scope)
     return event;
 }
 
-static bool
-write_message(
-    sentry_crash_ipc_t *ipc, const char *buf, size_t len, bool nonblocking)
-{
-    while (len) {
+// returns false on a hard error, and `sent < len` if the daemon stopped reading
 #if defined(SENTRY_PLATFORM_WINDOWS)
-        (void)nonblocking;
-        DWORD written = 0;
-        if (!WriteFile(
-                ipc->message_write_handle, buf, (DWORD)len, &written, NULL)
-            || !written) {
+static bool
+write_message(sentry_crash_ipc_t *ipc, const char *buf, size_t len,
+    bool nonblocking, size_t *sent)
+{
+    *sent = 0;
+    if (!ipc->message_write_pending) {
+        HANDLE event = ipc->message_write.hEvent;
+        memset(&ipc->message_write, 0, sizeof(ipc->message_write));
+        ipc->message_write.hEvent = event;
+        if (!WriteFile(ipc->message_write_handle, buf, (DWORD)len, NULL,
+                &ipc->message_write)
+            && GetLastError() != ERROR_IO_PENDING) {
             return false;
         }
+        ipc->message_write_pending = true;
+    }
+    // a timed out write stays pending, and the next call picks it up
+    uint64_t deadline
+        = sentry__monotonic_time() + SENTRY_CRASH_IPC_SEND_TIMEOUT_MS;
+    DWORD written = 0;
+    while (!GetOverlappedResult(
+        ipc->message_write_handle, &ipc->message_write, &written, FALSE)) {
+        if (GetLastError() != ERROR_IO_INCOMPLETE) {
+            ipc->message_write_pending = false;
+            return false;
+        }
+        if (nonblocking || sentry__atomic_fetch(&ipc->stopped)
+            || sentry__monotonic_time() >= deadline) {
+            return true;
+        }
+        WaitForSingleObject(ipc->message_write.hEvent, 10);
+    }
+    ipc->message_write_pending = false;
+    *sent = written;
+    return true;
+}
 #else
-        int flags = nonblocking ? MSG_DONTWAIT : 0;
+static bool
+write_message(sentry_crash_ipc_t *ipc, const char *buf, size_t len,
+    bool nonblocking, size_t *sent)
+{
+    *sent = 0;
+    int fd = ipc->message_fd[0];
+    int flags = 0;
 #    if defined(MSG_NOSIGNAL)
-        flags |= MSG_NOSIGNAL;
+    flags |= MSG_NOSIGNAL;
 #    endif
-        ssize_t written = send(ipc->message_fd[0], buf, len, flags);
+    int mode = 0;
+    uint64_t deadline = 0;
+    if (nonblocking) {
+        // set O_NONBLOCK, because MSG_DONTWAIT waits for SO_SNDTIMEO on macOS
+        mode = fcntl(fd, F_GETFL);
+        fcntl(fd, F_SETFL, mode | O_NONBLOCK);
+    } else {
+        deadline = sentry__monotonic_time() + SENTRY_CRASH_IPC_SEND_TIMEOUT_MS;
+    }
+    bool failed = false;
+    while (*sent < len) {
+        ssize_t written = send(fd, buf + *sent, len - *sent, flags);
         if (written < 0 && errno == EINTR) {
             continue;
         }
-        if (written <= 0) {
-            return false;
+        if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            break;
         }
-#endif
-        buf += written;
-        len -= (size_t)written;
+        if (written <= 0) {
+            failed = true;
+            break;
+        }
+        *sent += (size_t)written;
+        // a short send past the deadline has used up SO_SNDTIMEO
+        if (!nonblocking && *sent < len
+            && sentry__monotonic_time() >= deadline) {
+            break;
+        }
     }
+    if (nonblocking) {
+        fcntl(fd, F_SETFL, mode);
+    }
+    return !failed;
+}
+#endif
+
+static bool
+acquire_writer(sentry_crash_ipc_t *ipc)
+{
+    return ipc && !sentry__atomic_fetch(&ipc->stopped)
+        && !sentry__atomic_fetch(&ipc->message_failed)
+        && sentry__atomic_compare_swap(&ipc->writing, 0, 1);
+}
+
+static bool
+flush_torn_frame(sentry_crash_ipc_t *ipc, bool nonblocking)
+{
+    if (!ipc->torn_frame) {
+        return true;
+    }
+    size_t sent = 0;
+    if (!write_message(ipc, ipc->torn_frame + ipc->torn_sent,
+            ipc->torn_len - ipc->torn_sent, nonblocking, &sent)) {
+        sentry__atomic_store(&ipc->message_failed, 1);
+        return false;
+    }
+    ipc->torn_sent += sent;
+    if (ipc->torn_sent < ipc->torn_len) {
+        return false;
+    }
+    sentry_free(ipc->torn_frame);
+    ipc->torn_frame = NULL;
+    ipc->sequence++;
     return true;
+}
+
+bool
+sentry__crash_ipc_flush(sentry_crash_ipc_t *ipc)
+{
+    if (!acquire_writer(ipc)) {
+        return false;
+    }
+    bool flushed = flush_torn_frame(ipc, true);
+    sentry__atomic_store(&ipc->writing, 0);
+    return flushed;
 }
 
 bool
 sentry__crash_ipc_send(
     sentry_crash_ipc_t *ipc, uint16_t type, sentry_value_t value)
 {
-    if (!ipc || sentry__atomic_fetch(&ipc->stopped)
-        || sentry__atomic_fetch(&ipc->message_failed)
-        || !sentry__atomic_compare_swap(&ipc->writing, 0, 1)) {
+    if (!acquire_writer(ipc)) {
+        return false;
+    }
+    // wait on shutdown, so that a resumed daemon gets the frame and exits
+    if (!flush_torn_frame(ipc, type != SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN)) {
+        sentry__atomic_store(&ipc->writing, 0);
         return false;
     }
     size_t payload_len = 0;
@@ -1665,12 +1821,22 @@ sentry__crash_ipc_send(
                type, 0, ipc->sequence + 1, payload, payload_len, &buf, &len)
             == SENTRY_CRASH_IPC_MESSAGE_OK;
     if (sent) {
-        sent = write_message(ipc, buf, len, false);
-        if (sent) {
-            ipc->sequence++;
-        } else {
-            // a partial write makes this stream unusable for further frames
+        size_t written = 0;
+        sent = write_message(ipc, buf, len, false, &written);
+        if (!sent) {
             sentry__atomic_store(&ipc->message_failed, 1);
+        } else if (written < len) {
+            ipc->torn_frame = buf;
+            ipc->torn_len = len;
+            ipc->torn_sent = written;
+            buf = NULL;
+            sentry__atomic_store(&ipc->stalled, 1);
+            sent = false;
+        } else {
+            ipc->sequence++;
+            if (type == SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT) {
+                sentry__atomic_store(&ipc->stalled, 0);
+            }
         }
     }
     sentry_free(buf);
@@ -1693,11 +1859,17 @@ sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
 #if !defined(SENTRY_PLATFORM_WINDOWS)
     if (!sentry__atomic_fetch(&ipc->message_failed)
         && sentry__atomic_compare_swap(&ipc->writing, 0, 1)) {
-        char frame[SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE] = { 0 };
-        write_u32_le(frame, SENTRY_CRASH_IPC_MESSAGE_MIN_LEN);
-        write_u16_le(frame + 4, SENTRY_CRASH_IPC_MESSAGE_CRASH);
-        write_u64_le(frame + 8, ipc->sequence + 1);
-        bool sent = write_message(ipc, frame, sizeof(frame), true);
+        bool sent = false;
+        // a crash frame can't follow a torn frame
+        if (!sentry__atomic_fetch(&ipc->stalled)) {
+            char frame[SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE] = { 0 };
+            write_u32_le(frame, SENTRY_CRASH_IPC_MESSAGE_MIN_LEN);
+            write_u16_le(frame + 4, SENTRY_CRASH_IPC_MESSAGE_CRASH);
+            write_u64_le(frame + 8, ipc->sequence + 1);
+            size_t written = 0;
+            sent = write_message(ipc, frame, sizeof(frame), true, &written)
+                && written == sizeof(frame);
+        }
         sentry__atomic_store(&ipc->writing, 0);
         if (sent) {
             return true;

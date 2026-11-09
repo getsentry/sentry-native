@@ -1490,6 +1490,8 @@ sync_attachments(void *data, sentry_value_t attachment)
     if (sentry__atomic_fetch(&state->crashed)) {
         return;
     }
+    // send the list directly, because sentry_scope_clear gets here before it
+    // resets the scope, and a snapshot would restore the cleared data
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t list = attachment_list(state, scope);
         sentry__crash_ipc_send(
@@ -1555,11 +1557,23 @@ clear_scope(void *data)
     }
 }
 
+static void
+send_update(native_backend_state_t *state, uint16_t type, sentry_value_t value)
+{
+    if (!sentry__atomic_fetch(&state->ipc->stalled)) {
+        sentry__crash_ipc_send(state->ipc, type, value);
+    } else if (sentry__crash_ipc_flush(state->ipc)) {
+        // the snapshot includes this update
+        SENTRY_WITH_SCOPE (scope) {
+            snapshot_scope(state, scope);
+        }
+    }
+}
+
 #define VALUE_OBSERVER(Name, Type)                                             \
     static void Name(void *data, sentry_value_t value)                         \
     {                                                                          \
-        native_backend_state_t *state = data;                                  \
-        sentry__crash_ipc_send(state->ipc, Type, value);                       \
+        send_update(data, Type, value);                                        \
     }
 
 VALUE_OBSERVER(set_release, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE)
@@ -1580,8 +1594,7 @@ set_user(void *data, sentry_value_t user)
         sentry_value_set_by_key(value, "id",
             sentry_value_new_string(state->options->run->installation_id));
     }
-    sentry__crash_ipc_send(
-        state->ipc, SENTRY_CRASH_IPC_MESSAGE_SET_USER, value);
+    send_update(state, SENTRY_CRASH_IPC_MESSAGE_SET_USER, value);
     sentry_value_decref(value);
 }
 
@@ -1590,19 +1603,17 @@ set_level(void *data, sentry_level_t level)
 {
     native_backend_state_t *state = data;
     sentry_value_t value = sentry__value_new_level(level);
-    sentry__crash_ipc_send(
-        state->ipc, SENTRY_CRASH_IPC_MESSAGE_SET_LEVEL, value);
+    send_update(state, SENTRY_CRASH_IPC_MESSAGE_SET_LEVEL, value);
     sentry_value_decref(value);
 }
 
 static void
 send_key(void *data, uint16_t type, const char *key, sentry_value_t value)
 {
-    native_backend_state_t *state = data;
     sentry_value_t pair = sentry_value_new_list();
     sentry_value_append(pair, sentry_value_new_string(key));
     sentry_value_append(pair, sentry_value_incref(value));
-    sentry__crash_ipc_send(state->ipc, type, pair);
+    send_update(data, type, pair);
     sentry_value_decref(pair);
 }
 
@@ -1629,9 +1640,8 @@ set_context(void *data, const char *key, sentry_value_t value)
 #define REMOVE_OBSERVER(Name, Type)                                            \
     static void Name(void *data, const char *key)                              \
     {                                                                          \
-        native_backend_state_t *state = data;                                  \
         sentry_value_t value = sentry_value_new_string(key);                   \
-        sentry__crash_ipc_send(state->ipc, Type, value);                       \
+        send_update(data, Type, value);                                        \
         sentry_value_decref(value);                                            \
     }
 
