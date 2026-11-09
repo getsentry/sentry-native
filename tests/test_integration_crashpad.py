@@ -22,7 +22,7 @@ from . import (
     is_replay_envelope,
     lib_name,
     REPLAY_ID,
-    SENTRY_VERSION,
+    SENTRY_VERSION_BASE,
 )
 from .conditions import (
     has_crashpad,
@@ -174,11 +174,11 @@ def test_crashpad_codeview(cmake, httpserver):
         for name, codeview in _minidump_modules(attachments.minidump)
     }
     library = lib_name("sentry")
-    major = SENTRY_VERSION.split(".", 1)[0]
+    major = SENTRY_VERSION_BASE.split(".", 1)[0]
     if sys.platform == "linux":
         library = f"{library}.{major}"
     elif sys.platform == "darwin":
-        library = library.replace(".dylib", f".{SENTRY_VERSION}.dylib")
+        library = library.replace(".dylib", f".{SENTRY_VERSION_BASE}.dylib")
     codeview = codeviews[library]
     signature = codeview[:4]
     if sys.platform == "linux":

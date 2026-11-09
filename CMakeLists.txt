@@ -425,10 +425,10 @@ if(SENTRY_EMBED_INFO)
 	# SENTRY_BUILD_ID cache variable takes precedence
 	if(SENTRY_BUILD_ID)
 		set(SENTRY_EMBEDDED_BUILD_ID "${SENTRY_BUILD_ID}")
-	elseif(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\+(.+)$")
-		# Extract build ID from SENTRY_VERSION_FULL if present (format: major.minor.patch+build-id)
+	elseif(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+(-[^+]+)?\\+(.+)$")
+		# Extract build ID from SENTRY_VERSION_FULL if present (format: major.minor.patch[-prerelease]+build-id)
 		# This handles cases where downstream SDKs modify sentry.h to include build metadata
-		set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_1}")
+		set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_2}")
 	else()
 		# No build ID found in version or provided, use timestamp as default
 		# Format: YYYYMMDD-HHMMSS (semver-compliant: alphanumerics and hyphens only)

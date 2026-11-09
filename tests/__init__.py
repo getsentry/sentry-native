@@ -46,6 +46,7 @@ def run_command(name):
 pytest.register_assert_rewrite("tests.assertions")
 
 SENTRY_VERSION = "0.17.6"
+SENTRY_VERSION_BASE = SENTRY_VERSION.split("-", 1)[0]
 
 # must match the fixed id set by the example's "replay-context" arg
 REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"

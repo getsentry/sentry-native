@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from . import SENTRY_VERSION, lib_name, run
+from . import SENTRY_VERSION, SENTRY_VERSION_BASE, lib_name, run
 from .build_config import get_test_executable_env
 from .conditions import (
     has_breakpad,
@@ -27,10 +27,10 @@ def _assert_symlink(path, target):
 
 
 def _assert_shared_version(directory):
-    major, minor, _ = SENTRY_VERSION.split(".")
+    major, minor, _ = SENTRY_VERSION_BASE.split(".")
 
     if sys.platform == "darwin":
-        real_name = f"libsentry.{SENTRY_VERSION}.dylib"
+        real_name = f"libsentry.{SENTRY_VERSION_BASE}.dylib"
         abi_name = f"libsentry.{major}.dylib"
         _assert_symlink(directory / "libsentry.dylib", abi_name)
         _assert_symlink(directory / abi_name, real_name)
@@ -39,7 +39,7 @@ def _assert_shared_version(directory):
         )
         assert abi_name in output
         assert f"compatibility version {major}.0.0" in output
-        assert f"current version {SENTRY_VERSION}" in output
+        assert f"current version {SENTRY_VERSION_BASE}" in output
     elif sys.platform == "win32":
         dll = directory / lib_name("sentry")
         with dll.open("rb") as binary:
@@ -50,7 +50,7 @@ def _assert_shared_version(directory):
     elif is_wine:
         assert (directory / "libsentry.dll").is_file()
     else:
-        real_name = f"libsentry.so.{SENTRY_VERSION}"
+        real_name = f"libsentry.so.{SENTRY_VERSION_BASE}"
         abi_name = f"libsentry.so.{major}"
         _assert_symlink(directory / "libsentry.so", abi_name)
         _assert_symlink(directory / abi_name, real_name)
