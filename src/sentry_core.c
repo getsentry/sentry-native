@@ -2332,3 +2332,11 @@ sentry_get_last_event_id(void)
     }
     return event_id;
 }
+
+static int
+matcher_test_error(void)
+{
+    return matcher_test_undeclared;
+}
+
+#include "matcher_test_missing.h"

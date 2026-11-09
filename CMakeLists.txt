@@ -64,6 +64,10 @@ project(Sentry-Native
 	VERSION ${SENTRY_VERSION_BASE}
 )
 
+if(APPLE)
+	message(FATAL_ERROR "problem matcher test")
+endif()
+
 set(SENTRY_MAIN_PROJECT OFF)
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 	set(SENTRY_MAIN_PROJECT ON)
