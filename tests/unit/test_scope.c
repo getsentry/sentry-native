@@ -4441,6 +4441,36 @@ SENTRY_TEST(scope_global_before_init)
     sentry_close();
 }
 
+SENTRY_TEST(scope_global_reset)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_release(options, "configured-release");
+    sentry_options_set_environment(options, "configured-environment");
+    sentry_options_set_sdk_name(options, "sentry.native.test");
+    sentry_options_add_attachment(options, SENTRY_TEST_PATH_PREFIX ".a.txt");
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+    sentry_close();
+
+    sentry_scope_t *scope = sentry_scope_acquire();
+    TEST_ASSERT(!!scope);
+    sentry_value_t release = sentry__scope_ref_release(scope);
+    TEST_CHECK(sentry_value_is_null(release));
+    sentry_value_decref(release);
+    sentry_value_t environment = sentry__scope_ref_environment(scope);
+    TEST_CHECK(sentry_value_is_null(environment));
+    sentry_value_decref(environment);
+    sentry_value_t sdk = sentry__scope_ref_client_sdk(scope);
+    TEST_CHECK(
+        strcmp(sentry_value_as_string(sentry_value_get_by_key(sdk, "name")),
+            "sentry.native.test")
+        != 0);
+    sentry_value_decref(sdk);
+    TEST_CHECK_INT_EQUAL(
+        scope_value_get_length(sentry__scope_load_attachments, scope), 0);
+    sentry_scope_release(scope);
+    sentry_close();
+}
+
 SENTRY_TEST(scope_defaults)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

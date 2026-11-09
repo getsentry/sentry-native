@@ -534,6 +534,23 @@ init_global_scope(const sentry_options_t *options)
     return true;
 }
 
+static void
+reset_global_scope(void)
+{
+    if (!sentry__atomic_fetch(&g_scope_initialized)) {
+        return;
+    }
+    sentry_value_t sdk = get_client_sdk();
+    sentry_value_freeze(sdk);
+    sentry_scope_data_t *data = &g_scope_data;
+    SENTRY_SCOPE_WRITE_LOCK (data) {
+        sentry__value_replace(&data->client_sdk, sdk);
+        sentry__value_replace(&data->attachments, sentry_value_new_list());
+        sentry__value_replace(&data->release, sentry_value_new_null());
+        sentry__value_replace(&data->environment, sentry_value_new_null());
+    }
+}
+
 static sentry_scope_t *
 alloc_scope(void)
 {
@@ -637,6 +654,7 @@ sentry__scope_cleanup(void)
         sentry__options_unlock();
         return;
     }
+    reset_global_scope();
     SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
     sentry__mutex_lock(&g_lock);
     sentry__options_unlock();
