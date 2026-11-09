@@ -286,6 +286,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 - `SENTRY_INTEGRATION_QT` (Default: `OFF`):
   Builds the Qt integration, which turns Qt log messages into breadcrumbs.
+  If Qt Multimedia 6.8 or later is found, the integration can also record
+  session replays (see `sentry_options_set_attach_session_replay`). Configure
+  with `-DCMAKE_DISABLE_FIND_PACKAGE_Qt6Multimedia=ON` to build without it.
 
 - `SENTRY_INTEGRATION_WER` (Default: `OFF`, only for Windows):
   Builds the Windows Error Reporting (WER) integration, which registers Sentry
