@@ -10,6 +10,7 @@
 #include "sentry_uuid.h"
 #include "sentry_value.h"
 
+#include <math.h>
 #include <stdio.h>
 
 sentry_path_t *
@@ -172,7 +173,7 @@ append_input_events(sentry_value_t events, sentry_value_t meta,
         const double offset_ms = sentry_value_as_double(
             sentry_value_get_by_key(input, "timestamp"));
         if (sentry_value_get_type(input) != SENTRY_VALUE_TYPE_OBJECT
-            || offset_ms < 0.0 || offset_ms > duration_ms) {
+            || isnan(offset_ms) || offset_ms < 0.0 || offset_ms > duration_ms) {
             continue;
         }
         sentry_value_set_by_key(input, "timestamp",

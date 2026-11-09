@@ -144,11 +144,13 @@ def stage_replay(tmp_path, replay_id=REPLAY_ID):
         "sizeBytes": len(video),
         "frameCount": 58,
         "frameRate": 30,
-        # ms since the first video frame; the last one lies outside the clip
+        # ms since the first video frame; the last one lies outside the clip,
+        # and an event without a timestamp is skipped as well
         "inputEvents": [
             {"type": 3, "timestamp": offset_ms, "data": {"source": 2, "type": 2}}
             for offset_ms in (0, 15077, 15078)
-        ],
+        ]
+        + [{"type": 3, "data": {"source": 2, "type": 2}}],
     }
     (replays / f"replay-{replay_id}.json").write_text(json.dumps(sidecar))
     return replays, video
