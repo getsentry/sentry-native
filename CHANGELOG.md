@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.0.0-beta.1
+
+### Breaking Changes 🛠
+
+- (transport) Rename and document custom transport factory by @jpnurmi in [#2131](https://github.com/getsentry/sentry-native/pull/2131)
+- Make native the default backend by @jpnurmi in [#2186](https://github.com/getsentry/sentry-native/pull/2186)
+
+### New Features ✨
+
+#### Native
+
+- Add Android support for out-of-process crash handling by @jpnurmi in [#1725](https://github.com/getsentry/sentry-native/pull/1725)
+- Provide crash metadata to `on_crash` by @jpnurmi in [#2174](https://github.com/getsentry/sentry-native/pull/2174)
+
+#### Other
+
+- (build) Shared library version by @jpnurmi in [#2103](https://github.com/getsentry/sentry-native/pull/2103)
+- (scope) Split global scope and expose isolation scope by @jpnurmi in [#2160](https://github.com/getsentry/sentry-native/pull/2160)
+- (tus) Resumable uploads by @jpnurmi in [#2058](https://github.com/getsentry/sentry-native/pull/2058)
+- Add pkg-config support by @nmandelblit and @jpnurmi in [#1411](https://github.com/getsentry/sentry-native/pull/1411)
+
+### Bug Fixes 🐛
+
+- Provide `debug_meta.images` to `on_crash` by @jpnurmi in [#2184](https://github.com/getsentry/sentry-native/pull/2184)
+
+### Internal Changes 🔧
+
+- (native) Sync scope over IPC by @jpnurmi in [#2157](https://github.com/getsentry/sentry-native/pull/2157)
+- Add support for batched scope access by @jpnurmi in [#2107](https://github.com/getsentry/sentry-native/pull/2107)
+- Release archive version by @jpnurmi in [#2105](https://github.com/getsentry/sentry-native/pull/2105)
+
 ## Unreleased (v1)
 
 **Breaking / Important behavior changes**:
