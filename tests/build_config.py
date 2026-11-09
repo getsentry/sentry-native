@@ -102,7 +102,7 @@ def get_platform_cmake_args():
         args.append("-DWITH_TSAN_OPTION=ON")
 
     if os.environ.get("ERROR_ON_WARNINGS"):
-        args.append("-DSENTRY_ERROR_ON_WARNINGS=ON")
+        args.append(f"-DSENTRY_ERROR_ON_WARNINGS={os.environ['ERROR_ON_WARNINGS']}")
 
     if "CMAKE_DEFINES" in os.environ:
         args.extend(os.environ.get("CMAKE_DEFINES").split())
