@@ -529,7 +529,7 @@ uint64_t
 sentry__iso8601_to_usec(const char *iso)
 {
     size_t len = sentry__guarded_strlen(iso);
-    if (len != 20 && len != 27) {
+    if (len < 20) {
         return 0;
     }
     // The code is adapted from: https://stackoverflow.com/a/26896792
@@ -541,15 +541,19 @@ sentry__iso8601_to_usec(const char *iso)
         return 0;
     }
     iso += consumed;
-    // we optionally have microsecond precision
+    // we optionally have fractional seconds, truncated to microseconds
     if (iso[0] == '.') {
-        if (sscanf(iso, ".%d%n", &usec, &consumed) < 1 || consumed != 7) {
+        iso++;
+        if (iso[0] < '0' || iso[0] > '9') {
             return 0;
         }
-        iso += consumed;
+        for (int scale = 100000; iso[0] >= '0' && iso[0] <= '9'; iso++) {
+            usec += (iso[0] - '0') * scale;
+            scale /= 10;
+        }
     }
     // the string is terminated by `Z`
-    if (iso[0] != 'Z') {
+    if (iso[0] != 'Z' || iso[1] != '\0') {
         return 0;
     }
 
