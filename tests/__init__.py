@@ -45,7 +45,7 @@ def run_command(name):
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
-SENTRY_VERSION = "0.17.6"
+SENTRY_VERSION = "1.0.0-beta.1"
 SENTRY_VERSION_BASE = SENTRY_VERSION.split("-", 1)[0]
 
 # must match the fixed id set by the example's "replay-context" arg
