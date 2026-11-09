@@ -15,6 +15,7 @@ Requires environment variables:
 Skip these tests if env vars not set (for regular CI runs).
 """
 
+import glob
 import os
 import re
 import subprocess
@@ -33,6 +34,7 @@ from .conditions import (
     has_crashpad,
     has_http,
     has_native,
+    has_qt,
     is_asan,
     is_android,
 )
@@ -245,6 +247,66 @@ def poll_sentry_for_attachments(event_id, name, max_attempts=20):
     raise TimeoutError(
         f"Attachment {name} for event {event_id} not found after {max_attempts} attempts. "
         f"Last error: {last_error}"
+    )
+
+
+def poll_sentry_for_replay(replay_id, error_id, max_attempts=20):
+    """Poll until the replay with `replay_id` lists the error `error_id`."""
+    org, project = get_sentry_org_project()
+    headers = get_sentry_headers()
+    api_base = get_sentry_api_base()
+    url = f"{api_base}/projects/{org}/{project}/replays/{replay_id}/"
+    last_error = None
+
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            last_error = (
+                f"Replays API returned {response.status_code}: {response.text[:200]}"
+            )
+            print(f"  Attempt {attempt + 1}/{max_attempts}: {last_error}")
+            if response.status_code == 200:
+                replay = response.json()["data"]
+                if error_id in replay.get("error_ids", []):
+                    return replay
+        except requests.RequestException as e:
+            last_error = str(e)
+            print(f"    Request exception: {last_error}")
+
+        if attempt + 1 < max_attempts:
+            time.sleep(POLL_INTERVAL)
+
+    raise TimeoutError(
+        f"Replay {replay_id} with error {error_id} not found after "
+        f"{max_attempts} attempts. Last error: {last_error}"
+    )
+
+
+def poll_sentry_for_replay_recording(replay_id, max_attempts=20):
+    """Poll until the replay with `replay_id` has recording segments."""
+    org, project = get_sentry_org_project()
+    headers = get_sentry_headers()
+    api_base = get_sentry_api_base()
+    url = f"{api_base}/projects/{org}/{project}/replays/{replay_id}/recording-segments/"
+    last_error = None
+
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            last_error = f"Recording segments API returned {response.status_code}: {response.text[:200]}"
+            print(f"  Attempt {attempt + 1}/{max_attempts}: {last_error}")
+            if response.status_code == 200 and response.json():
+                return response.json()
+        except requests.RequestException as e:
+            last_error = str(e)
+            print(f"    Request exception: {last_error}")
+
+        if attempt + 1 < max_attempts:
+            time.sleep(POLL_INTERVAL)
+
+    raise TimeoutError(
+        f"Recording of replay {replay_id} not found after {max_attempts} "
+        f"attempts. Last error: {last_error}"
     )
 
 
@@ -1025,6 +1087,61 @@ def test_e2e_tus_compressed(cmake):
         event["eventID"], ".sentry-large-attachment"
     )
     assert_large_attachment(attachments)
+
+
+# Qt's FFmpeg lacks software H.264 on Linux
+SYSTEM_LIBAVCODEC = glob.glob("/usr/lib/*/libavcodec.so.61")
+
+
+@pytest.mark.skipif(not has_qt, reason="Qt with Qt Multimedia not available")
+@pytest.mark.skipif(
+    sys.platform == "linux" and not SYSTEM_LIBAVCODEC,
+    reason="Qt session replay needs a system FFmpeg 7.1 on Linux",
+)
+def test_e2e_qt_session_replay(cmake):
+    """Verify a Qt app's crash reaches Sentry with a linked session replay."""
+    tmp_path = cmake(
+        ["sentry_qt_replay"],
+        {"SENTRY_BACKEND": "native", "SENTRY_INTEGRATION_QT": "ON"},
+    )
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+    if sys.platform == "linux":
+        env["LD_LIBRARY_PATH"] = os.pathsep.join(
+            filter(
+                None,
+                [os.path.dirname(SYSTEM_LIBAVCODEC[0]), env.get("LD_LIBRARY_PATH")],
+            )
+        )
+        # no display
+        env["QT_QPA_PLATFORM"] = "offscreen"
+
+    output = run_crash_e2e(
+        tmp_path, "sentry_qt_replay", [], env=env, wait_for_daemon=True
+    )
+    test_id = extract_test_id(output)
+
+    event = poll_sentry_for_event(test_id)
+    replay_id = event["contexts"]["replay"]["replay_id"]
+
+    replay = poll_sentry_for_replay(replay_id, event["eventID"])
+    assert replay["replay_type"] == "buffer"
+    assert replay["count_segments"] == 1
+
+    # fixture clicks the middle
+    events = [
+        e for segment in poll_sentry_for_replay_recording(replay_id) for e in segment
+    ]
+    meta = next(e["data"] for e in events if e.get("type") == 4)
+    clicks = [
+        e["data"]
+        for e in events
+        if e.get("type") == 3
+        and e["data"].get("source") == 2
+        and e["data"].get("type") == 2
+    ]
+    assert len(clicks) == 1
+    assert clicks[0]["x"] == pytest.approx(meta["width"] / 2, abs=1)
+    assert clicks[0]["y"] == pytest.approx(meta["height"] / 2, abs=1)
 
 
 @pytest.fixture(scope="module")

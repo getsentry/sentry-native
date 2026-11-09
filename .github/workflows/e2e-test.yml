@@ -34,13 +34,23 @@ jobs:
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
+          # session replay: FFmpeg 7.1 with x264
+          sudo add-apt-repository -y ppa:ubuntuhandbook1/ffmpeg7
           sudo apt update
-          sudo apt install -y cmake libcurl4-openssl-dev zlib1g-dev
+          sudo apt install -y cmake libcurl4-openssl-dev zlib1g-dev \
+            libavcodec61 libavformat61 libswresample5 libswscale8
 
       - name: Set up zlib for Windows
         if: runner.os == 'Windows'
         shell: powershell
         run: . "scripts\install-zlib.ps1"
+
+      - name: Install Qt (session replay)
+        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
+        with:
+          version: "6.8.3"
+          modules: qtmultimedia
+          cache: true
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
