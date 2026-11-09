@@ -485,6 +485,7 @@ get_global_scope(void)
         sentry_value_freeze(contexts);
         sentry_value_freeze(sdk);
         sentry__value_replace(&data->client_sdk, sdk);
+        sentry__mutex_init(&g_scope.observers_lock);
         sentry__atomic_store(&g_scope_initialized, 1);
     }
     sentry__mutex_unlock(&g_lock);
