@@ -3,7 +3,7 @@ name: Contrib
 on:
   pull_request_target:
     types: [closed]
-    branches: [master]
+    branches: [master, v1]
   workflow_dispatch:
     inputs:
       contributor:
@@ -34,10 +34,11 @@ jobs:
     env:
       CONTRIBUTOR: ${{ inputs.contributor || github.event.pull_request.user.login }}
       RELEASE: ${{ inputs.release || 'Unreleased' }}
+      BASE: ${{ github.base_ref || github.ref_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: master
+          ref: ${{ env.BASE }}
 
       - name: Generate token
         id: app-token
@@ -73,7 +74,7 @@ jobs:
           commit-message: "chore: Update CHANGELOG.md"
           title: "chore: credit external contributor"
           branch: chore/contrib-${{ github.event.number || github.run_id }}
-          base: master
+          base: ${{ env.BASE }}
           delete-branch: true
           body: >-
             Credits @${{ env.CONTRIBUTOR }} in the ${{ env.RELEASE }} section
