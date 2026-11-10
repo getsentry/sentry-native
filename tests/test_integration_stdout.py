@@ -534,3 +534,25 @@ def test_wine_context(cmake):
         "name": "Wine",
         "version": version.removeprefix("wine-"),
     }
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
+def test_crash_stdout_hint_dsn(cmake, backend):
+    hint_dsn = "https://hintkey@sentry.invalid/654321"
+    tmp_path, output = run_crash_stdout_for(backend, cmake, ["hint-dsn", hint_dsn])
+
+    envelope = Envelope.deserialize(output)
+
+    assert envelope.headers["dsn"] == hint_dsn
+    assert_attachment(envelope)

@@ -763,7 +763,8 @@ sentry__capture_event(
             sentry_value_t attachments = prepare_attachments(hint, local_scope);
             event = sentry__invoke_before_send(options, event, hint);
             envelope = sentry__enclose_event(options, event, &event_id,
-                hint ? hint->attachments : attachments);
+                hint ? hint->attachments : attachments,
+                hint ? hint->dsn : NULL);
             sentry_value_decref(attachments);
         }
         if (envelope) {
@@ -974,7 +975,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
 
 sentry_envelope_t *
 sentry__enclose_event(const sentry_options_t *options, sentry_value_t event,
-    sentry_uuid_t *event_id, sentry_value_t attachments)
+    sentry_uuid_t *event_id, sentry_value_t attachments, const char *dsn)
 {
     if (sentry_value_is_null(event)) {
         return NULL;
@@ -985,6 +986,10 @@ sentry__enclose_event(const sentry_options_t *options, sentry_value_t event,
     envelope = sentry__envelope_new(options);
     if (!envelope || !sentry__envelope_add_event(envelope, event, options)) {
         goto fail;
+    }
+    if (dsn) {
+        sentry__envelope_set_header(
+            envelope, "dsn", sentry_value_new_string(dsn));
     }
 
     sentry__envelope_add_attachments(envelope, attachments, options);
@@ -1094,6 +1099,10 @@ prepare_user_feedback(const sentry_options_t *options,
     if (!envelope
         || !sentry__envelope_add_feedback_event(envelope, event, options)) {
         goto fail;
+    }
+    if (hint && hint->dsn) {
+        sentry__envelope_set_header(
+            envelope, "dsn", sentry_value_new_string(hint->dsn));
     }
 
     sentry__envelope_add_attachments(envelope, all_attachments, options);
@@ -2132,7 +2141,7 @@ capture_minidump(sentry_path_t *dump_path)
         event = sentry__prepare_event(options, event, NULL);
         event = sentry__invoke_before_send(options, event, &hint);
         sentry_envelope_t *envelope = sentry__enclose_event(
-            options, event, &event_id, hint.attachments);
+            options, event, &event_id, hint.attachments, hint.dsn);
         sentry__hint_deinit(&hint);
 
         if (!envelope || sentry_uuid_is_nil(&event_id)) {

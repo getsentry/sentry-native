@@ -3,7 +3,7 @@ import subprocess
 
 import pytest
 
-from . import make_dsn, run, Envelope
+from . import make_dsn, run, unreachable, Envelope
 from .assertions import (
     assert_client_report,
     assert_event,
@@ -420,26 +420,28 @@ def test_client_report_content_too_large(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_client_report_with_retry(cmake, httpserver, unreachable_dsn):
+def test_client_report_with_retry(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     # Run 1: event discarded by before_send (client report recorded).
     # A session envelope picks up the client report, but sending fails
     # (unreachable), so the session's start update and its end are both
     # cached for retry.
-    run(
-        tmp_path,
-        "sentry_test_integration",
-        [
-            "log",
-            "http-retry",
-            "start-session",
-            "discarding-before-send",
-            "capture-event",
-        ],
-        env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
-    )
+    with unreachable(httpserver):
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            [
+                "log",
+                "http-retry",
+                "start-session",
+                "discarding-before-send",
+                "capture-event",
+            ],
+            env=env,
+        )
 
     assert cache_dir.exists()
     cache_files = list(cache_dir.glob("*.envelope"))
@@ -455,7 +457,7 @@ def test_client_report_with_retry(cmake, httpserver, unreachable_dsn):
             tmp_path,
             "sentry_test_integration",
             ["log", "http-retry", "no-setup"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=env,
         )
     assert waiting.result
 

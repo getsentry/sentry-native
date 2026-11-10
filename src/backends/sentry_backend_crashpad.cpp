@@ -604,6 +604,9 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
+            if (hint.dsn) {
+                SENTRY_WARN("crashpad does not support DSN overrides");
+            }
             if (sentry__hint_is_modified(&hint)) {
                 write_attachment_manifest(state, hint.attachments);
             }

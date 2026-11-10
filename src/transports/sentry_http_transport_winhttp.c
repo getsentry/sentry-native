@@ -23,6 +23,8 @@ typedef struct {
     wchar_t *proxy_password;
     HINTERNET session;
     HINTERNET connect;
+    wchar_t host[128];
+    INTERNET_PORT port;
     HINTERNET request;
     bool debug;
     uint64_t transfer_timeout;
@@ -229,9 +231,17 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     }
 #endif
 
+    if (client->connect
+        && (client->port != url_components.nPort
+            || wcscmp(client->host, hostname) != 0)) {
+        WinHttpCloseHandle(client->connect);
+        client->connect = NULL;
+    }
     if (!client->connect) {
         client->connect = WinHttpConnect(client->session,
             url_components.lpszHostName, url_components.nPort, 0);
+        memcpy(client->host, hostname, sizeof(client->host));
+        client->port = url_components.nPort;
     }
     if (!client->connect) {
         SENTRY_WARNF("`WinHttpConnect` failed with code `%d`", GetLastError());

@@ -696,6 +696,49 @@ SENTRY_TEST(capture_event_hints)
     }
 }
 
+static sentry_value_t
+dsn_before_send(sentry_value_t event, sentry_hint_t *hint, void *data)
+{
+    TEST_CHECK_INT_EQUAL(sentry_hint_set_dsn(hint, data), 0);
+    return event;
+}
+
+SENTRY_TEST(capture_event_hint_dsn)
+{
+    const char *expected[] = { "https://bar@sentry.invalid/43",
+        "https://baz@sentry.invalid/44", "https://foo@sentry.invalid/42" };
+    for (int mode = 0; mode < 3; mode++) {
+        sentry_envelope_t *captured = NULL;
+        SENTRY_TEST_OPTIONS_NEW(options);
+        sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+        sentry_transport_t *transport = sentry_transport_new(capture_envelope);
+        sentry_transport_set_state(transport, &captured);
+        sentry_options_set_transport(options, transport);
+        // 0: hint only, 1: callback changes it, 2: callback clears it
+        if (mode) {
+            sentry_options_set_before_send(options, dsn_before_send,
+                mode == 1 ? "https://baz@sentry.invalid/44" : NULL);
+        }
+        TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+        sentry_hint_t *hint = sentry_hint_new();
+        sentry_hint_set_dsn(hint, "https://bar@sentry.invalid/43");
+        sentry_hint_attach_bytes(hint, "hint", 4, "hint.txt");
+        sentry_scope_capture_event(NULL, sentry_value_new_event(), hint);
+        sentry_close();
+
+        TEST_ASSERT(captured != NULL);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_envelope_get_header(captured, "dsn")),
+            expected[mode]);
+        size_t size;
+        char *serialized = sentry_envelope_serialize(captured, &size);
+        TEST_CHECK(strstr(serialized, "hint.txt") != NULL);
+        sentry_free(serialized);
+        sentry_envelope_free(captured);
+    }
+}
+
 SENTRY_TEST(capture_hint_cleanup)
 {
     sentry_hint_t *hint = sentry_hint_new();

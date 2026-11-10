@@ -4368,6 +4368,24 @@ SENTRY_API void sentry_hint_remove_attachment(
 SENTRY_API void sentry_hint_clear_attachments(sentry_hint_t *hint);
 
 /**
+ * Sets the DSN that the event or feedback is sent to, instead of the DSN
+ * configured in the options. Passing NULL clears the override.
+ *
+ * The DSN is copied and written to the `dsn` header of the envelope, which
+ * keeps it through caching and retries. Custom transports are responsible for
+ * sending envelopes to the DSN in their header. The DSN is validated when the
+ * envelope is sent, and an envelope with an invalid DSN is dropped instead of
+ * being sent to the configured DSN. The crashpad backend does not support
+ * overriding the DSN of crash reports.
+ *
+ * Returns 0 on success, or nonzero if `dsn` is empty, contains a NUL
+ * character, or could not be copied. The previous DSN is kept on failure.
+ */
+SENTRY_API int sentry_hint_set_dsn(sentry_hint_t *hint, const char *dsn);
+SENTRY_API int sentry_hint_set_dsn_n(
+    sentry_hint_t *hint, const char *dsn, size_t dsn_len);
+
+/**
  * Captures a manually created feedback with a hint and sends it to Sentry.
  *
  * This function takes ownership of both the feedback value and the hint,

@@ -756,8 +756,8 @@ process_ucontext_deferred(const sentry_options_t *options,
             }
             sentry_value_t attachments
                 = sentry__hint_resolve_attachments(&hint);
-            sentry_envelope_t *envelope
-                = sentry__enclose_event(options, event, NULL, attachments);
+            sentry_envelope_t *envelope = sentry__enclose_event(
+                options, event, NULL, attachments, hint.dsn);
             sentry_value_decref(attachments);
             if (envelope) {
                 event_id = sentry__envelope_get_event_id(envelope);

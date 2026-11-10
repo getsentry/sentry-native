@@ -30,10 +30,16 @@
 #    define TUS_MAX_HTTP_HEADERS 4
 #endif
 
-typedef struct {
+typedef struct http_destination_s {
     sentry_dsn_t *dsn;
-    char *user_agent;
     sentry_rate_limiter_t *ratelimiter;
+    struct http_destination_s *next;
+} http_destination_t;
+
+typedef struct {
+    // The options DSN, followed by other DSNs from envelope headers.
+    http_destination_t destination;
+    char *user_agent;
     void *client;
     void (*free_client)(void *);
     int (*start_client)(void *, const sentry_options_t *);
@@ -583,21 +589,21 @@ http_handle_error(int status_code)
 
 static void
 http_update_ratelimiter(
-    http_transport_state_t *state, sentry_http_response_t *resp)
+    sentry_rate_limiter_t *ratelimiter, sentry_http_response_t *resp)
 {
     if (resp->x_sentry_rate_limits) {
         sentry__rate_limiter_update_from_header(
-            state->ratelimiter, resp->x_sentry_rate_limits);
+            ratelimiter, resp->x_sentry_rate_limits);
     } else if (resp->retry_after) {
         sentry__rate_limiter_update_from_http_retry_after(
-            state->ratelimiter, resp->retry_after);
+            ratelimiter, resp->retry_after);
     } else if (resp->status_code == 429) {
-        sentry__rate_limiter_update_from_429(state->ratelimiter);
+        sentry__rate_limiter_update_from_429(ratelimiter);
     }
 }
 
 static int
-http_send_request(http_transport_state_t *state,
+http_send_request(http_transport_state_t *state, http_destination_t *dest,
     sentry_prepared_http_request_t *req, sentry_http_response_t *resp)
 {
     memset(resp, 0, sizeof(*resp));
@@ -608,7 +614,7 @@ http_send_request(http_transport_state_t *state,
         http_response_cleanup(resp);
         return result;
     }
-    http_update_ratelimiter(state, resp);
+    http_update_ratelimiter(dest->ratelimiter, resp);
     return resp->status_code;
 }
 
@@ -681,8 +687,9 @@ tus_status_result(int status)
 // Perform a TUS upload for the file at <cache>/<basename> and put the
 // resulting remote location into the attachment-ref item.
 static int
-tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
-    sentry_envelope_item_t *item, const sentry_attachment_ref_t *ref)
+tus_upload_file(http_transport_state_t *state, http_destination_t *dest,
+    const sentry_path_t *cache_path, sentry_envelope_item_t *item,
+    const sentry_attachment_ref_t *ref)
 {
     sentry_path_t *att_file = sentry__path_join_filename(cache_path, ref->path);
     if (!att_file || !sentry__path_is_file(att_file)
@@ -705,16 +712,16 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
     bool create = sentry__string_empty(ref->location);
     if (!create) {
         // Step 1a: TUS upload offset (HEAD, no body)
-        char *upload_url = sentry__dsn_resolve_url(state->dsn, ref->location);
+        char *upload_url = sentry__dsn_resolve_url(dest->dsn, ref->location);
         req = prepare_tus_offset_request(
-            upload_url, state->dsn, state->user_agent);
+            upload_url, dest->dsn, state->user_agent);
         sentry_free(upload_url);
         if (!req) {
             sentry__path_free(att_file);
             return RESULT_DISCARD;
         }
 
-        int status_code = http_send_request(state, req, &resp);
+        int status_code = http_send_request(state, dest, req, &resp);
         sentry__prepared_http_request_free(req);
         if (status_code < 0) {
             sentry__path_free(att_file);
@@ -742,13 +749,13 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
     if (create) {
         // Step 1b: TUS creation (POST, no body)
         req = prepare_tus_request_common(
-            file_size, ref->attachment_type, state->dsn, state->user_agent);
+            file_size, ref->attachment_type, dest->dsn, state->user_agent);
         if (!req) {
             sentry__path_free(att_file);
             return RESULT_DISCARD;
         }
 
-        int status_code = http_send_request(state, req, &resp);
+        int status_code = http_send_request(state, dest, req, &resp);
         sentry__prepared_http_request_free(req);
         if (status_code < 0) {
             sentry__path_free(att_file);
@@ -783,7 +790,7 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
     // Step 2: TUS upload (PATCH with file body). The placeholder needs the
     // raw `Location` value the TUS endpoint returned (relative path); only the
     // PATCH itself needs an absolute URL.
-    char *patch_url = sentry__dsn_resolve_url(state->dsn, location);
+    char *patch_url = sentry__dsn_resolve_url(dest->dsn, location);
     sentry_free(location);
     int result = RESULT_OK;
     // When resuming at the end of the file, an empty PATCH retrieves the
@@ -794,13 +801,13 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
             len = chunk_size;
         }
         req = prepare_tus_upload_request(patch_url, att_file, file_size,
-            upload_offset, len, state->dsn, state->user_agent);
+            upload_offset, len, dest->dsn, state->user_agent);
         if (!req) {
             result = RESULT_DISCARD;
             break;
         }
 
-        int status = http_send_request(state, req, &resp);
+        int status = http_send_request(state, dest, req, &resp);
         sentry__prepared_http_request_free(req);
         if (status < 0) {
             result = status;
@@ -925,8 +932,8 @@ prune_attachment_refs(const sentry_run_t *run, sentry_value_t paths,
 // errors and resumable uploads keep the envelope intact for transport retry,
 // caching, or shutdown persistence.
 static int
-resolve_attachment_refs(
-    http_transport_state_t *state, sentry_envelope_t *envelope)
+resolve_attachment_refs(http_transport_state_t *state, http_destination_t *dest,
+    sentry_envelope_t *envelope)
 {
     if (!state->run || !envelope || sentry__envelope_is_raw(envelope)) {
         return RESULT_OK;
@@ -943,7 +950,7 @@ resolve_attachment_refs(
         }
 
         if (sentry__envelope_item_is_ratelimited(
-                envelope, item, state->ratelimiter)) {
+                envelope, item, dest->ratelimiter)) {
             sentry__attachment_ref_cleanup(&ref);
             sentry__client_report_discard(
                 SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF,
@@ -969,7 +976,7 @@ resolve_attachment_refs(
             continue;
         }
 
-        int result = tus_upload_file(state, cache_path, item, &ref);
+        int result = tus_upload_file(state, dest, cache_path, item, &ref);
         if (result == RESULT_OK) {
             sentry__attachment_ref_cleanup(&ref);
             i++;
@@ -997,10 +1004,11 @@ resolve_attachment_refs(
 
 static bool
 add_client_report(sentry_envelope_t *envelope, http_transport_state_t *state,
-    sentry_client_report_t *report)
+    const http_destination_t *dest, sentry_client_report_t *report)
 {
-    if (!state->send_client_reports
-        || !sentry__envelope_can_add_client_report(envelope, state->ratelimiter)
+    // Discards are counted across all DSNs, so only the options DSN gets them.
+    if (!state->send_client_reports || dest != &state->destination
+        || !sentry__envelope_can_add_client_report(envelope, dest->ratelimiter)
         || !sentry__client_report_save(report)) {
         return false;
     }
@@ -1011,11 +1019,51 @@ add_client_report(sentry_envelope_t *envelope, http_transport_state_t *state,
     return false;
 }
 
+// Returns the destination for the `dsn` header, or NULL if it is invalid.
+static http_destination_t *
+get_destination(
+    http_transport_state_t *state, const sentry_envelope_t *envelope)
+{
+    char *raw = sentry__envelope_get_dsn(envelope);
+    if (!raw) {
+        return &state->destination;
+    }
+    http_destination_t **tail = NULL;
+    for (http_destination_t *dest = &state->destination; dest;
+        dest = dest->next) {
+        if (dest->dsn && sentry__string_eq(dest->dsn->raw, raw)) {
+            sentry_free(raw);
+            return dest;
+        }
+        tail = &dest->next;
+    }
+    sentry_dsn_t *dsn = sentry__dsn_new(raw);
+    sentry_free(raw);
+    if (!dsn || !dsn->is_valid) {
+        SENTRY_WARN("dropping envelope with invalid DSN");
+        sentry__dsn_decref(dsn);
+        return NULL;
+    }
+    http_destination_t *dest = SENTRY_MAKE(http_destination_t);
+    if (dest) {
+        dest->ratelimiter = sentry__rate_limiter_new();
+    }
+    if (!dest || !dest->ratelimiter) {
+        sentry__dsn_decref(dsn);
+        sentry_free(dest);
+        return NULL;
+    }
+    dest->dsn = dsn;
+    *tail = dest;
+    return dest;
+}
+
 static int
-http_send_envelope(sentry_envelope_t *envelope, void *_state)
+http_send_envelope(
+    sentry_envelope_t *envelope, void *_state, http_destination_t *dest)
 {
     http_transport_state_t *state = _state;
-    int result = resolve_attachment_refs(state, envelope);
+    int result = resolve_attachment_refs(state, dest, envelope);
     if (result < 0) {
         if (result != RESULT_SHUTDOWN) {
             SENTRY_WARN("failed to resolve attachment-ref items");
@@ -1024,12 +1072,12 @@ http_send_envelope(sentry_envelope_t *envelope, void *_state)
     }
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-        envelope, state->dsn, state->ratelimiter, state->user_agent);
+        envelope, dest->dsn, dest->ratelimiter, state->user_agent);
     if (!req) {
         return RESULT_OK;
     }
     sentry_http_response_t resp;
-    int status_code = http_send_request(state, req, &resp);
+    int status_code = http_send_request(state, dest, req, &resp);
     sentry__prepared_http_request_free(req);
     if (status_code >= 0) {
         http_response_cleanup(&resp);
@@ -1041,13 +1089,14 @@ static int
 retry_send_cb(sentry_envelope_t *envelope, void *_state)
 {
     http_transport_state_t *state = _state;
-    if (!materialize_attachment_refs(envelope)) {
+    http_destination_t *dest = get_destination(state, envelope);
+    if (!dest || !materialize_attachment_refs(envelope)) {
         return 400;
     }
     sentry_client_report_t report = { 0 };
-    bool reported = add_client_report(envelope, state, &report);
+    bool reported = add_client_report(envelope, state, dest, &report);
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
-    int status_code = http_send_envelope(envelope, state);
+    int status_code = http_send_envelope(envelope, state, dest);
     if (status_code < 0 || state->cache_keep == SENTRY_CACHE_KEEP_ALWAYS) {
         prune_attachment_refs(state->run, ref_paths, envelope);
     } else {
@@ -1059,7 +1108,7 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
         sentry__client_report_restore(&report);
         if (sentry__envelope_materialize(envelope)) {
             sentry__envelope_discard(
-                envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
+                envelope, SENTRY_DISCARD_REASON_SEND_ERROR, dest->ratelimiter);
         }
     }
     sentry_value_decref(ref_paths);
@@ -1073,9 +1122,17 @@ http_transport_state_free(void *_state)
     if (state->free_client) {
         state->free_client(state->client);
     }
-    sentry__dsn_decref(state->dsn);
+    http_destination_t *dest = state->destination.next;
+    while (dest) {
+        http_destination_t *next = dest->next;
+        sentry__dsn_decref(dest->dsn);
+        sentry__rate_limiter_free(dest->ratelimiter);
+        sentry_free(dest);
+        dest = next;
+    }
+    sentry__dsn_decref(state->destination.dsn);
     sentry_free(state->user_agent);
-    sentry__rate_limiter_free(state->ratelimiter);
+    sentry__rate_limiter_free(state->destination.ratelimiter);
     sentry__retry_free(state->retry);
     sentry__run_free(state->run);
     sentry_free(state);
@@ -1088,18 +1145,19 @@ http_send_task(void *_envelope, void *_state)
     http_transport_state_t *state = _state;
 
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-    if (!materialize_attachment_refs(envelope)) {
+    http_destination_t *dest = get_destination(state, envelope);
+    if (!dest || !materialize_attachment_refs(envelope)) {
         sentry__cache_remove_siblings(state->run, &event_id);
         return;
     }
 
     sentry_client_report_t report = { 0 };
-    bool reported = add_client_report(envelope, state, &report);
+    bool reported = add_client_report(envelope, state, dest, &report);
 
     // Capture cached sibling paths before resolving attachment-refs. Dropped
     // attachment-refs no longer carry local paths afterwards.
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
-    int status_code = http_send_envelope(envelope, state);
+    int status_code = http_send_envelope(envelope, state, dest);
 
     const sentry_envelope_t *ref_owner = NULL;
     if (status_code < 0) {
@@ -1128,7 +1186,7 @@ http_send_task(void *_envelope, void *_state)
             }
             sentry__client_report_restore(&report);
             sentry__envelope_discard(envelope,
-                SENTRY_DISCARD_REASON_NETWORK_ERROR, state->ratelimiter);
+                SENTRY_DISCARD_REASON_NETWORK_ERROR, dest->ratelimiter);
         }
         prune_attachment_refs(state->run, ref_paths, ref_owner);
     } else {
@@ -1145,7 +1203,7 @@ http_send_task(void *_envelope, void *_state)
     } else if (status_code >= 0 && http_handle_error(status_code)) {
         sentry__client_report_restore(&report);
         sentry__envelope_discard(
-            envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
+            envelope, SENTRY_DISCARD_REASON_SEND_ERROR, dest->ratelimiter);
     }
 }
 
@@ -1174,7 +1232,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
 
     sentry__bgworker_setname(bgworker, options->transport_thread_name);
 
-    state->dsn = sentry__dsn_incref(options->dsn);
+    state->destination.dsn = sentry__dsn_incref(options->dsn);
     state->user_agent = sentry__string_clone(options->user_agent);
     state->cache_keep = options->cache_keep;
     state->retry_enabled = options->http_retry;
@@ -1303,7 +1361,7 @@ sentry__http_transport_new(
     if (!state) {
         return NULL;
     }
-    state->ratelimiter = sentry__rate_limiter_new();
+    state->destination.ratelimiter = sentry__rate_limiter_new();
     state->client = client;
     state->send_func = send_func;
 

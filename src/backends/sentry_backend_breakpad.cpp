@@ -193,8 +193,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
             sentry_value_t attachments
                 = sentry__hint_resolve_attachments(&hint);
-            sentry_envelope_t *envelope
-                = sentry__enclose_event(options, event, nullptr, attachments);
+            sentry_envelope_t *envelope = sentry__enclose_event(
+                options, event, nullptr, attachments, hint.dsn);
             sentry_value_decref(attachments);
             if (envelope) {
                 event_id = sentry__envelope_get_event_id(envelope);

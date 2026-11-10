@@ -10,6 +10,7 @@
 struct sentry_hint_s {
     sentry_value_t attachments;
     bool modified;
+    char *dsn;
 };
 
 /**

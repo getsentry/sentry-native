@@ -51,6 +51,11 @@ sentry_envelope_t *sentry__envelope_from_path(const sentry_path_t *path);
 sentry_uuid_t sentry__envelope_get_event_id(const sentry_envelope_t *envelope);
 
 /**
+ * Returns an owned copy of the `dsn` header, or NULL if there is none.
+ */
+char *sentry__envelope_get_dsn(const sentry_envelope_t *envelope);
+
+/**
  * Set the event ID header for this envelope.
  */
 void sentry__envelope_set_event_id(
