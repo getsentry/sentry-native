@@ -18,6 +18,7 @@ extern "C" {
 
 #    include <QtCore/qbuffer.h>
 #    include <QtCore/qcoreapplication.h>
+#    include <QtCore/qdatetime.h>
 #    include <QtCore/qdir.h>
 #    include <QtCore/qeventloop.h>
 #    include <QtCore/qmutex.h>
@@ -96,6 +97,8 @@ sentry_qt_messsage_handler(
 static const int REPLAY_FRAME_INTERVAL_MS = 1000;
 static const int REPLAY_MAX_FRAME_SIZE = 1280;
 static const int REPLAY_ENCODE_TIMEOUT_MS = 10000;
+// newer clips may still be pending for a crashed run's daemon
+static const int REPLAY_STALE_SECS = 3600;
 // rrweb's mouse move throttle
 static const int REPLAY_MOVE_INTERVAL_MS = 50;
 
@@ -177,9 +180,13 @@ ReplayRecorder::ReplayRecorder(
     // stale clips
     sentry__path_create_dir_all(dir);
     QDir staging(QString::fromUtf8(dir->path));
-    for (const QString &name : staging.entryList(
+    const QDateTime stale
+        = QDateTime::currentDateTime().addSecs(-REPLAY_STALE_SECS);
+    for (const QFileInfo &info : staging.entryInfoList(
              QStringList(QStringLiteral("replay-*")), QDir::Files)) {
-        staging.remove(name);
+        if (info.lastModified() < stale) {
+            staging.remove(info.fileName());
+        }
     }
 
     const QString base = QStringLiteral("replay-") + replayId;
