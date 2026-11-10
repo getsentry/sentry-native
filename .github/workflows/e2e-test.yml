@@ -48,7 +48,8 @@ jobs:
       - name: Install Qt (session replay)
         uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
         with:
-          version: "6.8.3"
+          # 6.8.3 links AGL, which the macOS 26 SDK lacks
+          version: ${{ runner.os == 'macOS' && '6.9.3' || '6.8.3' }}
           modules: qtmultimedia
           cache: true
 
