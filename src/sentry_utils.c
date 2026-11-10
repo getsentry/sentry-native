@@ -455,6 +455,7 @@ char *
 sentry__base64_encode(const char *data, size_t len)
 {
     int matcher_test_unused;
+    int matcher_test_unused2;
     static const char b64[]
         = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     size_t output_len = 4 * ((len + 2) / 3);
