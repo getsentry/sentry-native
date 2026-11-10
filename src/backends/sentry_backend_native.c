@@ -1174,9 +1174,16 @@ native_backend_startup(
     state->ipc->message_read_handle = NULL;
 #    endif
 
+    bool wait_ready = true;
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    // the crash service attaches later, the crash handler waits for it
+    wait_ready = !state->android_service_daemon;
+#    endif
     // Wait for daemon to signal it's ready
-    if (!sentry__crash_ipc_wait_for_ready(
-            state->ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS)) {
+    if (!wait_ready) {
+        SENTRY_DEBUG("not waiting for the crash service to signal ready");
+    } else if (!sentry__crash_ipc_wait_for_ready(
+                   state->ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS)) {
         SENTRY_WARN("Daemon did not signal ready in time, proceeding anyway");
     } else {
         SENTRY_DEBUG("Daemon signaled ready");

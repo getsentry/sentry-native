@@ -1634,6 +1634,49 @@ SENTRY_TEST(crash_ipc_stalled_stream)
 #endif
 }
 
+SENTRY_TEST(crash_ipc_awaiting_ready)
+{
+#if !defined(SENTRY_BACKEND_NATIVE)                                            \
+    || !(defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID))
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    ipc->awaiting_ready = 1;
+    size_t size = 8 * 1024 * 1024;
+    char *large = sentry_malloc(size);
+    TEST_ASSERT(large != NULL);
+    memset(large, 'x', size);
+    sentry_value_t value = sentry_value_new_string_n(large, size);
+    sentry_free(large);
+    // nothing reads yet, so the frame stalls at once and counts as sent
+    uint64_t start = sentry__monotonic_time();
+    TEST_CHECK(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
+    TEST_CHECK(
+        sentry__monotonic_time() - start < SENTRY_CRASH_IPC_SEND_TIMEOUT_MS);
+    sentry_value_decref(value);
+    TEST_CHECK(ipc->stalled);
+    TEST_CHECK(ipc->awaiting_ready);
+
+    uint64_t ready = 1;
+    TEST_CHECK_INT_EQUAL(
+        write(ipc->ready_fd, &ready, sizeof(ready)), sizeof(ready));
+    while (!sentry__crash_ipc_flush(ipc)) {
+        sentry__crash_ipc_receive(ipc, 0);
+    }
+    sentry_value_t snapshot = scope_snapshot();
+    TEST_CHECK(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, snapshot));
+    sentry_value_decref(snapshot);
+    TEST_CHECK(!ipc->awaiting_ready);
+    TEST_CHECK(!ipc->stalled);
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    TEST_CHECK_INT_EQUAL(ipc->scope.sequence, 3);
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
 SENTRY_TEST(crash_ipc_stalled_notify)
 {
 #ifndef SENTRY_BACKEND_NATIVE
@@ -1684,6 +1727,7 @@ SENTRY_TEST(crash_ipc_reattach_stalled)
     int notify_fd = eventfd(0, EFD_CLOEXEC);
     int ready_fd = eventfd(0, EFD_CLOEXEC);
     TEST_CHECK(sentry__crash_ipc_reattach(ipc, notify_fd, ready_fd, fds[0]));
+    TEST_CHECK(ipc->awaiting_ready);
     TEST_CHECK(!ipc->stalled);
     TEST_CHECK(ipc->torn_frame == NULL);
     TEST_CHECK_INT_EQUAL(ipc->sequence, 0);
@@ -1697,7 +1741,10 @@ SENTRY_TEST(crash_ipc_reattach_stalled)
     TEST_CHECK_INT_EQUAL(read(fds[1], header, sizeof(header)), sizeof(header));
     TEST_CHECK_INT_EQUAL((uint8_t)header[8], 1);
 
-    // the send timeout applies to the new stream
+    // the send timeout applies to the new stream once its daemon is ready
+    uint64_t ready = 1;
+    TEST_CHECK_INT_EQUAL(
+        write(ipc->ready_fd, &ready, sizeof(ready)), sizeof(ready));
     struct timeval timeout = { 0, 0 };
     socklen_t len = sizeof(timeout);
     getsockopt(ipc->message_fd[0], SOL_SOCKET, SO_SNDTIMEO, &timeout, &len);

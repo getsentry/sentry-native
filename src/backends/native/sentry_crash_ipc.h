@@ -117,6 +117,8 @@ typedef struct {
     volatile long stopped;
     // set from a torn frame until a snapshot reaches the daemon
     volatile long stalled;
+    // set until a daemon that attaches later signals ready
+    volatile long awaiting_ready;
     uint64_t sequence;
     // frame with an unsent tail, owned by the writer guard
     char *torn_frame;
@@ -266,6 +268,8 @@ bool sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms);
  * stream. Later sends first flush the tail, and return false if it stays
  * unsent. That flush blocks only for a shutdown frame, up to the send timeout.
  * Only a scope snapshot clears the stall.
+ * Until a daemon that attaches later signals ready, sends never block, and a
+ * frame that stalls the stream still counts as sent.
  */
 bool sentry__crash_ipc_send(
     sentry_crash_ipc_t *ipc, uint16_t type, sentry_value_t value);

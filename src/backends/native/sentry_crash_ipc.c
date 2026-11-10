@@ -440,6 +440,8 @@ sentry__crash_ipc_init_app_with_fds(int shm_fd, int notify_fd, int ready_fd,
         return NULL;
     }
     ipc->init_mutex = init_mutex;
+    // the crash service attaches after the app has started
+    ipc->awaiting_ready = 1;
 
     return init_app(ipc, shm_fd, notify_fd, ready_fd, message_fd);
 }
@@ -471,6 +473,7 @@ sentry__crash_ipc_reattach(
             sentry_free(ipc->torn_frame);
             ipc->torn_frame = NULL;
             sentry__atomic_store(&ipc->stalled, 0);
+            sentry__atomic_store(&ipc->awaiting_ready, 1);
             sentry__atomic_store(&ipc->message_failed, 0);
         }
         sentry__atomic_store(&ipc->writing, 0);
@@ -1766,6 +1769,23 @@ acquire_writer(sentry_crash_ipc_t *ipc)
 }
 
 static bool
+daemon_ready(sentry_crash_ipc_t *ipc)
+{
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    if (sentry__atomic_fetch(&ipc->awaiting_ready)) {
+        struct pollfd pfd = { ipc->ready_fd, POLLIN, 0 };
+        uint64_t val;
+        if (poll(&pfd, 1, 0) != 1 || !(pfd.revents & POLLIN)
+            || read(ipc->ready_fd, &val, sizeof(val)) != sizeof(val)) {
+            return false;
+        }
+        sentry__atomic_store(&ipc->awaiting_ready, 0);
+    }
+#endif
+    return true;
+}
+
+static bool
 flush_torn_frame(sentry_crash_ipc_t *ipc, bool nonblocking)
 {
     if (!ipc->torn_frame) {
@@ -1805,8 +1825,10 @@ sentry__crash_ipc_send(
     if (!acquire_writer(ipc)) {
         return false;
     }
+    bool ready = daemon_ready(ipc);
     // wait on shutdown, so that a resumed daemon gets the frame and exits
-    if (!flush_torn_frame(ipc, type != SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN)) {
+    if (!flush_torn_frame(
+            ipc, !ready || type != SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN)) {
         sentry__atomic_store(&ipc->writing, 0);
         return false;
     }
@@ -1822,7 +1844,7 @@ sentry__crash_ipc_send(
             == SENTRY_CRASH_IPC_MESSAGE_OK;
     if (sent) {
         size_t written = 0;
-        sent = write_message(ipc, buf, len, false, &written);
+        sent = write_message(ipc, buf, len, !ready, &written);
         if (!sent) {
             sentry__atomic_store(&ipc->message_failed, 1);
         } else if (written < len) {
@@ -1831,7 +1853,8 @@ sentry__crash_ipc_send(
             ipc->torn_sent = written;
             buf = NULL;
             sentry__atomic_store(&ipc->stalled, 1);
-            sent = false;
+            // the daemon reads the tail once it is ready
+            sent = !ready;
         } else {
             ipc->sequence++;
             if (type == SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT) {
