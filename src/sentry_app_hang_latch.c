@@ -51,8 +51,8 @@ sentry__app_hang_should_capture(
 // here: the access is off any signal handler (both writer and worker run in
 // normal thread context) and the heartbeat cadence dwarfs the few-ns lock, so
 // the lock only delivers the tear-free guarantee we already need.
-static uint64_t g_target_tid = 0;
-static uint64_t g_last_heartbeat_ms = 0;
+static sentry_atomic_u64_t g_target_tid = 0;
+static sentry_atomic_u64_t g_last_heartbeat_ms = 0;
 static volatile long g_app_hang_active = 0;
 static volatile long g_app_hang_paused = 0;
 

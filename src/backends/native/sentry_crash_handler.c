@@ -43,7 +43,8 @@ static void (*g_crash_callback)(void) = NULL;
 #if (defined(SENTRY_PLATFORM_WINDOWS)                                          \
     && !((defined(_MSC_VER) || defined(__clang__))                             \
         && (defined(_M_AMD64) || defined(_M_ARM64))))                          \
-    || defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    || ((defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID))   \
+        && !defined(__arm__))
 static inline bool
 capture_valid_ip(uint64_t ip)
 {
@@ -1082,14 +1083,13 @@ install_signal_handlers(sentry_crash_ipc_t *ipc, bool preload,
     {
         unw_context_t uc;
         unw_cursor_t cursor;
-#        ifdef __clang__
-#            pragma clang diagnostic push
-#            pragma clang diagnostic ignored                                   \
-                "-Wgnu-statement-expression-from-macro-expansion"
+#        ifdef __GNUC__
+#            pragma GCC diagnostic push
+#            pragma GCC diagnostic ignored "-Wpedantic"
 #        endif
         if (unw_getcontext(&uc) == 0) {
-#        ifdef __clang__
-#            pragma clang diagnostic pop
+#        ifdef __GNUC__
+#            pragma GCC diagnostic pop
 #        endif
             if (unw_init_local(&cursor, &uc) == 0) {
                 // Walk a few frames to ensure .eh_frame info is cached

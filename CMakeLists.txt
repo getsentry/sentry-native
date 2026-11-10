@@ -124,6 +124,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
+option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in sentry and sentry-crash as errors on GCC and Clang" OFF)
 
 option(SENTRY_INTEGRATION_PLATFORM
 	"Enable the downstream-provided platform integration" OFF)
@@ -632,12 +633,17 @@ if(MSVC)
 	endif()
 else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	if(SENTRY_ERROR_ON_WARNINGS)
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Werror>)
+	endif()
 	# The crashpad and breakpad headers generate the following warnings that we
 	# ignore specifically
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-multichar>)
 	else()
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-gnu-include-next -Wno-multichar>)
+		# glibc 2.43 headers expand `memchr` and friends to `_Generic`
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-c11-extensions>)
 	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
@@ -735,8 +741,9 @@ if(MINGW)
 		-Wno-unused-variable
 		-Wno-unused-parameter
 		-Wno-format
-		-Wno-incompatible-pointer-types
+		$<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-pointer-types>
 		-Wno-incompatible-function-pointer-types
+		-Wno-cast-function-type
 	)
 endif()
 
@@ -981,6 +988,12 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	if(SENTRY_WITH_LIBUNWIND AND LINUX)
 		target_compile_definitions(sentry-crash PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)
+	endif()
+
+	# Copy warning options from sentry target
+	if(NOT MSVC)
+		get_target_property(SENTRY_COMPILE_OPTIONS sentry COMPILE_OPTIONS)
+		target_compile_options(sentry-crash PRIVATE ${SENTRY_COMPILE_OPTIONS})
 	endif()
 
 	# Copy include directories from sentry target

@@ -101,6 +101,7 @@ jobs:
             os: ubuntu-24.04
             CC: gcc-14
             CXX: g++-14
+            ERROR_ON_WARNINGS: off # analyzer false positives
             RUN_ANALYZER: gcc
           - name: Linux (GCC 15 + runtime curl)
             os: ubuntu-26.04
@@ -125,31 +126,26 @@ jobs:
             os: ubuntu-24.04
             CC: clang-20
             CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
           - name: Linux Arm64 (clang 20 + asan + llvm-cov)
             os: ubuntu-24.04-arm
             CC: clang-20
             CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
           - name: Linux (clang 20 + tsan)
             os: ubuntu-24.04
             CC: clang-20
             CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: tsan
           - name: Linux Arm64 (clang 20 + tsan)
             os: ubuntu-24.04-arm
             CC: clang-20
             CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: tsan
           - name: Linux (clang 20 + kcov)
             os: ubuntu-24.04
             CC: clang-20
             CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
           - name: Linux (GCC 13.3.0 + valgrind)
             CC: gcc-13
@@ -172,28 +168,23 @@ jobs:
             CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SYSTEM=ON
           - name: macOS 15 (xcode llvm)
             os: macos-15
-            ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             TEST_SYSTEM_PROXY: 1
           - name: macOS 26 (xcode llvm)
             os: macos-26
-            ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
           - name: macOS 15 (xcode llvm + universal)
             os: macos-15
-            ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
           - name: macOS 15 (clang 18 + asan + llvm-cov)
             os: macos-15-large
             CC: clang
             CXX: clang++
-            ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
           - name: macOS 26 (arm64e + PAC test)
             os: macos-26
-            ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64e
           - name: Windows (old VS, 32-bit)
@@ -271,7 +262,7 @@ jobs:
       TEST_SYSTEM_PROXY: ${{ matrix.TEST_SYSTEM_PROXY }}
       USE_SCCACHE: ${{ matrix.USE_SCCACHE }}
       SCCACHE_GHA_ENABLED: ${{ matrix.USE_SCCACHE && 'true' || '' }}
-      ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
+      ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS || 1 }}
       RUN_ANALYZER: ${{ matrix.RUN_ANALYZER }}
       ANDROID_API: ${{ matrix.ANDROID_API }}
       ANDROID_NDK: ${{ matrix.ANDROID_NDK }}

@@ -101,6 +101,9 @@ endif()
 
 if(MSVC)
 	target_compile_options(sentry_test_unit PRIVATE $<BUILD_INTERFACE:/wd5105>)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	# GCC 12 ignores the `-Wmultichar` pragma in the crashpad backend
+	target_compile_options(sentry_test_unit PRIVATE $<BUILD_INTERFACE:-Wno-multichar>)
 endif()
 
 # set static runtime if enabled
@@ -157,6 +160,9 @@ target_link_libraries(sentry_fuzz_json PRIVATE
 
 if(MSVC)
 	target_compile_options(sentry_fuzz_json PRIVATE $<BUILD_INTERFACE:/wd5105>)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	# GCC 12 ignores the `-Wmultichar` pragma in the crashpad backend
+	target_compile_options(sentry_fuzz_json PRIVATE $<BUILD_INTERFACE:-Wno-multichar>)
 endif()
 
 # set static runtime if enabled
