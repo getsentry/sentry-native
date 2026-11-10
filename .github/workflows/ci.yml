@@ -288,7 +288,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Add problem matchers
+      - name: Annotate build errors
         run: echo "::add-matcher::.github/problem-matchers.json"
 
       - name: Debug runner architecture

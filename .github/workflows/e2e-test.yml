@@ -31,6 +31,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Annotate build errors
+        run: echo "::add-matcher::.github/problem-matchers.json"
+
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -86,6 +89,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+
+      - name: Annotate build errors
+        run: echo "::add-matcher::.github/problem-matchers.json"
 
       - name: Check out sentry-java
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
