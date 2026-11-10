@@ -72,6 +72,7 @@ allprojects {{
         ":sentry-android-core:publishToMavenLocal",
         ":sentry-android-ndk:publishToMavenLocal",
         ":sentry-android-ndk-outproc:publishToMavenLocal",
+        ":sentry-bom:publishToMavenLocal",
     )
 
     versions = tomllib.loads((java / "gradle/libs.versions.toml").read_text())[
