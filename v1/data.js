@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794323015255,
+  "lastUpdate": 1794323083365,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -190570,6 +190570,300 @@ window.BENCHMARK_DATA = {
             "range": "logarithmic",
             "unit": "ms",
             "extra": "Min 0.024ms\nMax 0.024ms\nMean 0.024ms\nMedian 0.024ms\nCPU 0.024ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "345030caf3a38a9f571332295e1e5ab1dfd1dc8d",
+          "message": "fix: compilation warnings and enable error on warnings (#2283)\n\n* build: Ignore -Wc11-extensions for Clang\n\nglibc 2.43 wraps `memchr`, `strchr`, and friends in a const-preserving\n`_Generic` macro. Clang attributes the expansion to our code, so each\ncall warns under `-Wpedantic` in the default C99 mode. Only the `native`\nbackend avoids this, because it builds `sentry` as C11.\n\nGCC still flags genuine C11 usage through `-Wpedantic`.\n\nclang-21, inproc backend:\n\n```text\nsrc/sentry_database.c:221:21: warning: '_Generic' is a C11 extension [-Wc11-extensions]\n  221 |                 && !memchr(slice.ptr, '\\n', slice.len)) {\n      |                     ^\n/usr/include/string.h:122:3: note: expanded from macro 'memchr'\n  122 |   __glibc_const_generic (S, const void *, memchr (S, C, N))\n      |   ^\n```\n\n* fix(android): Declare g_ips only for handler-side unwinding\n\nWith libunwindstack the watchdog thread writes frames straight into the\ncaller's buffer, so `g_ips` is only needed by the other unwinders.\n\nAndroid NDK 27, API 31, arm64-v8a, native backend:\n\n```text\nsrc/sentry_thread_stackwalk_posix.c:31:14: warning: unused variable 'g_ips' [-Wunused-variable]\n   31 | static void *g_ips[SENTRY_APP_HANG_MAX_FRAMES];\n      |              ^~~~~\n```\n\n* fix: Align 64-bit atomics on 32-bit x86\n\n`uint64_t` is only 4-byte aligned on 32-bit x86, so Clang assumes the\noperands may be misaligned and calls `__atomic_load_8` and\n`__atomic_store_8` instead of emitting inline atomics. Add an 8-byte\naligned `sentry_atomic_u64_t` for the operands of the 64-bit helpers.\n\nAndroid NDK 27, API 31, x86, native backend:\n\n```text\nsrc/sentry_sync.h:686:5: warning: misaligned atomic operation may incur significant performance penalty; the expected alignment (8 bytes) exceeds the actual alignment (4 bytes) [-Watomic-alignment]\n  686 |     __atomic_store_n(val, value, __ATOMIC_SEQ_CST);\n      |     ^\nsrc/sentry_sync.h:696:12: warning: misaligned atomic operation may incur significant performance penalty; the expected alignment (8 bytes) exceeds the actual alignment (4 bytes) [-Watomic-alignment]\n  696 |     return __atomic_load_n(val, __ATOMIC_SEQ_CST);\n      |            ^\n```\n\n* fix(native): Skip capture_valid_ip on 32-bit ARM\n\nThe frame pointer walk that calls `capture_valid_ip` is compiled out on\n`__arm__`, which left the helper unused there.\n\nAndroid NDK 30, API 36, armeabi-v7a, native backend:\n\n```text\nsrc/backends/native/sentry_crash_handler.c:48:1: warning: unused function 'capture_valid_ip' [-Wunused-function]\n   48 | capture_valid_ip(uint64_t ip)\n      | ^~~~~~~~~~~~~~~~\n```\n\n* fix(breakpad): Ignore MSVC pragmas in the Windows headers\n\n`exception_handler.h` uses `#pragma warning`, which GCC and Clang flag\nunder `-Wall` when building for MinGW.\n\nClang 21, MinGW-w64 target, breakpad backend:\n\n```text\nexternal/breakpad/src/client/windows/handler/exception_handler.h:63:9: warning: unknown pragma ignored [-Wunknown-pragmas]\n   63 | #pragma warning(push)\n      |         ^\nexternal/breakpad/src/client/windows/handler/exception_handler.h:65:9: warning: unknown pragma ignored [-Wunknown-pragmas]\n   65 | #pragma warning(disable:4530)\n      |         ^\n```\n\n* test: Silence unused linker flag in the Wine build\n\nThe flags apply to all links, but `-static-libstdc++` means nothing when\nClang links a C target, so `libsentry.dll` and the C executables warn.\n\nClang 21, MinGW-w64 target:\n\n```text\n[54/233] Linking C shared library libsentry.dll\nclang-21: warning: argument unused during compilation: '-static-libstdc++' [-Wunused-command-line-argument]\n```\n\n* build(tests): Disable -Wmultichar for GCC test targets\n\nThe unit test targets compile the crashpad backend directly, but only\n`sentry` passes `-Wno-multichar`. GCC 13 and newer honor the pragma in\n`sentry_backend_crashpad.cpp`, while GCC 12 ignores it.\n\nGCC 12, crashpad backend:\n\n```text\nIn file included from src/backends/sentry_backend_crashpad.cpp:61:\nexternal/crashpad/client/crashpad_info.h:334:18: warning: multi-character character constant [-Wmultichar]\n  334 |     kSignature = 'CPad',\n      |                  ^~~~~~\n```\n\n* fix: Handle allocation failure when cloning paths and URL ports\n\n`sentry__path_create_dir_all` and `sentry__url_parse` used the cloned\nstrings unconditionally, so an allocation failure would dereference\nNULL.\n\nGCC 14 with `-fanalyzer`:\n\n```text\nsrc/path/sentry_path_unix.c:443:19: warning: dereference of NULL ‘ptr’ [CWE-476] [-Wanalyzer-null-dereference]\n  443 |     for (ptr = p; *ptr; ptr++) {\n      |                   ^~~~\nsrc/sentry_utils.c:147:30: warning: use of NULL ‘aux_buf’ where non-null expected [CWE-476] [-Wanalyzer-null-argument]\n  147 |         url_out->port = (int)strtol(aux_buf, &end, 10);\n      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~\n```\n\n* fix(windows): Zero-extend 32-bit addresses to 64 bits\n\nCasting a pointer straight to a wider integer sign-extends on GCC, so\nmodule and stack addresses above 2 GB would turn into bogus 64-bit\nvalues on 32-bit Windows. Cast through `uintptr_t` first.\n\nGCC 13, i686 MinGW-w64 target, inproc backend:\n\n```text\nsrc/unwinder/sentry_unwinder_dbghelp.c:168:37: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]\n  168 |         stack_frame.AddrPC.Offset = (DWORD64)addr;\n      |                                     ^\nsrc/modulefinder/sentry_modulefinder_windows.c:207:44: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]\n  207 |                     sentry__value_new_addr((uint64_t)module.modBaseAddr));\n      |                                            ^\n```\n\n* build(mingw): Silence GCC warnings about the common Windows idioms\n\nGCC warns about casting the `FARPROC` result of `GetProcAddress`, as\nclang-cl would, which is why that build already ignores\n`-Wcast-function-type`. GCC also rejects the C-only\n`-Wno-incompatible-pointer-types` for C++ sources.\n\nGCC 13, x86_64 MinGW-w64 target:\n\n```text\nsrc/sentry_random.c:62:29: warning: cast between incompatible function types from ‘FARPROC’ {aka ‘long long int (*)()’} to ‘BOOLEAN (*)(void *, ULONG)’ {aka ‘unsigned char (*)(void *, long unsigned int)’} [-Wcast-function-type]\n   62 |             pRtlGenRandom = (sRtlGenRandom)GetProcAddress(\n      |                             ^\ncc1plus: warning: command-line option ‘-Wno-incompatible-pointer-types’ is valid for C/ObjC but not for C++\n```\n\n* fix(native): Fix 32-bit address casts in the Linux crash daemon\n\nCasting `si_addr` straight to `uint64_t` sign-extends on GCC, so fault\naddresses above 2 GB turned into bogus 64-bit values on 32-bit Linux.\nCasts in the other direction also truncated silently. Go through\n`uintptr_t` in both directions.\n\nGCC 9.5, 32-bit CI job, native backend:\n\n```text\nsrc/backends/native/sentry_crash_daemon.c:1038:33: warning: cast to pointer from integer of different size [-Wint-to-pointer-cast]\n 1038 |                 = { .iov_base = (void *)stack_start, .iov_len = stack_size };\n      |                                 ^\nsrc/backends/native/minidump/sentry_minidump_linux.c:1859:11: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]\n 1859 |         = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;\n      |           ^\n```\n\n* fix: Silence the libunwind macro warning for GCC and old Clang\n\n`unw_getcontext` is a GNU statement expression on ARM. The pragmas\naround it only covered Clang, so GCC still warned on ARM, and Clang 11\ndoes not know the warning group. Ignoring `-Wpedantic` through the GCC\npragmas works for both compilers.\n\nGCC 14.2, Linux Arm64 CI job:\n\n```text\nvendor/libunwind/include/libunwind-aarch64.h:249:33: warning: ISO C forbids braced-groups within expressions [-Wpedantic]\n  249 | #define unw_tdep_getcontext(uc) ({                                      \\\n      |                                 ^\n```\n\nClang 11 CI job:\n\n```text\nsrc/unwinder/sentry_unwinder_libunwind.c:165:9: warning: unknown warning group '-Wgnu-statement-expression-from-macro-expansion', ignored [-Wunknown-warning-option]\n        \"-Wgnu-statement-expression-from-macro-expansion\"\n        ^\n```\n\n* build: Scope ERROR_ON_WARNINGS to the sentry target\n\n`ERROR_ON_WARNINGS` added `-Werror` to `CFLAGS`, which also applied to\nexternal code, tests, and examples. Add a `SENTRY_ERROR_ON_WARNINGS`\noption that only affects `sentry`, the one target built with our warning\nflags, and pass it from the test harness instead.\n\nEnable it for the Linux GCC, Wine, and Android CI jobs. The analyzer job\nstays out because of `dup2` false positives in the crash daemon.\n\n* fix(native): Limit the dbghelp pragma to MSVC\n\nMinGW compilers do not support `#pragma comment`, and they already link\n`dbghelp` through CMake.\n\nClang 21, MinGW-w64 target, `sentry-crash` built with `-Wall`:\n\n```text\nsrc/backends/native/minidump/sentry_minidump_windows.c:19:17: warning: unknown pragma ignored [-Wunknown-pragmas]\n   19 | #        pragma comment(lib, \"dbghelp.lib\")\n      |                 ^\n```\n\n* build: Build sentry-crash with the sentry warning options\n\n`sentry-crash` built without warning flags and\n`SENTRY_ERROR_ON_WARNINGS` left it out, so daemon-only code such as\n`sentry_crash_daemon.c` had no `-Werror` coverage. Copy the compile\noptions from `sentry`, as the target already does for its sources and\ndefinitions.\n\nMSVC stays as it is, because copying would raise the target to `/W4`.\n\n* ci: Enable ERROR_ON_WARNINGS by default\n\nTurn `ERROR_ON_WARNINGS` on for every job instead of listing it in 28\nof them, and let a job opt out with `ERROR_ON_WARNINGS: off`. The\nharness passes the value through to `SENTRY_ERROR_ON_WARNINGS`, so\n`off` reaches CMake as false.\n\nThis adds clang 11, clang with musl, and LLVM-Mingw. On MSVC and\nClangCL the option has no effect.",
+          "timestamp": "2026-11-10T15:53:00+01:00",
+          "tree_id": "3f4feaf6f89c26296548a686fbb97a4df79ebaf9",
+          "url": "https://github.com/getsentry/sentry-native/commit/345030caf3a38a9f571332295e1e5ab1dfd1dc8d"
+        },
+        "date": 1794323044301,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.360999999974638,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 4.986ms\nMax 11.264ms\nMean 7.788ms\nStdDev 2.912ms\nMedian 7.361ms\nCPU 3.940ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.49887500000068,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 3.914ms\nMax 9.948ms\nMean 6.434ms\nStdDev 2.672ms\nMedian 5.499ms\nCPU 3.292ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.4022080000027,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 17.022ms\nMax 44.948ms\nMean 29.615ms\nStdDev 12.559ms\nMedian 25.402ms\nCPU 6.600ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 12.358207999966453,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 11.024ms\nMax 15.397ms\nMean 12.933ms\nStdDev 1.952ms\nMedian 12.358ms\nCPU 4.403ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07179200002838115,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.060ms\nMax 0.204ms\nMean 0.098ms\nStdDev 0.060ms\nMedian 0.072ms\nCPU 0.049ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3297920000022714,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.313ms\nMax 0.657ms\nMean 0.392ms\nStdDev 0.149ms\nMedian 0.330ms\nCPU 0.391ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.241125000007287,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 6.871ms\nMax 12.255ms\nMean 8.472ms\nStdDev 2.299ms\nMedian 7.241ms\nCPU 1.014ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 13.401166999983616,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 6.096ms\nMax 36.019ms\nMean 16.669ms\nStdDev 12.224ms\nMedian 13.401ms\nCPU 1.096ms"
+          },
+          {
+            "name": "Tags (inproc)",
+            "value": 0.0044916670000247905,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Tags (breakpad)",
+            "value": 0.005469082999979946,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Tags (crashpad)",
+            "value": 0.18797170799996366,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.188ms\nMax 0.188ms\nMean 0.188ms\nMedian 0.188ms\nCPU 0.166ms"
+          },
+          {
+            "name": "Tags (native)",
+            "value": 0.004416708999997354,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Breadcrumbs (inproc)",
+            "value": 0.0014122079999765447,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Breadcrumbs (breakpad)",
+            "value": 0.001277499999957854,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Breadcrumbs (crashpad)",
+            "value": 0.07149625000005244,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.071ms\nMax 0.071ms\nMean 0.071ms\nMedian 0.071ms\nCPU 0.040ms"
+          },
+          {
+            "name": "Breadcrumbs (native)",
+            "value": 0.0037788330000125825,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.006731750000099623,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.009640308594072167,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.010ms\nMean 0.010ms\nMedian 0.010ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.042861728515419806,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.043ms\nMax 0.043ms\nMean 0.043ms\nMedian 0.043ms\nCPU 0.014ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.04448933691414414,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.044ms\nMax 0.044ms\nMean 0.044ms\nMedian 0.044ms\nCPU 0.014ms"
+          },
+          {
+            "name": "Metrics (1 thread)",
+            "value": 0.004953124999929059,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Metrics (8 threads)",
+            "value": 0.007365402343584293,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Metrics (16 threads)",
+            "value": 0.015618572265951869,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.016ms\nMax 0.016ms\nMean 0.016ms\nMedian 0.016ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Metrics (32 threads)",
+            "value": 0.008762495117387026,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nMedian 0.009ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 429552,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 429552b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 514096,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 514096b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 847872,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 847872b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 465952,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 465952b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 9096,
+            "unit": "bytes",
+            "extra": "Peak 9096b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 7992,
+            "unit": "bytes",
+            "extra": "Peak 7992b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 8296,
+            "unit": "bytes",
+            "extra": "Peak 8296b, Segments 1"
+          },
+          {
+            "name": "Contexts (inproc)",
+            "value": 0.0032446250000930377,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Contexts (breakpad)",
+            "value": 0.00416741699996237,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Contexts (crashpad)",
+            "value": 0.26171725000006063,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.262ms\nMax 0.262ms\nMean 0.262ms\nMedian 0.262ms\nCPU 0.231ms"
+          },
+          {
+            "name": "Contexts (native)",
+            "value": 0.020661583999981303,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.021ms\nMax 0.021ms\nMean 0.021ms\nMedian 0.021ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Scope apply (event, 10 frames)",
+            "value": 0.0255422819989235,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.026ms\nMax 0.026ms\nMean 0.026ms\nMedian 0.026ms\nCPU 0.023ms"
+          },
+          {
+            "name": "Scope apply (event, 256 frames)",
+            "value": 0.021549389998881452,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.022ms\nMean 0.022ms\nMedian 0.022ms\nCPU 0.021ms"
+          },
+          {
+            "name": "Scope apply (transaction, 100 spans)",
+            "value": 0.030295425003828313,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.030ms\nMax 0.030ms\nMean 0.030ms\nMedian 0.030ms\nCPU 0.030ms"
+          },
+          {
+            "name": "Scope apply (transaction, 1000 spans)",
+            "value": 0.01862387999767634,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.019ms\nMax 0.019ms\nMean 0.019ms\nMedian 0.019ms\nCPU 0.019ms"
           }
         ]
       }
