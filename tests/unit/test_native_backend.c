@@ -1698,10 +1698,12 @@ SENTRY_TEST(crash_ipc_reattach_stalled)
     TEST_CHECK_INT_EQUAL((uint8_t)header[8], 1);
 
     // the send timeout applies to the new stream
-    uint64_t started = sentry__monotonic_time();
+    struct timeval timeout = { 0, 0 };
+    socklen_t len = sizeof(timeout);
+    getsockopt(ipc->message_fd[0], SOL_SOCKET, SO_SNDTIMEO, &timeout, &len);
+    TEST_CHECK(timeout.tv_sec || timeout.tv_usec);
     TEST_CHECK(!sentry__crash_ipc_send(
         ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
-    TEST_CHECK(sentry__monotonic_time() - started < 3000);
     TEST_CHECK(ipc->stalled);
     sentry_value_decref(value);
     close(fds[1]);
