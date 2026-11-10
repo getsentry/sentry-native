@@ -10,6 +10,7 @@
 #include "sentry_uuid.h"
 #include "sentry_value.h"
 
+#include <math.h>
 #include <stdio.h>
 
 sentry_path_t *
@@ -91,13 +92,12 @@ build_replay_event(sentry_value_t meta, const char *replay_id, double start_sec,
 }
 
 // Convert the breadcrumbs that fall inside the replay window into rrweb
-// `breadcrumb` events (custom event type 5) and append them to `recording`,
+// `breadcrumb` events (custom event type 5) and append them to `events`,
 // so they show up on the replay timeline. `breadcrumbs` is timestamp-ordered
-// (it comes from the scope ring buffer or the merged ring files), and every
-// in-window crumb lies at or after the meta/video events' `start_sec`, so
-// appending keeps the recording chronologically sorted.
+// (it comes from the scope ring buffer or the merged ring files), so the
+// appended events are too.
 static void
-append_breadcrumb_events(sentry_value_t recording, sentry_value_t breadcrumbs,
+append_breadcrumb_events(sentry_value_t events, sentry_value_t breadcrumbs,
     double start_sec, double end_sec)
 {
     // events may carry breadcrumbs as either a bare list or `{"values": [...]}`
@@ -154,12 +154,64 @@ append_breadcrumb_events(sentry_value_t recording, sentry_value_t breadcrumbs,
         sentry_value_set_by_key(
             crumb_event, "timestamp", sentry_value_new_double(ts_sec * 1000.0));
         sentry_value_set_by_key(crumb_event, "data", crumb_data);
-        sentry_value_append(recording, crumb_event);
+        sentry_value_append(events, crumb_event);
     }
 }
 
-// Build the rrweb recording list (meta event + video event + breadcrumb
-// events) describing the clip.
+// Append the sidecar's `inputEvents` (rrweb events, e.g. clicks) that fall
+// inside the clip to `events`, rebasing their `timestamp` from ms since the
+// first video frame onto `start_sec`. The sidecar lists them in timestamp
+// order.
+static void
+append_input_events(sentry_value_t events, sentry_value_t meta,
+    double start_sec, double duration_ms)
+{
+    sentry_value_t inputs = sentry_value_get_by_key(meta, "inputEvents");
+    const size_t len = sentry_value_get_length(inputs);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t input = sentry_value_get_by_index(inputs, i);
+        const double offset_ms = sentry_value_as_double(
+            sentry_value_get_by_key(input, "timestamp"));
+        if (sentry_value_get_type(input) != SENTRY_VALUE_TYPE_OBJECT
+            || isnan(offset_ms) || offset_ms < 0.0 || offset_ms > duration_ms) {
+            continue;
+        }
+        sentry_value_set_by_key(input, "timestamp",
+            sentry_value_new_double(start_sec * 1000.0 + offset_ms));
+        sentry_value_incref(input);
+        sentry_value_append(events, input);
+    }
+}
+
+static double
+event_timestamp(sentry_value_t events, size_t index)
+{
+    return sentry_value_as_double(sentry_value_get_by_key(
+        sentry_value_get_by_index(events, index), "timestamp"));
+}
+
+// Append the timestamp-ordered lists `a` and `b` to `recording`, merged by
+// timestamp.
+static void
+append_merged_events(
+    sentry_value_t recording, sentry_value_t a, sentry_value_t b)
+{
+    const size_t a_len = sentry_value_get_length(a);
+    const size_t b_len = sentry_value_get_length(b);
+    size_t i = 0;
+    size_t j = 0;
+    while (i < a_len || j < b_len) {
+        const bool take_a = j >= b_len
+            || (i < a_len && event_timestamp(a, i) <= event_timestamp(b, j));
+        sentry_value_t event = take_a ? sentry_value_get_by_index(a, i++)
+                                      : sentry_value_get_by_index(b, j++);
+        sentry_value_incref(event);
+        sentry_value_append(recording, event);
+    }
+}
+
+// Build the rrweb recording list (meta event + video event + breadcrumb and
+// input events) describing the clip.
 static sentry_value_t
 build_replay_recording(sentry_value_t meta, double start_sec, double end_sec,
     int32_t segment_id, double size_bytes, double duration_ms,
@@ -218,7 +270,16 @@ build_replay_recording(sentry_value_t meta, double start_sec, double end_sec,
     sentry_value_t recording = sentry_value_new_list();
     sentry_value_append(recording, meta_event);
     sentry_value_append(recording, video_event);
-    append_breadcrumb_events(recording, breadcrumbs, start_sec, end_sec);
+
+    // in-window events lie at or after `start_sec`, after the meta/video events
+    sentry_value_t breadcrumb_events = sentry_value_new_list();
+    append_breadcrumb_events(
+        breadcrumb_events, breadcrumbs, start_sec, end_sec);
+    sentry_value_t input_events = sentry_value_new_list();
+    append_input_events(input_events, meta, start_sec, duration_ms);
+    append_merged_events(recording, breadcrumb_events, input_events);
+    sentry_value_decref(breadcrumb_events);
+    sentry_value_decref(input_events);
     return recording;
 }
 

@@ -51,6 +51,21 @@
 - Native/Unix: capture complete memory regions in `SENTRY_MINIDUMP_MODE_FULL` instead of truncating each region to 4 MB. ([#2281](https://github.com/getsentry/sentry-native/pull/2281))
 - Native: upload large minidumps separately if `sentry_options_set_enable_large_attachments` is enabled. ([#2281](https://github.com/getsentry/sentry-native/pull/2281))
 
+## Unreleased
+
+**Features**:
+
+- Session replay: add user input events (such as mouse clicks and touches) provided in the replay sidecar to the replay recording. ([#2288](https://github.com/getsentry/sentry-native/pull/2288))
+
+**Fixes**:
+
+- Crashpad/Windows: Breadcrumb and scope IPC updates time out after 5 seconds instead of blocking forever on a stalled handler. ([#2280](https://github.com/getsentry/sentry-native/pull/2280), [crashpad#178](https://github.com/getsentry/crashpad/pull/178))
+- Crashpad/Linux: fix a handler crash after launching an external crash reporter. ([#2287](https://github.com/getsentry/sentry-native/pull/2287), [crashpad#179](https://github.com/getsentry/crashpad/pull/179))
+
+**Thank you**:
+
+- [Aureliolo](https://github.com/Aureliolo)
+
 ## 0.17.6
 
 **Features**:
