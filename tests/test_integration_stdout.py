@@ -548,6 +548,7 @@ def test_wine_context(cmake):
         ),
     ],
 )
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_crash_stdout_hint_dsn(cmake, backend):
     hint_dsn = "https://hintkey@sentry.invalid/654321"
     tmp_path, output = run_crash_stdout_for(backend, cmake, ["hint-dsn", hint_dsn])

@@ -713,6 +713,7 @@ SENTRY_TEST(retry_keeps_dsn)
     sentry_options_set_http_retry(retry_options, true);
     sentry_options_set_transport(retry_options, transport);
     sentry_init(retry_options);
+    sentry_transport_retry(transport);
     sentry_close();
 
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(urls), 1);

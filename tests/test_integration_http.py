@@ -1814,6 +1814,7 @@ def test_capture_http_hint_dsn(cmake, httpserver):
         ),
     ],
 )
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_crash_http_hint_dsn(cmake, httpserver, backend):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
     hint_dsn = make_dsn(httpserver, auth="hintkey", id=654321)

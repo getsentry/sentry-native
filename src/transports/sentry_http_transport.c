@@ -38,7 +38,7 @@ typedef struct http_destination_s {
 
 typedef struct {
     // The options DSN, followed by other DSNs from envelope headers.
-    http_destination_t destination;
+    http_destination_t *destinations;
     char *user_agent;
     void *client;
     void (*free_client)(void *);
@@ -1007,7 +1007,7 @@ add_client_report(sentry_envelope_t *envelope, http_transport_state_t *state,
     const http_destination_t *dest, sentry_client_report_t *report)
 {
     // Discards are counted across all DSNs, so only the options DSN gets them.
-    if (!state->send_client_reports || dest != &state->destination
+    if (!state->send_client_reports || dest != state->destinations
         || !sentry__envelope_can_add_client_report(envelope, dest->ratelimiter)
         || !sentry__client_report_save(report)) {
         return false;
@@ -1026,10 +1026,10 @@ get_destination(
 {
     char *raw = sentry__envelope_get_dsn(envelope);
     if (!raw) {
-        return &state->destination;
+        return state->destinations;
     }
-    http_destination_t **tail = NULL;
-    for (http_destination_t *dest = &state->destination; dest;
+    http_destination_t **tail = &state->destinations;
+    for (http_destination_t *dest = state->destinations; dest;
         dest = dest->next) {
         if (dest->dsn && sentry__string_eq(dest->dsn->raw, raw)) {
             sentry_free(raw);
@@ -1122,7 +1122,7 @@ http_transport_state_free(void *_state)
     if (state->free_client) {
         state->free_client(state->client);
     }
-    http_destination_t *dest = state->destination.next;
+    http_destination_t *dest = state->destinations;
     while (dest) {
         http_destination_t *next = dest->next;
         sentry__dsn_decref(dest->dsn);
@@ -1130,9 +1130,7 @@ http_transport_state_free(void *_state)
         sentry_free(dest);
         dest = next;
     }
-    sentry__dsn_decref(state->destination.dsn);
     sentry_free(state->user_agent);
-    sentry__rate_limiter_free(state->destination.ratelimiter);
     sentry__retry_free(state->retry);
     sentry__run_free(state->run);
     sentry_free(state);
@@ -1232,7 +1230,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
 
     sentry__bgworker_setname(bgworker, options->transport_thread_name);
 
-    state->destination.dsn = sentry__dsn_incref(options->dsn);
+    state->destinations->dsn = sentry__dsn_incref(options->dsn);
     state->user_agent = sentry__string_clone(options->user_agent);
     state->cache_keep = options->cache_keep;
     state->retry_enabled = options->http_retry;
@@ -1361,7 +1359,12 @@ sentry__http_transport_new(
     if (!state) {
         return NULL;
     }
-    state->destination.ratelimiter = sentry__rate_limiter_new();
+    state->destinations = SENTRY_MAKE(http_destination_t);
+    if (!state->destinations) {
+        sentry_free(state);
+        return NULL;
+    }
+    state->destinations->ratelimiter = sentry__rate_limiter_new();
     state->client = client;
     state->send_func = send_func;
 
