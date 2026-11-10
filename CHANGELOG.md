@@ -51,6 +51,10 @@
 - Native/Unix: capture complete memory regions in `SENTRY_MINIDUMP_MODE_FULL` instead of truncating each region to 4 MB. ([#2281](https://github.com/getsentry/sentry-native/pull/2281))
 - Native: upload large minidumps separately if `sentry_options_set_enable_large_attachments` is enabled. ([#2281](https://github.com/getsentry/sentry-native/pull/2281))
 
+**Thank you**:
+
+- [nmandelblit](https://github.com/nmandelblit)
+
 ## Unreleased
 
 **Features**:
