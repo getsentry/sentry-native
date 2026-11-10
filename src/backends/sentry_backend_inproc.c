@@ -764,7 +764,12 @@ process_ucontext_deferred(const sentry_options_t *options,
             }
             sentry_session_t *session = sentry__end_current_session_with_status(
                 options, SENTRY_SESSION_STATUS_CRASHED);
-            sentry__envelope_add_session(envelope, session);
+            if (session && hint.dsn) {
+                // the session belongs to the options DSN
+                sentry__capture_session(options, session);
+            } else {
+                sentry__envelope_add_session(envelope, session);
+            }
 
             if (capture_screenshot) {
                 sentry_path_t *path = sentry__screenshot_get_path(options);

@@ -778,7 +778,8 @@ sentry__capture_event(
             SENTRY_TSAN_IGNORE_READS_BEGIN();
             bool has_session = options->session;
             SENTRY_TSAN_IGNORE_READS_END();
-            if (has_session) {
+            // the session belongs to the options DSN
+            if (has_session && !(hint && hint->dsn)) {
                 sentry_options_t *mut_options = (sentry_options_t *)options;
                 sentry__mutex_lock(&mut_options->session_lock);
                 // recheck inside the lock since our previous read is racy.

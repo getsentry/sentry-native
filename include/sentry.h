@@ -4375,8 +4375,9 @@ SENTRY_API void sentry_hint_clear_attachments(sentry_hint_t *hint);
  * keeps it through caching and retries. Custom transports are responsible for
  * sending envelopes to the DSN in their header. The DSN is validated when the
  * envelope is sent, and an envelope with an invalid DSN is dropped instead of
- * being sent to the configured DSN. The crashpad backend does not support
- * overriding the DSN of crash reports.
+ * being sent to the configured DSN. Sessions are always sent to the configured
+ * DSN. The crashpad backend does not support overriding the DSN of crash
+ * reports.
  *
  * Returns 0 on success, or nonzero if `dsn` is empty, contains a NUL
  * character, or could not be copied. The previous DSN is kept on failure.

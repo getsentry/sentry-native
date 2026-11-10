@@ -336,7 +336,7 @@ sentry__end_current_session_with_status(
     return session;
 }
 
-static void
+void
 sentry__capture_session(
     const sentry_options_t *options, sentry_session_t *session)
 {

@@ -1771,6 +1771,7 @@ def test_capture_http_hint_dsn(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
     hint_dsn = make_dsn(httpserver, auth="hintkey", id=654321)
 
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request(
         "/api/654321/envelope/",
         headers={"x-sentry-auth": auth_header.replace("uiaeosnrtdy", "hintkey")},
@@ -1780,15 +1781,25 @@ def test_capture_http_hint_dsn(cmake, httpserver):
         run(
             tmp_path,
             "sentry_test_integration",
-            ["log", "hint-dsn", hint_dsn, "capture-event"],
+            ["log", "start-session", "hint-dsn", hint_dsn, "capture-event"],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
 
-    assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert envelope.headers["dsn"] == hint_dsn
-    assert_event(envelope)
+    # the session stays with the options DSN
+    assert [req.path for req, _ in httpserver.log] == [
+        "/api/123456/envelope/",
+        "/api/654321/envelope/",
+        "/api/123456/envelope/",
+    ]
+    start, event, end = (
+        Envelope.deserialize(req.get_data()) for req, _ in httpserver.log
+    )
+    assert_session(start, {"init": True, "status": "ok"})
+    assert event.headers["dsn"] == hint_dsn
+    assert_event(event)
+    assert not any(item.headers.get("type") == "session" for item in event)
+    assert_session(end, {"status": "exited"})
 
 
 @pytest.mark.parametrize(
@@ -1808,12 +1819,14 @@ def test_crash_http_hint_dsn(cmake, httpserver, backend):
     hint_dsn = make_dsn(httpserver, auth="hintkey", id=654321)
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/654321/envelope/").respond_with_data("OK")
 
+    # flush so the session's start update is not in flight when we crash
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "hint-dsn", hint_dsn, "crash"],
+        ["log", "start-session", "flush", "hint-dsn", hint_dsn, "crash"],
         expect_failure=True,
         env=env,
     )
@@ -1822,6 +1835,16 @@ def test_crash_http_hint_dsn(cmake, httpserver, backend):
         run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
     assert waiting.result
 
-    assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert envelope.headers["dsn"] == hint_dsn
+    assert len(httpserver.log) == 3
+    envelopes = {}
+    for req, _ in httpserver.log:
+        envelopes.setdefault(req.path, []).append(Envelope.deserialize(req.get_data()))
+
+    (crash,) = envelopes["/api/654321/envelope/"]
+    assert crash.headers["dsn"] == hint_dsn
+    assert not any(item.headers.get("type") == "session" for item in crash)
+
+    # the crashed session stays with the options DSN
+    start, end = envelopes["/api/123456/envelope/"]
+    assert_session(start, {"init": True, "status": "ok"})
+    assert_session(end, {"status": "crashed", "errors": 1})

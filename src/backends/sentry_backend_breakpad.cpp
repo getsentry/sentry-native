@@ -201,7 +201,12 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
             sentry_session_t *session = sentry__end_current_session_with_status(
                 options, SENTRY_SESSION_STATUS_CRASHED);
-            sentry__envelope_add_session(envelope, session);
+            if (session && hint.dsn) {
+                // the session belongs to the options DSN
+                sentry__capture_session(options, session);
+            } else {
+                sentry__envelope_add_session(envelope, session);
+            }
 
             // the minidump is added as an attachment,
             // with type `event.minidump`
