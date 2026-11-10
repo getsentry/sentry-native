@@ -6,6 +6,10 @@
 
 - Session replay: add user input events (such as mouse clicks and touches) provided in the replay sidecar to the replay recording. ([#2288](https://github.com/getsentry/sentry-native/pull/2288))
 
+**Fixes**:
+
+- Crashpad/Windows: Breadcrumb and scope IPC updates time out after 5 seconds instead of blocking forever on a stalled handler. ([#2280](https://github.com/getsentry/sentry-native/pull/2280), [crashpad#178](https://github.com/getsentry/crashpad/pull/178))
+
 ## 0.17.6
 
 **Features**:
