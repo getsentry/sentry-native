@@ -47,31 +47,26 @@ jobs:
           private-key: ${{ secrets.SDK_MAINTAINER_BOT_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
-          permission-members: read
 
-      - name: Check membership
-        id: membership
+      - name: Check access
+        id: access
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
-            try {
-              await github.rest.orgs.checkMembershipForUser({
-                org: context.repo.owner,
-                username: process.env.CONTRIBUTOR.replace(/^@/, ''),
-              });
-              core.setOutput('external', false);
-            } catch (error) {
-              if (error.status !== 404) throw error;
-              core.setOutput('external', true);
-            }
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: process.env.CONTRIBUTOR.replace(/^@/, ''),
+            });
+            core.setOutput('external', !['admin', 'write'].includes(data.permission));
 
       - name: Credit contributor
-        if: steps.membership.outputs.external == 'true'
+        if: steps.access.outputs.external == 'true'
         run: python3 scripts/contrib.py "$CONTRIBUTOR" --release "$RELEASE"
 
       - name: Create PR
-        if: steps.membership.outputs.external == 'true'
+        if: steps.access.outputs.external == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.app-token.outputs.token }}
