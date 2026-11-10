@@ -1028,6 +1028,7 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
         ["sentry_test_integration", "sentry_crash_reporter"],
         {"SENTRY_BACKEND": "crashpad"},
     )
+    db_path = tmp_path / ".sentry-native"
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -1043,6 +1044,10 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
             env=env,
         )
     assert waiting.result
+
+    # the external reporter sends the crash, so crashpad must not keep the report
+    pending_dir = db_path / ("reports" if sys.platform == "win32" else "pending")
+    assert not any(pending_dir.glob("*.dmp"))
 
     assert len(httpserver.log) == 2
     feedback_request, crash_request = split_log_request_cond(
