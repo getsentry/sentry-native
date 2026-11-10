@@ -279,6 +279,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Annotate build errors
+        run: echo "::add-matcher::.github/problem-matchers.json"
+
       - name: Debug runner architecture
         if: ${{ runner.os == 'macOS' }}
         run: |

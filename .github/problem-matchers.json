@@ -1,0 +1,59 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "cmake",
+      "pattern": [
+        {
+          "regexp": "^CMake Error at (.+):(\\d+) \\(.+\\):$",
+          "file": 1,
+          "line": 2
+        },
+        {
+          "regexp": "^\\s+(.+)$",
+          "message": 1
+        }
+      ]
+    },
+    {
+      "owner": "gcc",
+      "pattern": [
+        {
+          "regexp": "^(?:C/C\\+\\+: )?(.+?):(\\d+):(?:(\\d+):)? (?:fatal )?error: (.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      ]
+    },
+    {
+      "owner": "msvc",
+      "pattern": [
+        {
+          "regexp": "^\\s*(.+?)\\((\\d+)(?:,(\\d+))?\\)\\s*: (?:fatal )?error(?! C2220)(?: (\\w+))?\\s*: (.*?)(?: \\[[^\\]]+\\.vcxproj\\])?$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "code": 4,
+          "message": 5
+        }
+      ]
+    },
+    {
+      "owner": "msvc-wx",
+      "pattern": [
+        {
+          "regexp": "^\\s*.+?\\(\\d+(?:,\\d+)?\\)\\s*: error C2220: "
+        },
+        {
+          "regexp": "^\\s*(.+?)\\((\\d+)(?:,(\\d+))?\\)\\s*: warning (\\w+)\\s*: (.*?)(?: \\[[^\\]]+\\.vcxproj\\])?$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "code": 4,
+          "message": 5
+        }
+      ]
+    }
+  ]
+}
