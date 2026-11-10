@@ -1781,6 +1781,8 @@ daemon_ready(sentry_crash_ipc_t *ipc)
         }
         sentry__atomic_store(&ipc->awaiting_ready, 0);
     }
+#else
+    (void)ipc;
 #endif
     return true;
 }
