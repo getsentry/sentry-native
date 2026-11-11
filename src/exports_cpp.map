@@ -1,0 +1,4 @@
+{
+   global: sentry_*; __cxa_throw; __cxa_allocate_exception;
+   local: *;
+};

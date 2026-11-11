@@ -1230,7 +1230,7 @@ if(SENTRY_BUILD_TESTS)
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "${SENTRY_FIXTURE_OUTPUT_DIR}/view-hierarchy.json")
 endif()
 
-# Limit the exported symbols when sentry is built as a shared library to those with a "sentry_" prefix:
+# Limit shared-library exports to the SDK and C++ runtime interposers:
 # - we do this at the end of the file as to not affect subdirectories reading target_link_libraries from the parent.
 # - we do this as PRIVATE since our version script does not make sense in any other project that adds us.
 #
@@ -1239,8 +1239,13 @@ endif()
 # `--version-script`: version script either hides "foreign" symbols or defers them as unknown ("U") to system libraries.
 # FIXME: cmake 3.13 introduced target_link_options (blocked by Android)
 if(SENTRY_BUILD_SHARED_LIBS)
+	set(_SENTRY_EXPORTS_MAP "${PROJECT_SOURCE_DIR}/src/exports.map")
+	if(SENTRY_INTEGRATION_CPP)
+		set(_SENTRY_EXPORTS_MAP "${PROJECT_SOURCE_DIR}/src/exports_cpp.map")
+	endif()
+	set_property(TARGET sentry APPEND PROPERTY LINK_DEPENDS "${_SENTRY_EXPORTS_MAP}")
 	target_link_libraries(sentry PRIVATE
-			"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1,--version-script=${PROJECT_SOURCE_DIR}/src/exports.map>")
+			"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1,--version-script=${_SENTRY_EXPORTS_MAP}>")
 
 	# Support 16KB page sizes
 	target_link_libraries(sentry PRIVATE

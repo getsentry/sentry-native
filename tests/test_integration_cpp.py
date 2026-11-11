@@ -151,3 +151,71 @@ def test_nonstd_exception(cmake, mode):
     output = check_output(tmp_path, "sentry_test_integration", ["stdout", "no-setup"])
     event = Envelope.deserialize(output).get_event()
     assert event["exception"]["values"][0]["mechanism"]["type"] == "signalhandler"
+
+
+@pytest.mark.skipif(not has_native, reason="needs native")
+@pytest.mark.skipif(is_qemu or is_wine, reason="needs native execution")
+@pytest.mark.skipif(bool(os.environ.get("TEST_MINGW")), reason="no throw hook")
+@pytest.mark.parametrize("mode", ["throw_stack", "rethrow_stack"])
+def test_throw_stack(cmake, httpserver, mode):
+    tmp_path = cmake(
+        ["sentry_test_cpp"],
+        {"SENTRY_BACKEND": "native", "SENTRY_INTEGRATION_CPP": "ON"},
+    )
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        child = run(
+            tmp_path,
+            "sentry_test_cpp",
+            [mode],
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            stdout=subprocess.PIPE,
+        )
+    assert waiting.result
+    caller = next(
+        int(line.split(":", 1)[1], 16)
+        for line in child.stdout.decode().splitlines()
+        if line.startswith("THROW_CALLER:")
+    )
+    event = Envelope.deserialize(httpserver.log[0][0].get_data()).get_event()
+    exception = event["exception"]["values"][0]
+    assert exception["value"] == "something went wrong"
+    assert exception["mechanism"]["data"]["throw_stacktrace"] is True
+    stacktrace = exception["stacktrace"]
+    assert caller in {
+        int(frame["instruction_addr"], 16) for frame in stacktrace["frames"]
+    }
+    assert "registers" not in stacktrace
+
+
+@pytest.mark.skipif(not has_native, reason="needs native")
+@pytest.mark.skipif(is_qemu or is_wine, reason="needs native execution")
+def test_reused_throw_stack(cmake, httpserver):
+    tmp_path = cmake(
+        ["sentry_test_cpp"],
+        {"SENTRY_BACKEND": "native", "SENTRY_INTEGRATION_CPP": "ON"},
+    )
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        child = run(
+            tmp_path,
+            "sentry_test_cpp",
+            ["reused_stack"],
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            stdout=subprocess.PIPE,
+        )
+    assert waiting.result
+    caller = next(
+        int(line.split(":", 1)[1], 16)
+        for line in child.stdout.decode().splitlines()
+        if line.startswith("THROW_CALLER:")
+    )
+    event = Envelope.deserialize(httpserver.log[0][0].get_data()).get_event()
+    exception = event["exception"]["values"][0]
+    assert exception["value"] == "fresh"
+    assert caller not in {
+        int(frame["instruction_addr"], 16)
+        for frame in exception["stacktrace"]["frames"]
+    }

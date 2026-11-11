@@ -8,6 +8,16 @@
 #include <string>
 #include <string_view>
 
+#ifdef _MSC_VER
+#    include <intrin.h>
+#    define NOINLINE __declspec(noinline)
+#    define CALLER_ADDRESS _ReturnAddress()
+#else
+#    define NOINLINE __attribute__((noinline))
+#    define CALLER_ADDRESS                                                     \
+        __builtin_extract_return_addr(__builtin_return_address(0))
+#endif
+
 class custom_exception : public std::exception {
 public:
     const char *
@@ -16,6 +26,24 @@ public:
         return "custom exception";
     }
 };
+
+NOINLINE void
+throw_exception()
+{
+    std::printf("THROW_CALLER:%p\n", CALLER_ADDRESS);
+    std::fflush(stdout);
+    throw std::runtime_error("something went wrong");
+}
+
+NOINLINE void
+call_throw()
+{
+    try {
+        throw_exception();
+    } catch (...) {
+        throw;
+    }
+}
 
 int
 main(int argc, char **argv)
@@ -89,6 +117,28 @@ main(int argc, char **argv)
     }
     if (has_arg("range_error")) {
         throw std::range_error(std::string(2048, 'x'));
+    }
+    if (has_arg("throw_stack") || has_arg("rethrow_stack")) {
+        try {
+            call_throw();
+        } catch (...) {
+            if (has_arg("rethrow_stack")) {
+                try {
+                    throw std::runtime_error("handled exception");
+                } catch (...) {
+                }
+                throw;
+            }
+            std::terminate();
+        }
+    }
+    if (has_arg("reused_stack")) {
+        try {
+            throw_exception();
+        } catch (...) {
+        }
+        std::rethrow_exception(
+            std::make_exception_ptr(std::runtime_error("fresh")));
     }
     return EXIT_SUCCESS;
 }

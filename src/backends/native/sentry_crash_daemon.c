@@ -3431,7 +3431,14 @@ build_native_event(const sentry_crash_context_t *ctx, sentry_value_t base,
         sentry_event_add_exception(event, exc);
     } else {
         sentry_value_t stacktrace = sentry_value_get_by_key(exc, "stacktrace");
-        sentry_value_t unwound = has_captured_stack(ctx)
+        sentry_value_t mechanism_data = sentry_value_get_by_key(
+            sentry_value_get_by_key(exc, "mechanism"), "data");
+        bool has_throw_stacktrace
+            = sentry_value_is_true(
+                  sentry_value_get_by_key(mechanism_data, "throw_stacktrace"))
+            && sentry_value_get_length(
+                sentry_value_get_by_key(stacktrace, "frames"));
+        sentry_value_t unwound = has_captured_stack(ctx) || has_throw_stacktrace
             ? sentry_value_new_null()
             : build_stacktrace_from_ctx(ctx);
         if (!sentry_value_is_null(unwound)) {

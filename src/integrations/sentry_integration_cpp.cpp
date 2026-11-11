@@ -1,5 +1,6 @@
 extern "C" {
 #include "sentry_alloc.h"
+#include "sentry_logger.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
 }
@@ -16,6 +17,12 @@ extern "C" {
 
 #if defined(__GXX_ABI_VERSION) && !defined(_MSC_VER)
 #    include <cxxabi.h>
+#endif
+
+#if defined(__GXX_ABI_VERSION) && (defined(__ELF__) || defined(__APPLE__))
+#    define SENTRY_CPP_THROW_INTERPOSE
+#    include <dlfcn.h>
+#    include <unwind.h>
 #endif
 
 #ifdef __clang__
@@ -38,6 +45,25 @@ static_assert(ATOMIC_INT_LOCK_FREE == 2,
 
 constexpr size_t TYPE_CAPACITY = 256;
 constexpr size_t VALUE_CAPACITY = 1024;
+constexpr size_t FRAME_CAPACITY = 128;
+constexpr size_t THROW_CAPACITY = 8;
+
+struct throw_trace_t {
+    const void *object {};
+    unsigned generation {};
+    void *frames[FRAME_CAPACITY] {};
+    size_t len {};
+};
+
+struct throw_state_t {
+    throw_trace_t traces[THROW_CAPACITY] {};
+    size_t next {};
+    bool capturing {};
+    bool terminating {};
+};
+
+thread_local throw_state_t g_throw_state {};
+std::atomic<unsigned> g_cpp_generation { 0 };
 
 enum metadata_state_t : unsigned {
     METADATA_EMPTY,
@@ -54,14 +80,83 @@ struct cpp_state_t {
     char value[VALUE_CAPACITY] {};
     size_t type_len {};
     size_t value_len {};
+    void *frames[FRAME_CAPACITY] {};
+    size_t frame_count {};
+    unsigned generation {};
     bool has_type {};
     bool has_value {};
     bool registered {};
+#if defined(SENTRY_PLATFORM_WINDOWS) && defined(_MSC_VER)
+    void *exception_handler {};
+#endif
 };
 
 std::atomic<cpp_state_t *> g_cpp_state { nullptr };
 
-void stash_metadata(cpp_state_t *data, const char *type, const char *value);
+void stash_metadata(
+    cpp_state_t *data, const char *type, const char *value, const void *object);
+
+#if defined(SENTRY_CPP_THROW_INTERPOSE)                                        \
+    || (defined(SENTRY_PLATFORM_WINDOWS) && defined(_MSC_VER))
+throw_trace_t *
+begin_throw(const void *object)
+{
+    if (!g_cpp_state.load(std::memory_order_acquire) || g_throw_state.capturing
+        || g_throw_state.terminating) {
+        return nullptr;
+    }
+
+    g_throw_state.capturing = true;
+    // replace reused exception addresses before consulting the cache
+    for (auto &trace : g_throw_state.traces) {
+        if (trace.object == object) {
+            trace.object = nullptr;
+        }
+    }
+    auto &trace = g_throw_state.traces[g_throw_state.next++ % THROW_CAPACITY];
+    trace.object = object;
+    trace.generation = g_cpp_generation.load(std::memory_order_relaxed);
+    trace.len = 0;
+    return &trace;
+}
+#endif
+
+#ifdef SENTRY_CPP_THROW_INTERPOSE
+struct throw_unwind_t {
+    throw_trace_t *trace;
+    void *caller;
+};
+
+_Unwind_Reason_Code
+capture_frame(_Unwind_Context *context, void *_data)
+{
+    auto *data = static_cast<throw_unwind_t *>(_data);
+    void *ip = reinterpret_cast<void *>(_Unwind_GetIP(context));
+    if (!data->trace->len && ip != data->caller) {
+        return _URC_NO_REASON;
+    }
+    if (!ip || data->trace->len == FRAME_CAPACITY) {
+        return _URC_END_OF_STACK;
+    }
+    data->trace->frames[data->trace->len++] = ip;
+    return _URC_NO_REASON;
+}
+
+void
+capture_throw(void *object, void *caller)
+{
+#    ifdef __arm__
+    // _Unwind_GetIP clears the Thumb bit
+    caller = reinterpret_cast<void *>(
+        reinterpret_cast<uintptr_t>(caller) & ~static_cast<uintptr_t>(1));
+#    endif
+    if (auto *trace = begin_throw(object)) {
+        throw_unwind_t data { trace, caller };
+        _Unwind_Backtrace(capture_frame, &data);
+        g_throw_state.capturing = false;
+    }
+}
+#endif
 
 #if defined(SENTRY_PLATFORM_WINDOWS) && defined(_MSC_VER)
 // ehdata_values.h
@@ -70,6 +165,38 @@ constexpr ULONG_PTR MSVC_EH_MAGIC_NUMBER1 = 0x19930520;
 constexpr ULONG_PTR MSVC_EH_MAGIC_NUMBER3 = 0x19930522;
 constexpr ULONG_PTR MSVC_EH_PURE_MAGIC_NUMBER1 = 0x01994000;
 constexpr DWORD MSVC_EH_EXCEPTION_PARAMETERS = sizeof(void *) == 8 ? 4 : 3;
+
+// vcruntime's record of the exception being handled on this thread
+extern "C" void **__cdecl __current_exception();
+
+LONG CALLBACK
+on_msvc_throw(EXCEPTION_POINTERS *ptrs)
+{
+    const auto *record = ptrs->ExceptionRecord;
+    if (record->ExceptionCode == MSVC_EH_EXCEPTION_NUMBER
+        && record->NumberParameters == MSVC_EH_EXCEPTION_PARAMETERS
+        && (record->ExceptionInformation[0] == MSVC_EH_PURE_MAGIC_NUMBER1
+            || (record->ExceptionInformation[0] >= MSVC_EH_MAGIC_NUMBER1
+                && record->ExceptionInformation[0] <= MSVC_EH_MAGIC_NUMBER3))
+        && record->ExceptionInformation[1] && record->ExceptionInformation[2]) {
+        // x64 raises `throw;` again with the exception being handled
+        const auto *current
+            = static_cast<const EXCEPTION_RECORD *>(*__current_exception());
+        if (current
+            && current->ExceptionInformation[1]
+                == record->ExceptionInformation[1]) {
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
+        if (auto *trace = begin_throw(
+                reinterpret_cast<void *>(record->ExceptionInformation[1]))) {
+            // avoid DbgHelp's process-global state in first-chance callbacks
+            trace->len = CaptureStackBackTrace(
+                1, static_cast<DWORD>(FRAME_CAPACITY), trace->frames, nullptr);
+            g_throw_state.capturing = false;
+        }
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
 
 #    if defined(_WIN64)
 using msvc_eh_data_ptr_t = int32_t;
@@ -223,7 +350,8 @@ stash_msvc_exception(cpp_state_t *data, const EXCEPTION_RECORD *record)
         value = exception->what();
     } catch (...) {
     }
-    stash_metadata(data, type, value);
+    stash_metadata(data, type, value,
+        reinterpret_cast<void *>(record->ExceptionInformation[1]));
 }
 
 #endif
@@ -250,13 +378,15 @@ reset_metadata(cpp_state_t *data)
     data->value[0] = '\0';
     data->type_len = 0;
     data->value_len = 0;
+    data->frame_count = 0;
     data->has_type = false;
     data->has_value = false;
     data->metadata.store(METADATA_EMPTY, std::memory_order_release);
 }
 
 void
-stash_metadata(cpp_state_t *data, const char *type, const char *value)
+stash_metadata(
+    cpp_state_t *data, const char *type, const char *value, const void *object)
 {
     if (!data || (!type && !value)) {
         return;
@@ -266,6 +396,18 @@ stash_metadata(cpp_state_t *data, const char *type, const char *value)
     if (!data->metadata.compare_exchange_strong(expected, METADATA_WRITING,
             std::memory_order_acquire, std::memory_order_relaxed)) {
         return;
+    }
+
+    data->frame_count = 0;
+    if (!g_throw_state.capturing) {
+        for (const auto &trace : g_throw_state.traces) {
+            if (object && trace.object == object
+                && trace.generation == data->generation) {
+                memcpy(data->frames, trace.frames, trace.len * sizeof(void *));
+                data->frame_count = trace.len;
+                break;
+            }
+        }
     }
 
 #if defined(__GXX_ABI_VERSION) && !defined(_MSC_VER)
@@ -296,10 +438,11 @@ terminate_handler() noexcept
         std::abort();
     }
 
+    g_throw_state.terminating = true;
     try {
         std::exception_ptr current = std::current_exception();
         if (current) {
-            std::rethrow_exception(current);
+            throw;
         }
     } catch (const std::exception &exception) {
         const char *type = nullptr;
@@ -312,7 +455,8 @@ terminate_handler() noexcept
             value = exception.what();
         } catch (...) {
         }
-        stash_metadata(data, type, value);
+        stash_metadata(
+            data, type, value, dynamic_cast<const void *>(&exception));
     } catch (...) {
     }
 
@@ -329,8 +473,16 @@ register_cpp(void *_data, sentry_scope_t *, const sentry_options_t *)
 {
     auto *data = static_cast<cpp_state_t *>(_data);
     reset_metadata(data);
+    data->generation
+        = g_cpp_generation.fetch_add(1, std::memory_order_relaxed) + 1;
     g_cpp_state.store(data, std::memory_order_release);
     data->previous_handler = std::set_terminate(terminate_handler);
+#if defined(SENTRY_PLATFORM_WINDOWS) && defined(_MSC_VER)
+    data->exception_handler = AddVectoredExceptionHandler(1, on_msvc_throw);
+    if (!data->exception_handler) {
+        SENTRY_WARN("failed to install C++ throw stack capture");
+    }
+#endif
     data->registered = true;
 }
 
@@ -342,6 +494,12 @@ unregister_cpp(void *_data, sentry_scope_t *, const sentry_options_t *)
     g_cpp_state.compare_exchange_strong(
         expected, nullptr, std::memory_order_acq_rel);
 
+#if defined(SENTRY_PLATFORM_WINDOWS) && defined(_MSC_VER)
+    if (data->exception_handler) {
+        RemoveVectoredExceptionHandler(data->exception_handler);
+        data->exception_handler = nullptr;
+    }
+#endif
     if (data->registered && std::get_terminate() == terminate_handler) {
         std::set_terminate(data->previous_handler);
     }
@@ -421,6 +579,13 @@ on_cpp_crash(void *_data, const sentry_ucontext_t *uctx, sentry_value_t event)
         sentry_value_set_by_key(
             exception, "value", sentry_value_new_string_n(value, value_len));
     }
+    if (data->frame_count) {
+        sentry_value_t stacktrace
+            = sentry_value_new_stacktrace(data->frames, data->frame_count);
+        sentry_value_set_by_key(stacktrace, "instruction_addr_adjustment",
+            sentry_value_new_string("all"));
+        sentry_value_set_by_key(exception, "stacktrace", stacktrace);
+    }
     sentry_value_t mechanism = sentry_value_get_by_key(exception, "mechanism");
     if (sentry_value_get_type(mechanism) != SENTRY_VALUE_TYPE_OBJECT) {
         mechanism = sentry_value_new_object();
@@ -429,11 +594,96 @@ on_cpp_crash(void *_data, const sentry_ucontext_t *uctx, sentry_value_t event)
     sentry_value_set_by_key(
         mechanism, "type", sentry_value_new_string("cpp_exception"));
     sentry_value_set_by_key(mechanism, "handled", sentry_value_new_bool(false));
+    if (data->frame_count) {
+        sentry_value_t mechanism_data
+            = sentry_value_get_by_key(mechanism, "data");
+        if (sentry_value_get_type(mechanism_data) != SENTRY_VALUE_TYPE_OBJECT) {
+            mechanism_data = sentry_value_new_object();
+            sentry_value_set_by_key(mechanism, "data", mechanism_data);
+        }
+        sentry_value_set_by_key(
+            mechanism_data, "throw_stacktrace", sentry_value_new_bool(true));
+    }
     sentry_value_remove_by_key(mechanism, "synthetic");
     reset_metadata(data);
 }
 
 } // namespace
+
+#ifdef SENTRY_CPP_THROW_INTERPOSE
+using cxa_throw_t = void (*)(void *, void *, void (*)(void *));
+using cxa_allocate_t = void *(*)(size_t);
+
+#    ifdef __APPLE__
+// dyld ignores weak replacements and leaves calls from this image as is
+#        define SENTRY_CPP_WEAK
+#        define SENTRY_CPP_SYMBOL(name)
+#        define SENTRY_CPP_ORIGINAL(name) &abi::name
+#    else
+#        ifdef SENTRY_BUILD_SHARED
+// a static C++ runtime must fail to link instead of being exported
+#            define SENTRY_CPP_WEAK
+#        else
+#            define SENTRY_CPP_WEAK __attribute__((weak))
+#        endif
+#        define SENTRY_CPP_SYMBOL(name) __asm__(name)
+#        define SENTRY_CPP_ORIGINAL(name) dlsym(RTLD_NEXT, #name)
+#    endif
+
+extern "C" {
+SENTRY_CPP_WEAK __attribute__((visibility("default"), noinline))
+[[noreturn]] void
+sentry__cxa_throw(void *object, void *type, void (*destroy)(void *))
+    SENTRY_CPP_SYMBOL("__cxa_throw");
+SENTRY_CPP_WEAK __attribute__((visibility("default"))) void *
+sentry__cxa_allocate_exception(size_t size) noexcept
+    SENTRY_CPP_SYMBOL("__cxa_allocate_exception");
+
+void
+sentry__cxa_throw(void *object, void *type, void (*destroy)(void *))
+{
+    static auto original
+        = reinterpret_cast<cxa_throw_t>(SENTRY_CPP_ORIGINAL(__cxa_throw));
+    if (!original) {
+        std::abort();
+    }
+    capture_throw(
+        object, __builtin_extract_return_addr(__builtin_return_address(0)));
+    original(object, type, destroy);
+    std::abort();
+}
+
+void *
+sentry__cxa_allocate_exception(size_t size) noexcept
+{
+    static auto original = reinterpret_cast<cxa_allocate_t>(
+        SENTRY_CPP_ORIGINAL(__cxa_allocate_exception));
+    if (!original) {
+        std::abort();
+    }
+    void *object = original(size);
+    // drop stale traces here because runtime-internal frees bypass hooks
+    for (auto &trace : g_throw_state.traces) {
+        if (trace.object == object) {
+            trace.object = nullptr;
+        }
+    }
+    return object;
+}
+}
+
+#    ifdef __APPLE__
+__attribute__((used, section("__DATA,__interpose"))) static const struct {
+    const void *replacement;
+    const void *original;
+} g_cpp_interpose[] = {
+    { reinterpret_cast<const void *>(sentry__cxa_throw),
+        reinterpret_cast<const void *>(abi::__cxa_throw) },
+    { reinterpret_cast<const void *>(sentry__cxa_allocate_exception),
+        reinterpret_cast<const void *>(abi::__cxa_allocate_exception) },
+};
+#    endif
+#endif
 
 extern "C" sentry_integration_t *
 sentry_integration_cpp_new(void)

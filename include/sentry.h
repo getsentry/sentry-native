@@ -1410,9 +1410,9 @@ typedef enum {
      * Native stacktrace is primary event, minidump is attachment only.
      * Best of both worlds: fast client-side unwinding with full minidump
      * available for deep debugging when needed.
-     * Server-side minidump processing replaces exception metadata from
-     * `SENTRY_INTEGRATION_CPP`; use `SENTRY_CRASH_REPORTING_MODE_NATIVE` to
-     * preserve it.
+     * Server-side minidump processing replaces exception metadata and throw
+     * stacktraces from the C++ integration; use
+     * `SENTRY_CRASH_REPORTING_MODE_NATIVE` to preserve them.
      */
     SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP = 2,
 } sentry_crash_reporting_mode_t;

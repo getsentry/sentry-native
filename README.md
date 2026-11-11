@@ -310,11 +310,21 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   exception record; malformed or unsupported records are ignored without
   changing the native crash event.
 
+  Throw stacktraces are captured through `__cxa_throw` on ELF and Apple
+  platforms, and through a vectored exception handler on MSVC/clang-cl.
+  This adds stack-unwinding overhead to handled exceptions too. Up to eight
+  recent exceptions per thread retain 128 frames each; rethrows on the same
+  thread reuse the original trace. Unavailable traces fall back to the crash
+  stack; cross-thread rethrows are not supported. MinGW retains exception
+  metadata but does not capture throw stacks. On ELF and Apple platforms,
+  link Sentry at process startup. ELF interposition also requires a shared
+  C++ runtime; statically linked runtimes use the crash-stack fallback. A
+  shared ELF build of Sentry fails to link with a static C++ runtime.
+
   With the `native` backend, use `SENTRY_CRASH_REPORTING_MODE_NATIVE` to
-  preserve this metadata. In the default
+  preserve this metadata and throw stacktrace. In the default
   `SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP` mode, server-side minidump
-  processing replaces the exception type and value with the minidump crash
-  reason.
+  processing replaces them with the minidump crash reason and stacktrace.
 
 - `SENTRY_BREAKPAD_SYSTEM` (Default: `OFF`):
   This instructs the build system to use system-installed breakpad libraries instead of the in-tree version.
