@@ -1049,6 +1049,16 @@ def android_e2e_app(request):
     adb("uninstall", package, check=False)
 
 
+@pytest.fixture
+def android_logcat(request):
+    adb("logcat", "-c", check=False)
+    failed = request.session.testsfailed
+    yield
+    if request.session.testsfailed > failed:
+        logcat = adb("logcat", "-d", capture_output=True, text=True).stdout
+        print(f"\nlogcat:\n{logcat}")
+
+
 def assert_android_native_event(event, test_id, tombstone, debuggable=True):
     assert event["platform"] == "native"
     assert event["release"]["version"] == "sentry-native-e2e"
@@ -1067,14 +1077,16 @@ def assert_android_native_event(event, test_id, tombstone, debuggable=True):
     if tombstone:
         functions = [frame.get("function") or "" for frame in frames]
         assert {"e2e_segfault", "e2e_native_crash"}.issubset(functions)
-        assert any(
-            "io.sentry.e2e.MainActivity.triggerNativeCrash" in function
-            for function in functions
-        )
-        assert any(
-            "io.sentry.e2e.MainActivity.callNativeCrash" in function
-            for function in functions
-        )
+        # API 31 tombstones leave dex frames unnamed
+        if is_android > 31:
+            assert any(
+                "io.sentry.e2e.MainActivity.triggerNativeCrash" in function
+                for function in functions
+            )
+            assert any(
+                "io.sentry.e2e.MainActivity.callNativeCrash" in function
+                for function in functions
+            )
 
     threads = get_threads_from_event(event)
     # a single thread means the daemon could not read the app's /proc
@@ -1100,7 +1112,7 @@ def assert_android_native_event(event, test_id, tombstone, debuggable=True):
     scope="module",
 )
 @pytest.mark.parametrize("tombstone", [False, True], ids=["native", "tombstone"])
-def test_e2e_android_native(android_e2e_app, debuggable, tombstone):
+def test_e2e_android_native(android_e2e_app, android_logcat, debuggable, tombstone):
     """The crash service sends native crashes, optionally merged with a tombstone."""
     if tombstone and is_android < 31:
         pytest.skip("Tombstone merging needs Android API 31+")
@@ -1136,7 +1148,7 @@ def test_e2e_android_native(android_e2e_app, debuggable, tombstone):
 @pytest.mark.skipif(
     not is_android or not has_native, reason="Tests need Android + native"
 )
-def test_e2e_android_native_broadcast(android_e2e_app):
+def test_e2e_android_native_broadcast(android_e2e_app, android_logcat):
     """A process that a broadcast starts in the background gets the crash service."""
     test_id = str(uuid.uuid4())
     package = android_e2e_app
@@ -1167,7 +1179,7 @@ def test_e2e_android_native_broadcast(android_e2e_app):
 @pytest.mark.skipif(
     not is_android or not has_native, reason="Tests need Android + native"
 )
-def test_e2e_android_native_background(android_e2e_app):
+def test_e2e_android_native_background(android_e2e_app, android_logcat):
     """The crash service outlives the idle timeout of background services."""
     test_id = str(uuid.uuid4())
     package = android_e2e_app

@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import io.sentry.Sentry;
 import io.sentry.android.core.SentryAndroid;
 import io.sentry.protocol.User;
@@ -17,7 +18,7 @@ public class MainActivity extends Activity {
     super.onCreate(state);
     init(getApplicationContext(), getIntent());
     if (getIntent().getBooleanExtra("crash", true)) {
-      new Handler(getMainLooper()).postDelayed(MainActivity::triggerNativeCrash, 1000);
+      crashLater();
     }
   }
 
@@ -41,6 +42,15 @@ public class MainActivity extends Activity {
           user.setId(testId);
           scope.setUser(user);
         });
+  }
+
+  static void crashLater() {
+    Handler handler = new Handler(Looper.getMainLooper());
+    // the SDK executor syncs the scope to native first
+    Sentry.getCurrentScopes()
+        .getOptions()
+        .getExecutorService()
+        .submit(() -> handler.postDelayed(MainActivity::triggerNativeCrash, 1000));
   }
 
   private static void callNativeCrash() {
