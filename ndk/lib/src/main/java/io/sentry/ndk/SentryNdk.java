@@ -75,7 +75,7 @@ public final class SentryNdk {
     }
   }
 
-  /** Creates the shared memory of the crash IPC, or returns -1 if that fails. Needs API 30+. */
+  /** Creates the shared memory of the crash IPC, or returns -1 if that fails. Needs memfd. */
   public static int createCrashShm() {
     return createCrashShm(null);
   }
