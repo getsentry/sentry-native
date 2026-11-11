@@ -16,7 +16,7 @@ incremental = true
 
 [[skills.triggers]]
 type = "pull_request"
-actions = ["opened", "synchronize", "reopened", "ready_for_review"]
+actions = ["opened", "synchronize", "reopened"]
 draft = false
 
 [[skills]]
@@ -43,7 +43,7 @@ incremental = true
 
 [[skills.triggers]]
 type = "pull_request"
-actions = ["opened", "synchronize", "reopened", "ready_for_review"]
+actions = ["opened", "synchronize", "reopened"]
 draft = false
 
 [[skills]]
@@ -62,5 +62,5 @@ incremental = true
 
 [[skills.triggers]]
 type = "pull_request"
-actions = ["opened", "synchronize", "reopened", "ready_for_review"]
+actions = ["opened", "synchronize", "reopened"]
 draft = false
