@@ -1,0 +1,65 @@
+version = 1
+
+# Repo skills are layered on the org config (getsentry/.github warden.toml),
+# which keeps running security-review. Repo skills inherit the org model,
+# effort, runtime, and incrementalApp, but not its reportOn, failOn, or
+# ignorePaths, so set the report thresholds here to match the org.
+[defaults]
+reportOn = "low"
+failOn = "off"
+
+[[skills]]
+name = "native-code-review"
+paths = ["src/**", "include/**", "ndk/lib/src/main/jni/**"]
+ignorePaths = ["**/*.md", "src/CMakeLists.txt", "src/exports.map"]
+incremental = true
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened"]
+
+[[skills]]
+name = "native-build-review"
+paths = [
+  "CMakeLists.txt",
+  "**/CMakeLists.txt",
+  "**/*.cmake",
+  "*.in",
+  "src/exports.map",
+  ".github/**",
+  ".craft.yml",
+  "Makefile",
+  "scripts/**",
+  "toolchains/**",
+  "ndk/**/*.gradle",
+  "ndk/**/*.kts",
+  "ndk/**/*.properties",
+  "tests/build_config.py",
+  "tests/cmake.py",
+  "tests/requirements.txt",
+]
+ignorePaths = ["**/*.md", "external/**", "vendor/**", ".github/ISSUE_TEMPLATE/**"]
+incremental = true
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened"]
+
+[[skills]]
+name = "native-test-review"
+paths = ["tests/**"]
+ignorePaths = [
+  "**/*.md",
+  "**/CMakeLists.txt",
+  "tests/build_config.py",
+  "tests/cmake.py",
+  "tests/requirements.txt",
+  "tests/fuzzing-failures/**",
+  "tests/fixtures/*.dmp",
+  "tests/fixtures/*.so",
+]
+incremental = true
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened"]
