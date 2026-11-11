@@ -34,6 +34,7 @@ paths = [
   "ndk/**/*.gradle",
   "ndk/**/*.kts",
   "ndk/**/*.properties",
+  "tests/build_config.py",
   "tests/cmake.py",
   "tests/requirements.txt",
 ]
@@ -50,6 +51,7 @@ paths = ["tests/**"]
 ignorePaths = [
   "**/*.md",
   "**/CMakeLists.txt",
+  "tests/build_config.py",
   "tests/cmake.py",
   "tests/requirements.txt",
   "tests/fuzzing-failures/**",
