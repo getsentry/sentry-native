@@ -97,7 +97,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: getsentry/sentry-java
-          ref: jpnurmi/feat/native-android
+          # first release with sentry-android-ndk-outproc, bump only when
+          # sentry-native-ndk-outproc changes need matching sentry-java changes
+          ref: 8.64.0
           path: sentry-java
 
       - name: Set up Python
