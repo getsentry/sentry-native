@@ -212,6 +212,14 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
 int sentry__crash_ipc_create_memfd(void);
 #endif
 
+#if defined(SENTRY_PLATFORM_ANDROID)
+/**
+ * Creates shared memory backed by an unlinked, preallocated file in `dir`, for
+ * kernels without memfd. Returns -1 on failure.
+ */
+int sentry__crash_ipc_create_shm_file(const char *dir);
+#endif
+
 /**
  * Initialize IPC for daemon process.
  * Attaches to existing shared memory created by app.

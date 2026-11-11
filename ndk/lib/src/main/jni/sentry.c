@@ -11,7 +11,8 @@
 
 #include "sentry_http.h"
 
-extern int sentry_android_crash_daemon_create_shm(void) __attribute__((weak));
+extern int sentry_android_crash_daemon_create_shm(const char *database_path)
+    __attribute__((weak));
 extern void sentry_android_crash_daemon_init(int shm_fd, int notify_fd,
     int ready_fd, int message_fd) __attribute__((weak));
 typedef struct sentry_crash_daemon_s sentry_crash_daemon_t;
@@ -568,10 +569,21 @@ fail:
 }
 
 JNIEXPORT jint JNICALL
-Java_io_sentry_ndk_SentryNdk_nativeCreateCrashShm(JNIEnv *env, jclass cls) {
-    return sentry_android_crash_daemon_create_shm
-        ? (jint) sentry_android_crash_daemon_create_shm()
-        : -1;
+Java_io_sentry_ndk_SentryNdk_nativeCreateCrashShm(
+        JNIEnv *env,
+        jclass cls,
+        jstring database_path) {
+    if (!sentry_android_crash_daemon_create_shm) {
+        return -1;
+    }
+    const char *path_chars = database_path
+        ? (*env)->GetStringUTFChars(env, database_path, 0)
+        : NULL;
+    int fd = sentry_android_crash_daemon_create_shm(path_chars);
+    if (path_chars) {
+        (*env)->ReleaseStringUTFChars(env, database_path, path_chars);
+    }
+    return (jint) fd;
 }
 
 JNIEXPORT void JNICALL

@@ -77,9 +77,14 @@ static android_crash_daemon_config_t g_android_crash_daemon_config
     = { false, -1, -1, -1, -1 };
 
 __attribute__((visibility("default"))) int
-sentry_android_crash_daemon_create_shm(void)
+sentry_android_crash_daemon_create_shm(const char *database_path)
 {
-    return sentry__crash_ipc_create_memfd();
+    int fd = sentry__crash_ipc_create_memfd();
+    if (fd < 0 && database_path) {
+        // no memfd before kernel 3.17, e.g. below API 26
+        fd = sentry__crash_ipc_create_shm_file(database_path);
+    }
+    return fd;
 }
 
 __attribute__((visibility("default"))) void
