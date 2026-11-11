@@ -76,6 +76,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: E2E Test (Android API 21, NDK 23)
+            ANDROID_API: 21
+            ANDROID_NDK_VERSION: 23.2.8568313
+          - name: E2E Test (Android API 26, NDK 27)
+            ANDROID_API: 26
+            ANDROID_NDK_VERSION: 27.3.13750724
+          - name: E2E Test (Android API 31, NDK 27)
+            ANDROID_API: 31
+            ANDROID_NDK_VERSION: 27.3.13750724
+          - name: E2E Test (Android API 35, NDK 29)
+            ANDROID_API: 35
+            ANDROID_NDK_VERSION: 29.0.14206865
           - name: E2E Test (Android API 36, NDK 30)
             ANDROID_API: 36
             ANDROID_NDK_VERSION: 30.0.16138531

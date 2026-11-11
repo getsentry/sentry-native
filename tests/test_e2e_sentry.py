@@ -1092,9 +1092,6 @@ def assert_android_native_event(event, test_id, tombstone, debuggable=True):
 @pytest.mark.skipif(
     not is_android or not has_native, reason="Tests need Android + native"
 )
-@pytest.mark.skipif(
-    is_android < 30, reason="The native crash service needs Android API 30+"
-)
 @pytest.mark.parametrize(
     "android_e2e_app, debuggable",
     [("debug", True), ("nondebuggable", False)],
@@ -1139,9 +1136,6 @@ def test_e2e_android_native(android_e2e_app, debuggable, tombstone):
 @pytest.mark.skipif(
     not is_android or not has_native, reason="Tests need Android + native"
 )
-@pytest.mark.skipif(
-    is_android < 30, reason="The native crash service needs Android API 30+"
-)
 def test_e2e_android_native_broadcast(android_e2e_app):
     """A process that a broadcast starts in the background gets the crash service."""
     test_id = str(uuid.uuid4())
@@ -1172,9 +1166,6 @@ def test_e2e_android_native_broadcast(android_e2e_app):
 
 @pytest.mark.skipif(
     not is_android or not has_native, reason="Tests need Android + native"
-)
-@pytest.mark.skipif(
-    is_android < 30, reason="The native crash service needs Android API 30+"
 )
 def test_e2e_android_native_background(android_e2e_app):
     """The crash service outlives the idle timeout of background services."""
