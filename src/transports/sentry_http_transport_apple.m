@@ -20,6 +20,8 @@
 @property (nonatomic, strong) NSURLSessionTask *task;
 @property (nonatomic, strong) NSString *userAgent;
 @property (nonatomic, strong) NSArray *anchors;
+@property (nonatomic, strong) NSURLCredential *proxyCredential;
+@property (nonatomic, strong) NSString *proxyAuthorization;
 @property (nonatomic) BOOL shutdown;
 @end
 
@@ -53,6 +55,13 @@
             completionHandler(
                 NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
         }
+        return;
+    }
+    // answer the proxy's 407 to the CONNECT of an HTTPS tunnel
+    if (space.isProxy && self.proxyCredential
+        && challenge.previousFailureCount == 0) {
+        completionHandler(
+            NSURLSessionAuthChallengeUseCredential, self.proxyCredential);
         return;
     }
     completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
@@ -108,7 +117,8 @@ load_ca_certs(const char *path)
 }
 
 static void
-configure_proxy(NSURLSessionConfiguration *config, const char *proxy)
+configure_proxy(SentryURLSessionClient *client,
+    NSURLSessionConfiguration *config, const char *proxy)
 {
     // an empty dictionary disables the proxy, nil uses the system settings
     if (!proxy || !proxy[0]) {
@@ -142,18 +152,19 @@ configure_proxy(NSURLSessionConfiguration *config, const char *proxy)
             @"HTTPSPort" : port,
         };
         if (url.username) {
-            // NSURLSession never answers a 407 for plain HTTP requests, so
-            // send the credentials up front like curl does
-            NSString *credentials = [NSString stringWithFormat:@"%s:%s",
-                url.username, url.password ? url.password : ""];
+            NSString *user = @(url.username);
+            NSString *password = @(url.password ? url.password : "");
+            client.proxyCredential = [NSURLCredential
+                credentialWithUser:user
+                          password:password
+                       persistence:NSURLCredentialPersistenceNone];
+            NSString *credentials =
+                [NSString stringWithFormat:@"%@:%@", user, password];
             NSString *basic =
                 [[credentials dataUsingEncoding:NSUTF8StringEncoding]
                     base64EncodedStringWithOptions:0];
-            NSString *authorization =
+            client.proxyAuthorization =
                 [NSString stringWithFormat:@"Basic %@", basic];
-            config.HTTPAdditionalHeaders =
-                [NSDictionary dictionaryWithObject:authorization
-                                            forKey:@"Proxy-Authorization"];
         }
     } else if (sentry__string_eq(url.scheme, "socks5")
         || sentry__string_eq(url.scheme, "socks5h")) {
@@ -203,7 +214,7 @@ apple_client_start(void *_client, const sentry_options_t *options)
             proxy = getenv(
                 options->dsn->is_secure ? "https_proxy" : "http_proxy");
         }
-        configure_proxy(config, proxy);
+        configure_proxy(client, config, proxy);
 
         if (options->ca_certs) {
             client.anchors = load_ca_certs(options->ca_certs);
@@ -260,6 +271,12 @@ apple_send_task(void *_client, sentry_prepared_http_request_t *req,
         if (client.userAgent) {
             [request setValue:client.userAgent
                 forHTTPHeaderField:@"User-Agent"];
+        }
+        if (client.proxyAuthorization && [url.scheme isEqualToString:@"http"]) {
+            // NSURLSession never answers a 407 for plain HTTP requests, so
+            // send the credentials up front like curl does
+            [request setValue:client.proxyAuthorization
+                forHTTPHeaderField:@"Proxy-Authorization"];
         }
 
         if (req->body_path) {
