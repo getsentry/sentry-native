@@ -1590,7 +1590,9 @@ sentry__crash_scope_apply(
         sentry_value_t object = sentry_value_get_by_key(scope->event, name);
         if (sentry_value_is_null(object)) {
             object = sentry_value_new_object();
-            sentry_value_set_by_key(scope->event, name, object);
+            if (sentry_value_set_by_key(scope->event, name, object) != 0) {
+                break;
+            }
         }
         valid
             = sentry_value_set_by_key_n(object, key,
