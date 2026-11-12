@@ -263,6 +263,9 @@ def cmake_build(cwd, targets, options):
 
     buildcmd = [*cmake, "--build", "."]
     for target in targets:
+        if is_ios_simulator and target == "sentry-crash":
+            # iOS has no crash daemon
+            continue
         buildcmd.extend(["--target", target])
     buildcmd.append("--parallel")
     if "CMAKE_BUILD_TYPE" in options:

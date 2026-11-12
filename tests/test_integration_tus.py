@@ -17,6 +17,7 @@ from .assertions import (
     assert_gzip_file_header,
 )
 from .conditions import has_breakpad, has_files, has_http, has_native, is_qemu
+from .conditions import has_daemon
 
 pytestmark = [
     pytest.mark.skipif(not has_http, reason="tests need http transport"),
@@ -776,6 +777,7 @@ def test_tus_crash_restart(cmake, httpserver, backend):
 
 
 @pytest.mark.skipif(not has_native or is_qemu, reason="native backend not available")
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_tus_crash_native(cmake, httpserver):
     # The native backend's daemon process handles the crash out-of-process: it
     # caches the large attachment, writes the envelope with attachment-ref

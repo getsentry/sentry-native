@@ -10,6 +10,7 @@ import pytest
 import pprint
 import textwrap
 import socket
+import pathlib
 
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -56,7 +57,7 @@ SENTRY_VERSION_BASE = SENTRY_VERSION.split("-", 1)[0]
 REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
 
 from .assertions import wait_for_daemon as _wait_for_daemon
-from .conditions import is_asan, is_ios_simulator
+from .conditions import has_daemon, is_asan, is_ios_simulator
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -362,14 +363,22 @@ def crash_env(env):
     return env
 
 
-def run_crash(tmp_path, exe, args, env, **kwargs):
+def run_crash(tmp_path, exe, args, env, restart_args=("log", "no-setup"), **kwargs):
     """
     Run a crash test.
 
     When running under ASAN, we configure it to not intercept crash signals
     so that our native crash handler can run and capture the crash.
+
+    When the native backend captures the crash in-process, the app is
+    restarted with `restart_args` to deliver it.
     """
+    if not has_daemon:
+        kwargs.pop("wait_for_daemon", None)
     run(tmp_path, exe, args, expect_failure=True, env=crash_env(env), **kwargs)
+    crash_contexts = pathlib.Path(tmp_path).glob(".sentry-native/*/.sentry-shm-*")
+    if not has_daemon and any(crash_contexts):
+        run(tmp_path, exe, list(restart_args), env=env)
 
 
 def check_output(*args, **kwargs):

@@ -62,5 +62,8 @@ has_oom = sys.platform != "linux" and not is_asan and not is_valgrind
 has_native = not (is_asan and sys.platform == "darwin") and (
     not is_android or is_android >= 23
 )
+# iOS can't spawn the native crash daemon, so the native backend captures
+# crashes in-process and delivers them on the next launch
+has_daemon = not is_ios_simulator
 
 has_sccache = os.environ.get("USE_SCCACHE") and shutil.which("sccache")

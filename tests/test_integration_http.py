@@ -45,6 +45,7 @@ from .assertions import (
 from .conditions import (
     has_http,
     has_breakpad,
+    has_daemon,
     has_native,
     has_files,
     is_asan,
@@ -1185,7 +1186,7 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
             expect_failure=True,
             env=env,
         )
-        if backend != "native":
+        if backend != "native" or not has_daemon:
             # inproc/breakpad cache to disk; the next launch ships them.
             run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
     assert waiting.result
