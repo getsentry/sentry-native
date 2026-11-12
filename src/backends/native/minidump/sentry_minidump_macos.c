@@ -648,7 +648,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // In fallback mode (no task_for_pid), use threads from crash context
     if (thread_count == 0 && writer->crash_ctx) {
         if (writer->crash_ctx->platform.num_threads > 0) {
-            thread_count = writer->crash_ctx->platform.num_threads;
+            thread_count = (uint32_t)writer->crash_ctx->platform.num_threads;
             // Bounds check to prevent out-of-bounds access on corrupted crash
             // context
             if (thread_count > SENTRY_CRASH_MAX_THREADS) {
@@ -769,8 +769,9 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 // Write thread context (registers)
                 thread->thread_context.rva
                     = write_thread_context(writer, &mcontext);
-                thread->thread_context.size
-                    = thread->thread_context.rva ? get_context_size() : 0;
+                thread->thread_context.size = thread->thread_context.rva
+                    ? (uint32_t)get_context_size()
+                    : 0;
 
                 // Write stack memory
                 uint64_t sp;
@@ -783,7 +784,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 uint64_t stack_start = 0;
                 thread->stack.memory.rva
                     = write_thread_stack(writer, sp, &stack_size, &stack_start);
-                thread->stack.memory.size = stack_size;
+                thread->stack.memory.size = (uint32_t)stack_size;
                 thread->stack.start_address = stack_start;
                 record_thread_stack(writer, thread, mach_tid);
             }
@@ -799,14 +800,15 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
             // Use thread ID captured in signal handler (portable across
             // processes)
-            thread->thread_id = writer->crash_ctx->platform.threads[i].tid;
+            thread->thread_id
+                = (uint32_t)writer->crash_ctx->platform.threads[i].tid;
 
             // Write thread context (registers)
             const _STRUCT_MCONTEXT *state
                 = &writer->crash_ctx->platform.threads[i].state;
             thread->thread_context.rva = write_thread_context(writer, state);
             thread->thread_context.size
-                = thread->thread_context.rva ? get_context_size() : 0;
+                = thread->thread_context.rva ? (uint32_t)get_context_size() : 0;
             SENTRY_DEBUGF("Thread %zu: wrote context at RVA 0x%x", i,
                 thread->thread_context.rva);
 
@@ -835,7 +837,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                             thread->stack.memory.rva = write_data(
                                 writer, stack_buffer, saved_stack_size);
                             thread->stack.memory.size = thread->stack.memory.rva
-                                ? saved_stack_size
+                                ? (uint32_t)saved_stack_size
                                 : 0;
                             thread->stack.start_address
                                 = thread->stack.memory.rva ? sp : 0;
@@ -870,7 +872,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 uint64_t stack_start = 0;
                 thread->stack.memory.rva
                     = write_thread_stack(writer, sp, &stack_size, &stack_start);
-                thread->stack.memory.size = stack_size;
+                thread->stack.memory.size = (uint32_t)stack_size;
                 thread->stack.start_address = stack_start;
                 record_thread_stack(
                     writer, thread, writer->crash_ctx->platform.threads[i].tid);
@@ -888,7 +890,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     dir->stream_type = MINIDUMP_STREAM_THREAD_LIST;
     dir->rva = write_data(writer, thread_list, list_size);
-    dir->data_size = list_size;
+    dir->data_size = (uint32_t)list_size;
 
     sentry_free(thread_list);
     return dir->rva ? 0 : -1;
@@ -919,7 +921,7 @@ write_thread_names_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     if (thread_count == 0 && writer->crash_ctx) {
         if (writer->crash_ctx->platform.num_threads > 0) {
-            thread_count = writer->crash_ctx->platform.num_threads;
+            thread_count = (uint32_t)writer->crash_ctx->platform.num_threads;
             if (thread_count > SENTRY_CRASH_MAX_THREADS) {
                 thread_count = SENTRY_CRASH_MAX_THREADS;
             }
@@ -1042,7 +1044,7 @@ write_thread_names_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     }
     dir->stream_type = MINIDUMP_STREAM_THREAD_NAMES;
     dir->rva = rva;
-    dir->data_size = list_size;
+    dir->data_size = (uint32_t)list_size;
     return 0;
 }
 
@@ -1182,8 +1184,9 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     const _STRUCT_MCONTEXT *crash_state = &writer->crash_ctx->platform.mcontext;
     exception_stream.thread_context.rva
         = write_thread_context(writer, crash_state);
-    exception_stream.thread_context.size
-        = exception_stream.thread_context.rva ? get_context_size() : 0;
+    exception_stream.thread_context.size = exception_stream.thread_context.rva
+        ? (uint32_t)get_context_size()
+        : 0;
     SENTRY_DEBUGF("Exception: wrote context at RVA 0x%x for thread %u",
         exception_stream.thread_context.rva, exception_stream.thread_id);
 
@@ -1225,7 +1228,7 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         // Set module base address and size
         mdmodule->base_of_image = module->base_address;
-        mdmodule->size_of_image = module->size;
+        mdmodule->size_of_image = (uint32_t)module->size;
 
         // Set VS_FIXEDFILEINFO signature (first uint32_t of version_info)
         // This is required for minidump processors to recognize the module
@@ -1262,15 +1265,15 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             minidump_rva_t cv_rva = write_cv_record(writer, module->name, uuid);
             if (cv_rva) {
                 mdmodule->cv_record.rva = cv_rva;
-                mdmodule->cv_record.size
-                    = sizeof(cv_info_pdb70_t) + strlen(module->name);
+                mdmodule->cv_record.size = (uint32_t)(sizeof(cv_info_pdb70_t)
+                    + strlen(module->name));
             }
         }
     }
 
     dir->stream_type = MINIDUMP_STREAM_MODULE_LIST;
     dir->rva = write_data(writer, module_list, list_size);
-    dir->data_size = list_size;
+    dir->data_size = (uint32_t)list_size;
 
     sentry_free(module_list);
     return dir->rva ? 0 : -1;
@@ -1744,7 +1747,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             goto empty_list;
         }
 
-        memory_list->count = total_count;
+        memory_list->count = (uint32_t)total_count;
 
         size_t mem_idx = 0;
 
@@ -1816,7 +1819,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 mem->start_address = region->address;
                 mem->memory.rva
                     = write_data(writer, region_buffer, region_size);
-                mem->memory.size = mem->memory.rva ? region_size : 0;
+                mem->memory.size = mem->memory.rva ? (uint32_t)region_size : 0;
             } else {
                 mem->start_address = region->address;
                 mem->memory.size = 0;
@@ -1828,7 +1831,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
         dir->rva = write_data(writer, memory_list, list_size);
-        dir->data_size = list_size;
+        dir->data_size = (uint32_t)list_size;
 
         sentry_free(memory_list);
 
@@ -1861,7 +1864,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
     dir->rva = write_data(writer, memory_list, list_size);
-    dir->data_size = list_size;
+    dir->data_size = (uint32_t)list_size;
 
     sentry_free(memory_list);
     return dir->rva ? 0 : -1;
