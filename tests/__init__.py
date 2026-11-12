@@ -29,6 +29,10 @@ def adb(*args, **kwargs):
     )
 
 
+def simctl(*args, check=True, **kwargs):
+    return subprocess.run(["xcrun", "simctl", *args], check=check, **kwargs)
+
+
 def exe_name(name):
     if sys.platform == "win32" or os.environ.get("TEST_WINE"):
         return f"{name}.exe"
@@ -52,7 +56,7 @@ SENTRY_VERSION_BASE = SENTRY_VERSION.split("-", 1)[0]
 REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
 
 from .assertions import wait_for_daemon as _wait_for_daemon
-from .conditions import is_asan
+from .conditions import is_asan, is_ios_simulator
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -238,6 +242,40 @@ def run(
                 child.returncode, child.args, output=child.stdout, stderr=child.stderr
             )
         return child
+
+    if is_ios_simulator:
+        # simctl passes only SIMCTL_CHILD_ variables to the app
+        child_env = {
+            f"SIMCTL_CHILD_{key}": value
+            for key, value in env.items()
+            if os.environ.get(key) != value
+        }
+        cmd = [
+            "xcrun",
+            "simctl",
+            "spawn",
+            os.environ["IOS_SIMULATOR_UDID"],
+            "{}/{}.app/{}".format(cwd, exe, exe),
+        ]
+        try:
+            result = subprocess.run(
+                [*cmd, *args], env=dict(os.environ, **child_env), check=check, **kwargs
+            )
+            if expect_failure:
+                assert (
+                    result.returncode != 0
+                ), f"command unexpectedly successful: {exe} {" ".join(args)}"
+            else:
+                assert (
+                    result.returncode == 0
+                ), f"command failed unexpectedly: {exe} {" ".join(args)}"
+            return result
+        except subprocess.CalledProcessError:
+            raise pytest.fail.Exception(
+                "running command failed: {cmd} {args}".format(
+                    cmd=" ".join(cmd), args=" ".join(args)
+                )
+            ) from None
 
     executable = (
         "./{}".format(exe) if sys.platform != "win32" else "{}\\{}".format(cwd, exe)

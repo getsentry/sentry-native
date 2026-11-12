@@ -9,9 +9,9 @@ import socket
 import struct
 import threading
 from datetime import datetime, timedelta, UTC
-from . import adb, run
+from . import adb, run, simctl
 from .cmake import CMake
-from .conditions import has_sccache, is_android, is_wine
+from .conditions import has_sccache, is_android, is_ios_simulator, is_wine
 import tests
 
 LABEL = "label"
@@ -52,8 +52,66 @@ def pytest_collection_modifyitems(items):
             item.add_marker(pytest.mark.flaky(max_runs=3))
 
 
+def _parse_version(version):
+    return tuple(int(part) for part in version.split("."))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ios_simulator():
+    """Boots a new iOS simulator for each pytest worker."""
+    if not is_ios_simulator:
+        yield None
+        return
+
+    sdk = subprocess.run(
+        ["xcrun", "--sdk", "iphonesimulator", "--show-sdk-version"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    runtimes = json.loads(
+        simctl("list", "runtimes", "available", "--json", capture_output=True).stdout
+    )["runtimes"]
+    # the deployment target can't be newer than the SDK
+    runtime = max(
+        (
+            r
+            for r in runtimes
+            if r.get("platform") == "iOS"
+            and _parse_version(r["version"]) <= _parse_version(sdk)
+        ),
+        key=lambda r: _parse_version(r["version"]),
+    )
+    device_type = next(
+        t["identifier"]
+        for t in runtime["supportedDeviceTypes"]
+        if t.get("productFamily") == "iPhone"
+    )
+    udid = simctl(
+        "create",
+        "sentry-native-test",
+        device_type,
+        runtime["identifier"],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    try:
+        simctl("boot", udid)
+        simctl("bootstatus", udid, "-b", capture_output=True)
+        home = simctl(
+            "getenv", udid, "HOME", capture_output=True, text=True
+        ).stdout.strip()
+        os.environ["IOS_SIMULATOR_UDID"] = udid
+        os.environ["IOS_SIMULATOR_VERSION"] = runtime["version"]
+        os.environ["IOS_SIMULATOR_HOME"] = home
+        yield udid
+    finally:
+        simctl("shutdown", udid, check=False)
+        simctl("delete", udid, check=False)
+
+
 @pytest.fixture(scope="session")
-def cmake(tmp_path_factory):
+def cmake(tmp_path_factory, ios_simulator):
     cmake = CMake(tmp_path_factory)
 
     yield cmake.compile

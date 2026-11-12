@@ -1,7 +1,7 @@
 import os
 import pytest
 from . import run
-from .conditions import has_http, has_native, is_wine
+from .conditions import has_http, has_native, is_ios_simulator, is_wine
 
 
 def _skip_if_unsupported(unittest):
@@ -63,9 +63,10 @@ def test_unit_native(cmake, unittest):
     if unittest in ["basic_transport_thread_name", "cache_keep"]:
         pytest.skip("excluded from unit test-suite")
     _skip_if_unsupported(unittest)
-    cwd = cmake(
-        ["sentry_test_unit", "sentry-crash"],
-        {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
-    )
+    targets = ["sentry_test_unit"]
+    if not is_ios_simulator:
+        # iOS has no crash daemon
+        targets.append("sentry-crash")
+    cwd = cmake(targets, {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"})
     env = dict(os.environ)
     run(cwd, "sentry_test_unit", ["--no-summary", unittest], env=env)

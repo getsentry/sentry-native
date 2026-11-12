@@ -238,6 +238,9 @@ jobs:
             ANDROID_NDK: 30.0.16138531
             ANDROID_ARCH: x86_64
             RUN_ANALYZER: asan
+          - name: iOS Simulator
+            os: macos-26
+            TEST_IOS_SIMULATOR: 1
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -253,6 +256,7 @@ jobs:
       TEST_RISCV: ${{ matrix.TEST_RISCV }}
       TEST_QEMU: ${{ matrix.TEST_QEMU }}
       TEST_SYSTEM_PROXY: ${{ matrix.TEST_SYSTEM_PROXY }}
+      TEST_IOS_SIMULATOR: ${{ matrix.TEST_IOS_SIMULATOR }}
       USE_SCCACHE: ${{ matrix.USE_SCCACHE }}
       SCCACHE_GHA_ENABLED: ${{ matrix.USE_SCCACHE && 'true' || '' }}
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS || 1 }}
@@ -537,8 +541,15 @@ jobs:
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with: *android-options
 
+      - name: Test (iOS)
+        if: ${{ env['TEST_IOS_SIMULATOR'] }}
+        shell: bash
+        run: |
+          pip install --upgrade --requirement tests/requirements.txt
+          pytest --capture=no --verbose tests/test_unit.py
+
       - name: Test
-        if: ${{ !env['ANDROID_API'] }}
+        if: ${{ !env['ANDROID_API'] && !env['TEST_IOS_SIMULATOR'] }}
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt

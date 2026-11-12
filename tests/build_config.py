@@ -12,6 +12,7 @@ we no longer want to bloat example.c with.
 """
 
 import os
+import platform
 import shutil
 import sys
 from pathlib import Path
@@ -32,6 +33,21 @@ def get_android_config():
         "CMAKE_TOOLCHAIN_FILE": toolchain,
         "ANDROID_ABI": os.environ.get("ANDROID_ARCH") or "x86",
         "ANDROID_NATIVE_API_LEVEL": os.environ["ANDROID_API"],
+    }
+
+
+def get_ios_config():
+    """
+    Returns iOS simulator CMake options if TEST_IOS_SIMULATOR is set.
+    """
+    if not os.environ.get("TEST_IOS_SIMULATOR"):
+        return {}
+
+    return {
+        "CMAKE_SYSTEM_NAME": "iOS",
+        "CMAKE_OSX_SYSROOT": "iphonesimulator",
+        "CMAKE_OSX_ARCHITECTURES": platform.machine(),
+        "CMAKE_OSX_DEPLOYMENT_TARGET": os.environ["IOS_SIMULATOR_VERSION"],
     }
 
 
