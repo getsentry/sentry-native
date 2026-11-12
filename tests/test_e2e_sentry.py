@@ -1055,7 +1055,9 @@ def android_logcat(request):
     failed = request.session.testsfailed
     yield
     if request.session.testsfailed > failed:
-        logcat = adb("logcat", "-d", capture_output=True, text=True).stdout
+        logcat = adb(
+            "logcat", "-d", capture_output=True, text=True, errors="replace"
+        ).stdout
         print(f"\nlogcat:\n{logcat}")
 
 
