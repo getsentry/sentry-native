@@ -22,6 +22,10 @@
 
 #include <assert.h>
 
+#ifdef SENTRY_PLATFORM_LINUX
+#    include <sys/mman.h>
+#endif
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <malloc.h>
 #    include <process.h>
@@ -1408,6 +1412,24 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "crash")) {
         sentry_crash();
     }
+#ifdef SENTRY_PLATFORM_LINUX
+    if (has_arg(argc, argv, "crash-high-address")) {
+#    ifdef MAP_FIXED_NOREPLACE
+        void *address = (void *)(uintptr_t)0xf1234000;
+        size_t page_size = (size_t)sysconf(_SC_PAGESIZE);
+        void *page = mmap(address, page_size, PROT_NONE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+        if (page == address) {
+            *(volatile char *)page = 1;
+        }
+        if (page != MAP_FAILED) {
+            munmap(page, page_size);
+        }
+#    endif
+        sentry_close();
+        return 77;
+    }
+#endif
     if (has_arg(argc, argv, "stack-overflow")) {
         trigger_stack_overflow();
     }
