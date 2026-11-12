@@ -23,6 +23,7 @@
 @property (nonatomic, strong) NSArray *anchors;
 @property (nonatomic, strong) NSURLCredential *proxyCredential;
 @property (nonatomic, strong) NSString *proxyAuthorization;
+@property (nonatomic) BOOL invalidProxy;
 @property (nonatomic) BOOL shutdown;
 @end
 
@@ -135,6 +136,7 @@ configure_proxy(SentryURLSessionClient *client,
     sentry_url_t url;
     if (sentry__url_parse(&url, proxy, false) != 0) {
         SENTRY_WARNF("invalid proxy \"%s\"", proxy);
+        client.invalidProxy = YES;
         return;
     }
 
@@ -183,6 +185,7 @@ configure_proxy(SentryURLSessionClient *client,
         }
     } else {
         SENTRY_WARNF("unsupported proxy scheme \"%s\"", url.scheme);
+        client.invalidProxy = YES;
     }
     config.connectionProxyDictionary = dict;
 
@@ -361,6 +364,10 @@ apple_send_task(void *_client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
 {
     SentryURLSessionClient *client = (__bridge SentryURLSessionClient *)_client;
+    // like curl, fail instead of bypassing the given proxy
+    if (client.invalidProxy) {
+        return false;
+    }
     @autoreleasepool {
         NSURL *url = [NSURL URLWithString:@(req->url)];
         if (!url) {
