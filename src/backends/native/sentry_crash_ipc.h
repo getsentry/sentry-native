@@ -16,7 +16,7 @@
 #    endif
 #    include <sys/eventfd.h>
 #    include <sys/mman.h>
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
 #    include "sentry_sync.h"
 #    include <mach/mach.h>
 #    include <sys/mman.h>
@@ -147,7 +147,7 @@ typedef struct {
     sem_t *init_sem; // Named semaphore for initialization synchronization
     char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];
 #    endif
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
     int shm_fd;
     int notify_pipe[2]; // Pipe for crash notifications (fork-safe)
     int ready_pipe[2]; // Pipe for daemon ready signal (fork-safe)
@@ -196,7 +196,7 @@ bool sentry__crash_ipc_reattach(
     sentry_crash_ipc_t *ipc, int notify_fd, int ready_fd, int message_fd);
 #elif defined(SENTRY_PLATFORM_LINUX)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(sem_t *init_sem);
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(HANDLE init_mutex);
@@ -226,7 +226,7 @@ int sentry__crash_ipc_create_memfd(void);
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
     uint64_t app_tid, int notify_eventfd, int ready_eventfd, int shm_fd,
     int message_fd);
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
     uint64_t app_tid, int notify_pipe_read, int ready_pipe_write, int shm_fd,
     int message_fd);

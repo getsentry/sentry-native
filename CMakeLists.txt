@@ -909,6 +909,9 @@ elseif(SENTRY_BACKEND_BREAKPAD)
 	endif()
 elseif(SENTRY_BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
+elseif(SENTRY_BACKEND_NATIVE AND IOS)
+	# iOS can't spawn the sentry-crash daemon
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_NATIVE_BACKEND)
 elseif(SENTRY_BACKEND_NATIVE)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_NATIVE_BACKEND)
 

@@ -665,7 +665,7 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     sentry_free(ipc);
 }
 
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
 
 #    include <errno.h>
 #    include <fcntl.h>
@@ -1381,7 +1381,7 @@ sentry__crash_ipc_signal_ready(sentry_crash_ipc_t *ipc)
     } else {
         SENTRY_DEBUG("daemon: signaled ready to parent");
     }
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
     // Signal via pipe
     char byte = 1;
     if (write(ipc->ready_pipe[1], &byte, 1) < 0) {
@@ -1445,7 +1445,7 @@ sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
         SENTRY_WARNF("select on ready_eventfd failed: %s", strerror(errno));
         return false;
     }
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
     // Wait on ready_pipe with select
     fd_set readfds;
     FD_ZERO(&readfds);
@@ -1960,7 +1960,7 @@ sentry__crash_ipc_receive(sentry_crash_ipc_t *ipc, int timeout_ms)
             ipc->notify_pending = sentry__crash_ipc_wait(ipc, delay);
             remaining -= delay;
 #else
-#    if defined(SENTRY_PLATFORM_MACOS)
+#    if defined(SENTRY_PLATFORM_DARWIN)
             int notify_fd = ipc->notify_pipe[0];
 #    else
             int notify_fd = ipc->notify_fd;

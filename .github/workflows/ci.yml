@@ -24,26 +24,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: make style
 
-  build-ios-inproc:
-    name: Xcode Build for inproc on iOS
+  build-ios:
+    name: Xcode Build for ${{ matrix.backend }} on iOS
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [inproc, breakpad, native]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: "recursive"
       - run: |
-          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=inproc
-          xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
-
-  build-ios-breakpad:
-    name: Xcode Build for breakpad on iOS
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: "recursive"
-      - run: |
-          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=breakpad
+          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=${{ matrix.backend }}
           xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
   test:
