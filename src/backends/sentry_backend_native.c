@@ -29,6 +29,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_crash_context.h"
+#include "sentry_crash_daemon.h"
 #include "sentry_crash_handler.h"
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
@@ -426,11 +427,54 @@ add_attachment(void *data, sentry_value_t attachment)
     // locations.
 }
 
+#if defined(SENTRY_PLATFORM_IOS)
+/**
+ * Processes the crash context that a crashed launch left in its run folder.
+ */
+static void
+process_crash_context(
+    const sentry_options_t *options, const sentry_path_t *run_path)
+{
+    static const char prefix[] = ".sentry-shm-";
+
+    sentry_pathiter_t *it = sentry__path_iter_directory(run_path);
+    const sentry_path_t *file;
+    while (it && (file = sentry__pathiter_next(it)) != NULL) {
+        if (!sentry__path_is_file(file) || sentry__path_is_symlink(file)
+            || strncmp(sentry__path_filename(file), prefix, sizeof(prefix) - 1)
+                != 0
+            || sentry__path_get_size(file) != SENTRY_CRASH_SHM_SIZE) {
+            continue;
+        }
+
+        int fd = open(file->path, O_RDWR | O_CLOEXEC);
+        // remove before processing to prevent a crash loop
+        sentry__path_remove(file);
+        sentry_crash_ipc_t *ipc = fd >= 0
+            ? sentry__crash_ipc_init_daemon(0, 0, -1, -1, fd, -1)
+            : NULL;
+        if (ipc && ipc->shmem->version == SENTRY_CRASH_VERSION
+            && sentry__atomic_fetch(&ipc->shmem->state)
+                == SENTRY_CRASH_STATE_CRASHED
+            && sentry__crash_scope_init(
+                &ipc->scope, ipc->shmem->max_breadcrumbs)) {
+            sentry__process_crash(options, ipc, NULL);
+        }
+        sentry__crash_ipc_free(ipc);
+    }
+    sentry__pathiter_free(it);
+}
+#endif
+
 static bool
 native_backend_process_old_run(sentry_backend_t *backend,
     const sentry_options_t *options, const sentry_path_t *run_path)
 {
     (void)backend;
+
+#if defined(SENTRY_PLATFORM_IOS)
+    process_crash_context(options, run_path);
+#endif
 
     sentry_pathiter_t *it = sentry__path_iter_directory(run_path);
     const sentry_path_t *file;
@@ -875,8 +919,12 @@ native_backend_startup(
             options->database_path ? options->database_path->path : NULL,
             &g_ipc_sync_mutex);
     }
-#elif defined(SENTRY_PLATFORM_DARWIN)
-    state->ipc = sentry__crash_ipc_init_app(&g_ipc_sync_mutex);
+#elif defined(SENTRY_PLATFORM_IOS)
+    // keep the crash context with its run for the next launch
+    state->ipc
+        = sentry__crash_ipc_init_app(state->run_path->path, &g_ipc_sync_mutex);
+#elif defined(SENTRY_PLATFORM_MACOS)
+    state->ipc = sentry__crash_ipc_init_app(NULL, &g_ipc_sync_mutex);
 #else
     state->ipc = sentry__crash_ipc_init_app(g_ipc_init_sem);
 #endif

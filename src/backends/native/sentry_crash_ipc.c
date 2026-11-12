@@ -677,7 +677,7 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 #    include <unistd.h>
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
+sentry__crash_ipc_init_app(const char *dir, sentry_mutex_t *init_mutex)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
@@ -688,12 +688,13 @@ sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
     ipc->message_fd[0] = -1;
     ipc->message_fd[1] = -1;
 
-    // Build a file path for shared memory using the system temp directory.
+    // Build a file path for shared memory using the given directory or the
+    // system temp directory.
     // Unlike shm_open(), regular files in $TMPDIR work inside App Sandbox.
     // $TMPDIR is per-app in sandbox (e.g. .../Containers/.../T/).
     uint64_t tid = (uint64_t)pthread_self();
     uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    const char *tmpdir = getenv("TMPDIR");
+    const char *tmpdir = dir ? dir : getenv("TMPDIR");
     if (!tmpdir) {
         tmpdir = "/tmp";
     }

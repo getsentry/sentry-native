@@ -178,6 +178,8 @@ typedef struct {
  * Initialize IPC for application process.
  * Creates shared memory and notification mechanism.
  * @param database_path Android-only directory for the file-backed mapping
+ * @param dir Darwin-only directory for the file-backed mapping, or NULL for
+ * $TMPDIR
  * @param init_sem Optional semaphore for synchronizing init (can be NULL)
  * @param init_mutex Optional mutex for synchronizing init on Windows (can be
  * NULL)
@@ -197,7 +199,8 @@ bool sentry__crash_ipc_reattach(
 #elif defined(SENTRY_PLATFORM_LINUX)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(sem_t *init_sem);
 #elif defined(SENTRY_PLATFORM_DARWIN)
-sentry_crash_ipc_t *sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex);
+sentry_crash_ipc_t *sentry__crash_ipc_init_app(
+    const char *dir, sentry_mutex_t *init_mutex);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(HANDLE init_mutex);
 #else

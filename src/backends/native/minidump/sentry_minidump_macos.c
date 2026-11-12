@@ -1,15 +1,17 @@
 #include "sentry_boot.h"
 #include "sentry_utils.h"
 
-#if defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_DARWIN)
 
 #    include <errno.h>
 #    include <fcntl.h>
 #    include <mach-o/dyld.h>
 #    include <mach-o/loader.h>
 #    include <mach/mach.h>
-#    include <mach/mach_vm.h>
-#    include <mach/shared_region.h>
+#    if defined(SENTRY_PLATFORM_MACOS)
+#        include <mach/mach_vm.h>
+#        include <mach/shared_region.h>
+#    endif
 #    include <pthread.h>
 #    include <signal.h>
 #    include <stdbool.h>
@@ -29,6 +31,54 @@
 
 // Use shared constants from crash context
 #    include "../sentry_crash_context.h"
+
+#    if defined(SENTRY_PLATFORM_IOS)
+// iOS has neither mach_vm.h nor shared_region.h. The next launch writes the
+// minidump from the crash context without a task port, so these are never
+// reached.
+#        define SHARED_REGION_BASE 0
+#        define SHARED_REGION_SIZE 0
+
+static kern_return_t
+mach_vm_read_overwrite(vm_map_t task, mach_vm_address_t addr,
+    mach_vm_size_t size, mach_vm_address_t data, mach_vm_size_t *out_size)
+{
+    (void)task;
+    (void)addr;
+    (void)size;
+    (void)data;
+    (void)out_size;
+    return KERN_NOT_SUPPORTED;
+}
+
+static kern_return_t
+mach_vm_region(vm_map_t task, mach_vm_address_t *addr, mach_vm_size_t *size,
+    vm_region_flavor_t flavor, vm_region_info_t info,
+    mach_msg_type_number_t *info_count, mach_port_t *object_name)
+{
+    (void)task;
+    (void)addr;
+    (void)size;
+    (void)flavor;
+    (void)info;
+    (void)info_count;
+    (void)object_name;
+    return KERN_NOT_SUPPORTED;
+}
+
+static kern_return_t
+mach_vm_page_range_query(vm_map_t task, mach_vm_offset_t addr,
+    mach_vm_size_t size, mach_vm_address_t dispositions,
+    mach_vm_size_t *dispositions_count)
+{
+    (void)task;
+    (void)addr;
+    (void)size;
+    (void)dispositions;
+    (void)dispositions_count;
+    return KERN_NOT_SUPPORTED;
+}
+#    endif
 
 // CodeView record format for storing UUID
 // CV signature: 'RSDS' for PDB 7.0 format (we use it for Mach-O UUID too)
@@ -294,7 +344,11 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     sysinfo.processor_architecture = MINIDUMP_CPU_ARM;
 #    endif
 
+#    if defined(SENTRY_PLATFORM_IOS)
+    sysinfo.platform_id = MINIDUMP_OS_IOS;
+#    else
     sysinfo.platform_id = MINIDUMP_OS_MACOS;
+#    endif
 
     int mib[2] = { CTL_HW, HW_NCPU };
     int ncpu = 1;
@@ -1848,8 +1902,13 @@ sentry__write_minidump(
 
     // Try to get task port for crashed process (may fail without entitlements)
     SENTRY_DEBUG("write_minidump: getting task port");
+#    if defined(SENTRY_PLATFORM_IOS)
+    // the crashed process is gone, and its pid may even be ours by now
+    kern_return_t kr = KERN_FAILURE;
+#    else
     kern_return_t kr
         = task_for_pid(mach_task_self(), ctx->crashed_pid, &writer.task);
+#    endif
     if (kr != KERN_SUCCESS) {
         SENTRY_DEBUGF("write_minidump: task_for_pid failed (%d), writing "
                       "minimal minidump",
@@ -2063,4 +2122,4 @@ cleanup_error:
     return -1;
 }
 
-#endif // SENTRY_PLATFORM_MACOS
+#endif // SENTRY_PLATFORM_DARWIN

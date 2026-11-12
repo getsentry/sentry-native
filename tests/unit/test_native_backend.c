@@ -1456,6 +1456,8 @@ new_test_ipc(void)
 {
 #    if defined(SENTRY_PLATFORM_ANDROID)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_app(".", NULL);
+#    elif defined(SENTRY_PLATFORM_DARWIN)
+    sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_app(NULL, NULL);
 #    else
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_app(NULL);
 #    endif

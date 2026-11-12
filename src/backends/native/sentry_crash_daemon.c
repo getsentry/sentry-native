@@ -293,7 +293,7 @@ sentry_android_crash_daemon_get_envelope_path(
 
 // Provide default ASAN options for sentry-crash daemon executable
 // This suppresses false positives from fork() which ASAN doesn't handle well
-#if defined(__has_feature)
+#if defined(__has_feature) && !defined(SENTRY_PLATFORM_IOS)
 #    if __has_feature(address_sanitizer)
 const char *
 __asan_default_options(void)
@@ -642,7 +642,7 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
         context = &ctx->platform.threads[thread_idx].context;
     }
     uctx.user_context = (ucontext_t *)context;
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
     // Use thread-specific context, defaulting to crashed thread
     const _STRUCT_MCONTEXT *mcontext = &ctx->platform.mcontext;
     if (thread_idx != SIZE_MAX && thread_idx < ctx->platform.num_threads) {
@@ -745,7 +745,7 @@ arm_frame_record_plausible(
 }
 #endif
 
-#if defined(SENTRY_PLATFORM_MACOS) && defined(__aarch64__)
+#if defined(SENTRY_PLATFORM_DARWIN) && defined(__aarch64__)
 #    define SENTRY__STRIP_PAC(addr) ((addr) & 0x00007FFFFFFFFFFFULL)
 #else
 #    define SENTRY__STRIP_PAC(addr) (addr)
@@ -810,7 +810,7 @@ enrich_frame_with_module_info(
 }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)         \
-    || defined(SENTRY_PLATFORM_MACOS)
+    || defined(SENTRY_PLATFORM_DARWIN)
 static void enrich_frame_with_symbol(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -922,7 +922,7 @@ build_stacktrace_for_thread(
     fp = (uint64_t)thread_context->uc_mcontext.__gregs[REG_S0];
     sp = (uint64_t)thread_context->uc_mcontext.__gregs[REG_SP];
 #    endif
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
 #    if defined(__x86_64__)
     ip = ctx->platform.mcontext.__ss.__rip;
     fp = ctx->platform.mcontext.__ss.__rbp;
@@ -962,8 +962,8 @@ build_stacktrace_for_thread(
     uint64_t stack_start = 0;
     uint64_t stack_size = 0;
 
-#if defined(SENTRY_PLATFORM_MACOS)
-    // On macOS, stack is saved to a file by the signal handler.
+#if defined(SENTRY_PLATFORM_DARWIN)
+    // On macOS/iOS, stack is saved to a file by the signal handler.
     // Use the specified thread index, or find the crashed thread if SIZE_MAX.
     if (ctx->platform.num_threads > 0) {
         size_t idx = thread_idx;
@@ -1256,7 +1256,7 @@ build_stacktrace_for_thread(
             sentry_value_new_string("context"));
         enrich_frame_with_module_info(ctx, temp_frames[frame_count], ip);
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)         \
-    || defined(SENTRY_PLATFORM_MACOS)
+    || defined(SENTRY_PLATFORM_DARWIN)
         enrich_frame_with_symbol(ctx, temp_frames[frame_count], ip);
 #endif
         frame_count++;
@@ -1384,7 +1384,7 @@ build_stacktrace_for_thread(
             enrich_frame_with_module_info(
                 ctx, temp_frames[frame_count], return_addr);
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)         \
-    || defined(SENTRY_PLATFORM_MACOS)
+    || defined(SENTRY_PLATFORM_DARWIN)
             enrich_frame_with_symbol(
                 ctx, temp_frames[frame_count], return_addr);
 #endif
@@ -2184,7 +2184,7 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
 }
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID
 
-#if defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_DARWIN)
 #    include <libkern/OSByteOrder.h>
 #    include <mach-o/fat.h>
 #    include <mach-o/loader.h>
@@ -2700,7 +2700,7 @@ enrich_frame_with_symbol(
         return;
     }
 }
-#endif // SENTRY_PLATFORM_MACOS
+#endif // SENTRY_PLATFORM_DARWIN
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include <psapi.h>
@@ -3456,7 +3456,7 @@ build_native_event(const sentry_crash_context_t *ctx, sentry_value_t base,
             SENTRY_DEBUG("Stackwalk limited to the crashed thread");
         }
 
-#if defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_DARWIN)
         // Add all captured threads
         for (size_t i = 0; i < ctx->platform.num_threads; i++) {
             const sentry_thread_context_darwin_t *tctx
@@ -3600,7 +3600,7 @@ build_native_event(const sentry_crash_context_t *ctx, sentry_value_t base,
             sentry_value_t image = sentry_value_new_object();
 
             // Set image type based on platform
-#if defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_DARWIN)
             sentry_value_set_by_key(
                 image, "type", sentry_value_new_string("macho"));
 #elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -4214,6 +4214,14 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
+#if defined(SENTRY_PLATFORM_IOS)
+    // the app can process several crashes with the same symbol cache
+    uint32_t module_count = ctx->module_count < SENTRY_CRASH_MAX_MODULES
+        ? ctx->module_count
+        : SENTRY_CRASH_MAX_MODULES;
+    memset(g_sym_sources, 0, module_count * sizeof(*g_sym_sources));
+#endif
+
     // Mark as processing
     sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
     SENTRY_DEBUG("Marked state as PROCESSING");
@@ -4479,10 +4487,13 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     }
 #endif
 
+#if !defined(SENTRY_PLATFORM_IOS)
+    // on iOS, the app's own run already holds the current consent
     if (options->run) {
         sentry__atomic_store(&options->run->user_consent,
             sentry__atomic_fetch(&ctx->user_consent));
     }
+#endif
 
     sentry_path_t *env_path = sentry__path_from_str(envelope_path);
     if (!env_path) {
@@ -4731,22 +4742,23 @@ android_cleanup_pending_crash_daemon(
 }
 #endif
 
+#if !defined(SENTRY_PLATFORM_IOS)
 /**
  * Check if parent process is still alive
  */
 static bool
 is_parent_alive(sentry_process_handle_t parent)
 {
-#if defined(SENTRY_PLATFORM_UNIX)
+#    if defined(SENTRY_PLATFORM_UNIX)
     // Send signal 0 to check if process exists
     return kill(parent, 0) == 0 || errno != ESRCH;
-#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
     if (!parent) {
         return false; // Process doesn't exist or can't be accessed
     }
     // Check if process has exited
     return WaitForSingleObject(parent, 0) == WAIT_TIMEOUT;
-#endif
+#    endif
 }
 
 /**
@@ -4764,12 +4776,12 @@ daemon_file_logger(
 
     // Get current timestamp
     time_t now = time(NULL);
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#    if defined(SENTRY_PLATFORM_WINDOWS)
     struct tm *tm_info = localtime(&now);
-#else
+#    else
     struct tm tm_buf;
     struct tm *tm_info = localtime_r(&now, &tm_buf);
-#endif
+#    endif
     char timestamp[SENTRY_CRASH_TIMESTAMP_SIZE];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
 
@@ -4792,10 +4804,10 @@ dump_crash_queue(void)
         return;
     }
 
-#if defined(SENTRY_PLATFORM_UNIX)
+#    if defined(SENTRY_PLATFORM_UNIX)
     (void)!sentry__enter_signal_handler();
     sentry__page_allocator_enable();
-#endif
+#    endif
     sentry__logger_disable();
 
     SENTRY_WITH_OPTIONS (options) {
@@ -4805,63 +4817,63 @@ dump_crash_queue(void)
         }
     }
 
-#if defined(SENTRY_PLATFORM_UNIX)
+#    if defined(SENTRY_PLATFORM_UNIX)
     sentry__leave_signal_handler();
-#endif
+#    endif
 }
 
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
     int ready_eventfd, int shm_fd, int message_fd,
     sentry_crash_daemon_t *daemon)
-#elif defined(SENTRY_PLATFORM_LINUX)
+#    elif defined(SENTRY_PLATFORM_LINUX)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
     int ready_eventfd, int shm_fd, int message_fd)
-#elif defined(SENTRY_PLATFORM_MACOS)
+#    elif defined(SENTRY_PLATFORM_MACOS)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
     int ready_pipe_write, int shm_fd, int message_fd)
-#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     HANDLE ready_event_handle, HANDLE message_read_handle)
-#endif
+#    endif
 {
     // Initialize IPC first (attach to shared memory created by parent)
     // We need this to get the database path for logging
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(
         app_pid, app_tid, notify_eventfd, ready_eventfd, shm_fd, message_fd);
-#elif defined(SENTRY_PLATFORM_MACOS)
+#    elif defined(SENTRY_PLATFORM_MACOS)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(app_pid, app_tid,
         notify_pipe_read, ready_pipe_write, shm_fd, message_fd);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(app_pid, app_tid,
         event_handle, ready_event_handle, message_read_handle);
-#endif
+#    endif
     if (!ipc) {
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
         close(notify_eventfd);
         close(ready_eventfd);
         close(message_fd);
-#endif
+#    endif
         return 1;
     }
 
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
     // the crash service hosts a daemon for each app process
     bool shared_process = daemon != NULL;
-#else
+#    else
     bool shared_process = false;
-#endif
+#    endif
 
     // Set up logging to file for daemon BEFORE redirecting streams
     char log_path[SENTRY_CRASH_MAX_PATH];
     FILE *log_file = NULL;
 
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#    if defined(SENTRY_PLATFORM_WINDOWS)
     // On Windows, convert UTF-8 path to wide characters for proper file
     // handling
     int log_path_len = snprintf(log_path, sizeof(log_path),
@@ -4874,7 +4886,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             sentry_free(wlog_path);
         }
     }
-#else
+#    else
     int log_path_len = snprintf(log_path, sizeof(log_path),
         "%s/sentry-daemon.log", ipc->shmem->run_path);
 
@@ -4882,7 +4894,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         && log_path_len < (int)sizeof(log_path)) {
         log_file = fopen(log_path, "w");
     }
-#endif
+#    endif
 
     if (log_file) {
         // Disable buffering for immediate writes
@@ -4904,13 +4916,13 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_DEBUGF("Database path: %s", ipc->shmem->database_path);
     }
 
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
     if (shared_process && ipc->shmem->debug_enabled) {
         pthread_once(&g_android_logcat_once, android_install_logcat_logger);
     }
-#endif
+#    endif
 
-#if defined(SENTRY_PLATFORM_UNIX)
+#    if defined(SENTRY_PLATFORM_UNIX)
     // other threads of a shared process own the standard streams
     if (!shared_process) {
         // Close standard streams to avoid interfering with parent
@@ -4929,14 +4941,14 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             }
         }
     }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
     // On Windows, redirect stdin/stdout to NUL
     // But redirect stderr to the log file so fprintf(stderr) appears in the log
     (void)freopen("NUL", "r", stdin);
     (void)freopen("NUL", "w", stdout);
 
     (void)freopen("NUL", "w", stderr);
-#endif
+#    endif
 
     // Initialize Sentry options for daemon (reuses all SDK infrastructure)
     sentry_options_t *options = sentry_options_new();
@@ -4949,12 +4961,12 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         }
         return 1;
     }
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
     if (daemon) {
         sentry_options_set_transport(options, daemon->transport);
         daemon->transport = NULL;
     }
-#endif
+#    endif
 
     sentry_options_set_database_path(options, ipc->shmem->database_path);
 
@@ -5030,19 +5042,19 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     SENTRY_DEBUG("Daemon options fully initialized");
 
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     // Use the inherited eventfd from parent
     ipc->notify_fd = notify_eventfd;
     ipc->ready_fd = ready_eventfd;
-#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
     // On Windows, event handle is already opened by name in init_daemon
     // Don't overwrite it with the parent's handle (handles are per-process)
     (void)event_handle;
     (void)ready_event_handle;
     (void)message_read_handle;
-#endif
+#    endif
 
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#    if defined(SENTRY_PLATFORM_WINDOWS)
     // Open handle to parent process with SYNCHRONIZE for WaitForSingleObject
     // in is_parent_alive(). Once on startup because OpenProcess fails on OOM.
     ipc->parent_handle = OpenProcess(SYNCHRONIZE, FALSE, (DWORD)app_pid);
@@ -5050,9 +5062,9 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_WARNF(
             "Failed to open parent process handle: %lu", GetLastError());
     }
-#else
+#    else
     ipc->parent_handle = app_pid;
-#endif
+#    endif
 
     if (!sentry__crash_scope_init(&ipc->scope, ipc->shmem->max_breadcrumbs)) {
         sentry__crash_ipc_free(ipc);
@@ -5064,7 +5076,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         return 1;
     }
 
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
     // mapped ahead of the crash, which then goes without symbols on failure
     void *sym_sources
         = mmap(NULL, SENTRY_CRASH_MAX_MODULES * sizeof(*g_sym_sources),
@@ -5074,7 +5086,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     } else {
         SENTRY_WARN("Failed to map the symbol cache");
     }
-#endif
+#    endif
 
     // Signal to parent that daemon is ready
     SENTRY_DEBUG("Signaling ready to parent");
@@ -5135,11 +5147,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         }
         if (state == SENTRY_CRASH_STATE_CRASHED) {
             SENTRY_DEBUG("Crash notification received, processing");
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
             bool crash_captured = sentry__process_crash(options, ipc, daemon);
-#else
+#    else
             bool crash_captured = sentry__process_crash(options, ipc, NULL);
-#endif
+#    endif
             crash_processed = true;
 
             if (crash_captured
@@ -5198,28 +5210,28 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     SENTRY_DEBUG("Daemon exiting");
 
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
     if (g_sym_sources) {
         munmap(
             g_sym_sources, SENTRY_CRASH_MAX_MODULES * sizeof(*g_sym_sources));
         g_sym_sources = NULL;
     }
-#endif
-#if defined(SENTRY_PLATFORM_UNIX) && defined(__arm__)
+#    endif
+#    if defined(SENTRY_PLATFORM_UNIX) && defined(__arm__)
     sentry_free(g_vmas);
     g_vmas = NULL;
     g_vma_count = 0;
     g_vma_capacity = 0;
-#endif
+#    endif
 
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
     if (daemon && daemon->envelope_path[0]) {
         daemon->options = options;
         daemon->ipc = ipc;
         daemon->log_file = log_file;
         return 0;
     }
-#endif
+#    endif
 
     // Cleanup
     if (options) {
@@ -5270,6 +5282,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     return 0;
 }
+#endif
 
 // When built as standalone executable, provide main entry point
 #ifdef SENTRY_CRASH_DAEMON_STANDALONE
