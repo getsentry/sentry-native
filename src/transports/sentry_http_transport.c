@@ -978,7 +978,8 @@ resolve_attachment_refs(
 
         if (result == RESULT_SHUTDOWN
             || (result == RESULT_ERROR
-                && (state->retry || state->cache_keep))) {
+                && (sentry__atomic_fetch(&state->retry_enabled)
+                    || state->cache_keep))) {
             sentry__attachment_ref_cleanup(&ref);
             return result;
         }

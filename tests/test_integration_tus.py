@@ -861,6 +861,32 @@ def test_tus_crash_native(cmake, httpserver):
     assert not [f for f in os.listdir(run_dir) if f.endswith(".envelope")]
 
 
+@pytest.mark.skipif(not has_native or is_qemu, reason="native backend not available")
+def test_tus_crash_native_retry(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/upload/").respond_with_data(
+        "", status=503
+    )
+
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "large-attachment", "crash"],
+        expect_failure=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        wait_for_daemon=True,
+    )
+
+    # the daemon keeps the envelope for retry instead of sending it without the
+    # attachment-ref
+    assert len(httpserver.log) == 1
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    envelopes = list(cache_dir.glob("*-00-*.envelope"))
+    assert len(envelopes) == 1
+    event_id = envelopes[0].stem[-36:]
+    assert list(cache_dir.glob(f"{event_id}-*"))
+
+
 @pytest.mark.parametrize("status", [404, 410])
 @pytest.mark.parametrize("chunked", [True, False], ids=["chunked", "single"])
 def test_tus_recreate_after_head_404(cmake, httpserver, status, chunked):
