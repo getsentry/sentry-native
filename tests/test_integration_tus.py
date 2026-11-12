@@ -989,7 +989,16 @@ def test_tus_invalid_offset(cmake, httpserver, offset):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "no-setup", "http-retry", "large-attachment", "capture-event"],
+        [
+            "log",
+            "no-setup",
+            "http-retry",
+            "large-attachment",
+            "capture-event",
+            # extra time for uploading 50 MiB
+            "shutdown-timeout",
+            "10000",
+        ],
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
