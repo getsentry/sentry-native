@@ -345,7 +345,8 @@ read_process_memory(
     // Try process_vm_readv first - much faster for bulk reads
     // (single syscall vs one syscall per word with ptrace)
     struct iovec local_iov = { .iov_base = buf, .iov_len = len };
-    struct iovec remote_iov = { .iov_base = (void *)addr, .iov_len = len };
+    struct iovec remote_iov
+        = { .iov_base = (void *)(uintptr_t)addr, .iov_len = len };
 
     ssize_t nread = process_vm_readv(tid, &local_iov, 1, &remote_iov, 1, 0);
     if (nread > 0) {
@@ -1877,7 +1878,7 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     exception_stream.exception_record.exception_flags
         = (uint32_t)writer->crash_ctx->platform.siginfo.si_code;
     exception_stream.exception_record.exception_address
-        = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
+        = (uint64_t)(uintptr_t)writer->crash_ctx->platform.siginfo.si_addr;
     exception_stream.exception_record.number_parameters = 0;
 
     // Write the crashing thread's context
@@ -2090,7 +2091,8 @@ linux_indirect_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
     }
     pid_t tid = writer->crash_ctx->crashed_tid;
     struct iovec local_iov = { .iov_base = buf, .iov_len = len };
-    struct iovec remote_iov = { .iov_base = (void *)addr, .iov_len = len };
+    struct iovec remote_iov
+        = { .iov_base = (void *)(uintptr_t)addr, .iov_len = len };
     return process_vm_readv(tid, &local_iov, 1, &remote_iov, 1, 0);
 }
 
@@ -2222,7 +2224,8 @@ static int
 write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
     // Get crash address for SMART mode filtering
-    uint64_t crash_addr = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
+    uint64_t crash_addr
+        = (uint64_t)(uintptr_t)writer->crash_ctx->platform.siginfo.si_addr;
 
     // SMART mode: scan registers + stack words for pointers into writable
     // heap mappings and capture a chunk around each. Has to run BEFORE the
