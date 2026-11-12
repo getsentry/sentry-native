@@ -12,6 +12,7 @@
 #    error "the apple transport requires ARC (-fobjc-arc)"
 #endif
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -184,18 +185,120 @@ configure_proxy(SentryURLSessionClient *client,
     sentry__url_cleanup(&url);
 }
 
-static NSData *
-read_body(const sentry_path_t *path, size_t offset, size_t len)
+// streams `length` bytes of `file` instead of reading them into memory, like
+// crashpad's `CrashpadHTTPBodyStreamTransport`
+@interface SentryFileBodyStream : NSInputStream
+- (instancetype)initWithFile:(FILE *)file length:(size_t)length;
+@end
+
+@implementation SentryFileBodyStream {
+    FILE *_file;
+    size_t _remaining;
+    NSStreamStatus _status;
+    __weak id<NSStreamDelegate> _delegate;
+}
+
+- (instancetype)initWithFile:(FILE *)file length:(size_t)length
 {
-    FILE *file = sentry__path_open(path, "rb", offset);
-    if (!file) {
+    if (!(self = [super init])) {
+        fclose(file);
         return nil;
     }
-    NSMutableData *data = [NSMutableData dataWithLength:len];
-    size_t read = data ? fread(data.mutableBytes, 1, len, file) : 0;
-    fclose(file);
-    return read == len ? data : nil;
+    _file = file;
+    _remaining = length;
+    _status = NSStreamStatusNotOpen;
+    return self;
 }
+
+- (void)dealloc
+{
+    fclose(_file);
+}
+
+- (NSInteger)read:(uint8_t *)buffer maxLength:(NSUInteger)len
+{
+    if (len > _remaining) {
+        len = _remaining;
+    }
+    if (fread(buffer, 1, len, _file) != len) {
+        _status = NSStreamStatusError;
+        return -1;
+    }
+    _remaining -= len;
+    _status = _remaining ? NSStreamStatusOpen : NSStreamStatusAtEnd;
+    return (NSInteger)len;
+}
+
+- (BOOL)getBuffer:(uint8_t **)buffer length:(NSUInteger *)len
+{
+    (void)buffer;
+    (void)len;
+    return NO;
+}
+
+- (BOOL)hasBytesAvailable
+{
+    return _status == NSStreamStatusOpen;
+}
+
+- (void)open
+{
+    _status = NSStreamStatusOpen;
+}
+
+- (void)close
+{
+    _status = NSStreamStatusClosed;
+}
+
+- (NSStreamStatus)streamStatus
+{
+    return _status;
+}
+
+- (NSError *)streamError
+{
+    return _status == NSStreamStatusError
+        ? [NSError errorWithDomain:NSPOSIXErrorDomain code:EIO userInfo:nil]
+        : nil;
+}
+
+- (id<NSStreamDelegate>)delegate
+{
+    return _delegate;
+}
+
+- (void)setDelegate:(id<NSStreamDelegate>)delegate
+{
+    _delegate = delegate;
+}
+
+- (id)propertyForKey:(NSStreamPropertyKey)key
+{
+    (void)key;
+    return nil;
+}
+
+- (BOOL)setProperty:(id)property forKey:(NSStreamPropertyKey)key
+{
+    (void)property;
+    (void)key;
+    return NO;
+}
+
+- (void)scheduleInRunLoop:(NSRunLoop *)loop forMode:(NSRunLoopMode)mode
+{
+    (void)loop;
+    (void)mode;
+}
+
+- (void)removeFromRunLoop:(NSRunLoop *)loop forMode:(NSRunLoopMode)mode
+{
+    (void)loop;
+    (void)mode;
+}
+
+@end
 
 static int
 apple_client_start(void *_client, const sentry_options_t *options)
@@ -280,14 +383,20 @@ apple_send_task(void *_client, sentry_prepared_http_request_t *req,
         }
 
         if (req->body_path) {
-            request.HTTPBody
-                = read_body(req->body_path, req->body_offset, req->body_len);
-            if (!request.HTTPBody) {
-                SENTRY_WARNF("failed to read request body file \"%s\" at "
+            FILE *file
+                = sentry__path_open(req->body_path, "rb", req->body_offset);
+            if (!file) {
+                SENTRY_WARNF("failed to open request body file \"%s\" at "
                              "offset %zu",
                     sentry__path_filename(req->body_path), req->body_offset);
                 return false;
             }
+            request.HTTPBodyStream =
+                [[SentryFileBodyStream alloc] initWithFile:file
+                                                    length:req->body_len];
+            // NSURLSession sends body streams chunked without a length
+            [request setValue:@(req->body_len).stringValue
+                forHTTPHeaderField:@"Content-Length"];
         } else if (req->body) {
             // the request outlives the synchronous send
             request.HTTPBody = [NSData dataWithBytesNoCopy:req->body
