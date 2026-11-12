@@ -64,7 +64,7 @@ SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 # A stall costs one 1s send timeout, and later updates only try a nonblocking write.
 STALL_UPDATES_TIMEOUT = 5
 STALL_STEP_TIMEOUT = 30
-STALL_KILLED_TIMEOUT = STALL_UPDATES_TIMEOUT if is_asan or is_tsan else 1
+STALL_KILLED_TIMEOUT = STALL_UPDATES_TIMEOUT if is_asan or is_tsan or is_kcov else 1
 
 STATUS_STACK_OVERFLOW = 0xC00000FD
 STATUS_STACK_BUFFER_OVERRUN = 0xC0000409
