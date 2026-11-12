@@ -533,7 +533,16 @@ def test_tus_resume_after_retry(cmake, httpserver, status):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "no-setup", "http-retry", "large-attachment", "capture-event"],
+        [
+            "log",
+            "no-setup",
+            "http-retry",
+            "large-attachment",
+            "capture-event",
+            # extra time for resuming 100 MiB upload
+            "shutdown-timeout",
+            "10000",
+        ],
         env=env,
     )
 
@@ -706,7 +715,13 @@ def test_tus_crash_restart(cmake, httpserver, backend):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "no-setup"],
+        [
+            "log",
+            "no-setup",
+            # extra time for uploading 100 MiB
+            "shutdown-timeout",
+            "10000",
+        ],
         env=env,
     )
 

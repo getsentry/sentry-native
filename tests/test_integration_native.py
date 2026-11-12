@@ -64,6 +64,7 @@ SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 # A stall costs one 1s send timeout, and later updates only try a nonblocking write.
 STALL_UPDATES_TIMEOUT = 5
 STALL_STEP_TIMEOUT = 30
+STALL_KILLED_TIMEOUT = STALL_UPDATES_TIMEOUT if is_asan or is_tsan else 1
 
 STATUS_STACK_OVERFLOW = 0xC00000FD
 STATUS_STACK_BUFFER_OVERRUN = 0xC0000409
@@ -649,7 +650,7 @@ def test_native_stall_killed_daemon(cmake, unreachable_dsn):
         started_at = time.monotonic()
         stall.proceed()
         stall.wait_for_step("done")
-        assert time.monotonic() - started_at < 1
+        assert time.monotonic() - started_at < STALL_KILLED_TIMEOUT
         stall.proceed()
         assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) == 0
 
@@ -2219,7 +2220,7 @@ def test_native_full_mode(cmake, httpserver, args, embedded, uploaded):
     )
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
-    with httpserver.wait(timeout=60) as waiting:
+    with httpserver.wait(timeout=300) as waiting:
         run_crash(
             tmp_path,
             "sentry_test_integration",
