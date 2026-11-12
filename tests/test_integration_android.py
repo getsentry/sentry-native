@@ -15,10 +15,6 @@ pytestmark = pytest.mark.skipif(
     not has_native,
     reason="Tests need the native backend enabled",
 )
-@pytest.mark.skipif(
-    0 < is_android < 23,
-    reason="Android native backend test needs API 23+ (process_vm_readv)",
-)
 def test_native_android(cmake):
     database_path = "/data/local/tmp/.sentry-native"
 
