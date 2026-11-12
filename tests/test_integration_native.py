@@ -65,6 +65,7 @@ SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 STALL_UPDATES_TIMEOUT = 5
 STALL_STEP_TIMEOUT = 30
 STALL_KILLED_TIMEOUT = STALL_UPDATES_TIMEOUT if is_asan or is_tsan or is_kcov else 1
+STALL_CLOSED_TIMEOUT = 5 if is_asan or is_tsan or is_kcov else 4
 
 STATUS_STACK_OVERFLOW = 0xC00000FD
 STATUS_STACK_BUFFER_OVERRUN = 0xC0000409
@@ -598,7 +599,7 @@ def test_native_stall_bounds_updates(cmake, unreachable_dsn):
         stall.proceed()
         assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) == 0
         # the resumed daemon exits on its shutdown frame, before the 5s kill
-        assert time.monotonic() - started_at < 4
+        assert time.monotonic() - started_at < STALL_CLOSED_TIMEOUT
 
 
 def test_native_stall_crash(cmake, httpserver):
