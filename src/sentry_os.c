@@ -39,7 +39,7 @@ sentry__process_vm_readv(pid_t pid, const struct iovec *local_iov,
 #endif
 
 #if (defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX))       \
-    || (defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_MACOS)       \
+    || (defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_DARWIN)      \
         && !defined(SENTRY_PLATFORM_PS))
 static bool
 set_os_uname(sentry_value_t os, const char *sysname, const char *release)
@@ -901,8 +901,9 @@ sentry__get_system_time(LPFILETIME filetime)
     GetSystemTimeAsFileTime(filetime);
 }
 
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
 
+#    include <stdlib.h>
 #    include <sys/sysctl.h>
 #    include <sys/utsname.h>
 
@@ -914,14 +915,28 @@ sentry__get_os_context(void)
         return os;
     }
 
+#    if defined(SENTRY_PLATFORM_IOS)
+    sentry_value_set_by_key(os, "name", sentry_value_new_string("iOS"));
+#    else
     sentry_value_set_by_key(os, "name", sentry_value_new_string("macOS"));
+#    endif
 
     char buf[32];
     size_t buf_len = sizeof(buf);
 
+#    if TARGET_OS_SIMULATOR
+    // the simulator's sysctls describe the host's macOS
+    const char *version = getenv("SIMULATOR_RUNTIME_VERSION");
+    if (!version) {
+        goto fail;
+    }
+    snprintf(buf, sizeof(buf), "%s", version);
+    buf_len = strlen(buf) + 1;
+#    else
     if (sysctlbyname("kern.osproductversion", buf, &buf_len, NULL, 0) != 0) {
         goto fail;
     }
+#    endif
 
     size_t num_dots = 0;
     for (size_t i = 0; i < buf_len; i++) {
@@ -936,9 +951,17 @@ sentry__get_os_context(void)
     sentry_value_set_by_key(os, "version", sentry_value_new_string(buf));
 
     buf_len = sizeof(buf);
+#    if TARGET_OS_SIMULATOR
+    const char *build = getenv("SIMULATOR_RUNTIME_BUILD_VERSION");
+    if (!build) {
+        goto fail;
+    }
+    snprintf(buf, sizeof(buf), "%s", build);
+#    else
     if (sysctlbyname("kern.osversion", buf, &buf_len, NULL, 0) != 0) {
         goto fail;
     }
+#    endif
 
     sentry_value_set_by_key(os, "build", sentry_value_new_string(buf));
 
