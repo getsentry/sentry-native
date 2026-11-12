@@ -149,7 +149,7 @@ jobs:
           api-level: ${{ env.ANDROID_API }}
           ndk: ${{ env.ANDROID_NDK_VERSION }}
           arch: ${{ env.ANDROID_ARCH }}
-          target: google_apis
+          target: default
           emulator-boot-timeout: 1200
           script: |
             export ANDROID_NDK="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
