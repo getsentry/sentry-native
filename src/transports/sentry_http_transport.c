@@ -821,7 +821,7 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
             if (upload_offset == file_size
                 && !sentry__envelope_item_resolve_attachment_ref(
                     item, NULL, resp.location, 0)) {
-                result = RESULT_DISCARD;
+                result = RESULT_ERROR;
             }
         }
         http_response_cleanup(&resp);
