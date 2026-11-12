@@ -176,25 +176,20 @@ static
             sentry_value_incref(version);
             sentry_value_set_by_key(os, "version", version);
         }
-        sentry_value_set_by_key(os, "name", name);
+        sentry_value_set_by_key(os, "name", sentry_value_incref(name));
         sentry_value_set_by_key(
-            os, "build", sentry_value_get_by_key(os_dist, "build"));
+            os, "build", sentry_value_get_by_key_owned(os_dist, "build"));
         sentry_value_set_by_key(
             os, "kernel_version", sentry_value_new_string(release));
-        sentry_value_incref(name);
-        sentry_value_incref(sentry_value_get_by_key(os_dist, "build"));
         return;
     }
 
-    sentry_value_set_by_key(
-        os, "distribution_name", sentry_value_get_by_key(os_dist, "name"));
+    sentry_value_set_by_key(os, "distribution_name",
+        sentry_value_get_by_key_owned(os_dist, "name"));
     sentry_value_set_by_key(os, "distribution_version",
-        sentry_value_get_by_key(os_dist, "version"));
+        sentry_value_get_by_key_owned(os_dist, "version"));
     sentry_value_set_by_key(os, "distribution_pretty_name",
-        sentry_value_get_by_key(os_dist, "pretty_name"));
-    sentry_value_incref(sentry_value_get_by_key(os_dist, "name"));
-    sentry_value_incref(sentry_value_get_by_key(os_dist, "version"));
-    sentry_value_incref(sentry_value_get_by_key(os_dist, "pretty_name"));
+        sentry_value_get_by_key_owned(os_dist, "pretty_name"));
 }
 #endif
 
