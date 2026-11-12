@@ -35,7 +35,6 @@
           (void (^)(NSURLSessionAuthChallengeDisposition disposition,
               NSURLCredential *credential))completionHandler
 {
-    (void)session;
     (void)task;
     NSURLProtectionSpace *space = challenge.protectionSpace;
     if (self.anchors &&
@@ -58,11 +57,16 @@
         }
         return;
     }
-    // answer the proxy's 407 to the CONNECT of an HTTPS tunnel
-    if (space.isProxy && self.proxyCredential
-        && challenge.previousFailureCount == 0) {
-        completionHandler(
-            NSURLSessionAuthChallengeUseCredential, self.proxyCredential);
+    // answer a given proxy's 407 to the CONNECT of an HTTPS tunnel once, and
+    // cancel otherwise, because default handling shows a system dialog
+    if (space.isProxy && session.configuration.connectionProxyDictionary) {
+        if (self.proxyCredential && challenge.previousFailureCount == 0) {
+            completionHandler(
+                NSURLSessionAuthChallengeUseCredential, self.proxyCredential);
+        } else {
+            completionHandler(
+                NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
+        }
         return;
     }
     completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
