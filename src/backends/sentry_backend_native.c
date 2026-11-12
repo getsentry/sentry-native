@@ -1066,6 +1066,7 @@ native_backend_startup(
         < 0) {
         SENTRY_WARN("failed to initialize crash handler");
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->envelope_path);
         sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
@@ -1122,6 +1123,7 @@ native_backend_startup(
 #    endif
         SENTRY_WARN("failed to start crash daemon");
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->envelope_path);
         sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
@@ -1219,6 +1221,10 @@ native_backend_startup(
 #    if defined(SENTRY_PLATFORM_UNIX)
         if (state->daemon_pid > 0) {
             kill(state->daemon_pid, SIGTERM);
+            pid_t wait_result;
+            do {
+                wait_result = waitpid(state->daemon_pid, NULL, 0);
+            } while (wait_result < 0 && errno == EINTR);
         }
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
         wer_unregister_module();
@@ -1235,6 +1241,7 @@ native_backend_startup(
         }
         state->scope_observer = NULL;
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->envelope_path);
         sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
