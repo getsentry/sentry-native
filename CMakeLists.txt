@@ -1061,11 +1061,11 @@ elseif(SENTRY_BACKEND_NATIVE)
 	endif()
 
 	# Install daemon
-	install(TARGETS sentry-crash
+	sentry_install(TARGETS sentry-crash
 		RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 	)
 	if(WIN32)
-		install(TARGETS sentry-wer
+		sentry_install(TARGETS sentry-wer
 			RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
