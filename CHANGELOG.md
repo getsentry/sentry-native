@@ -4,7 +4,7 @@
 
 **Breaking / Important behavior changes**:
 
-- macOS/iOS: The new `apple` transport, based on `NSURLSession`, is now the default HTTP transport on Apple platforms, so macOS applications no longer need to deploy `libcurl`. Pass `-DSENTRY_TRANSPORT=curl` to keep using `curl` on macOS. ([#NNNN](https://github.com/getsentry/sentry-native/pull/NNNN))
+- macOS/iOS: The new `apple` transport, based on `NSURLSession`, is now the default HTTP transport on Apple platforms, so macOS applications no longer need to deploy `libcurl`. Pass `-DSENTRY_TRANSPORT=curl` to keep using `curl` on macOS. ([#2302](https://github.com/getsentry/sentry-native/pull/2302))
 
 ## 1.0.0-beta.1
 
