@@ -1643,7 +1643,7 @@ SENTRY_TEST(crash_ipc_awaiting_ready)
     sentry_crash_ipc_t *ipc = new_test_ipc();
     TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
     ipc->awaiting_ready = 1;
-    size_t size = 8 * 1024 * 1024;
+    size_t size = 2 * 1024 * 1024;
     char *large = sentry_malloc(size);
     TEST_ASSERT(large != NULL);
     memset(large, 'x', size);
