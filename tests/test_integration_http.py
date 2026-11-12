@@ -48,6 +48,7 @@ from .conditions import (
     has_native,
     has_files,
     is_asan,
+    is_ios_simulator,
     is_qemu,
     is_wine,
 )
@@ -314,6 +315,7 @@ def test_user_feedback_with_attachments_http(cmake, httpserver):
         ),
     ],
 )
+@pytest.mark.skipif(is_ios_simulator, reason="iOS can't start other processes")
 def test_external_crash_reporter_http(cmake, httpserver, build_args):
     tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"], build_args)
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
@@ -1654,6 +1656,7 @@ def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn)
     ],
 )
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
+@pytest.mark.skipif(is_ios_simulator, reason="iOS can't start other processes")
 def test_restart_on_crash(cmake, httpserver, backend):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
 

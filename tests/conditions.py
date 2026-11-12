@@ -33,6 +33,8 @@ has_breakpad = (
     and not (is_asan and sys.platform == "darwin")
     # breakpad accesses thread state registers directly, which doesn't work on arm64e
     and not (is_arm64e and sys.platform == "darwin")
+    # breakpad hangs after segfaults on iOS
+    and not is_ios_simulator
 )
 # crashpad requires http, needs porting to AIX, and doesn’t work with kcov/valgrind/tsan or Wine cross-builds
 has_crashpad = (
@@ -40,6 +42,7 @@ has_crashpad = (
     and not is_valgrind
     and not is_kcov
     and not is_android
+    and not is_ios_simulator
     and not is_aix
     and not is_tsan
     and not is_wine

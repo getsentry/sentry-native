@@ -412,7 +412,6 @@ def test_inproc_stack_overflow_stdout(cmake, stack_size):
 
 
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
-@pytest.mark.skipif(is_ios_simulator, reason="breakpad hangs after segfaults on iOS")
 def test_breakpad_crash_stdout(cmake):
     tmp_path, output = run_crash_stdout_for("breakpad", cmake, [])
 
@@ -427,7 +426,6 @@ def test_breakpad_crash_stdout(cmake):
 
 
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
-@pytest.mark.skipif(is_ios_simulator, reason="breakpad hangs after segfaults on iOS")
 def test_breakpad_crash_stdout_before_send(cmake):
     tmp_path, output = run_crash_stdout_for("breakpad", cmake, ["before-send"])
 
@@ -443,7 +441,6 @@ def test_breakpad_crash_stdout_before_send(cmake):
 
 
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
-@pytest.mark.skipif(is_ios_simulator, reason="breakpad hangs after segfaults on iOS")
 def test_breakpad_crash_stdout_discarding_on_crash(cmake):
     tmp_path, output = run_crash_stdout_for("breakpad", cmake, ["discarding-on-crash"])
 
@@ -454,7 +451,6 @@ def test_breakpad_crash_stdout_discarding_on_crash(cmake):
 
 
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
-@pytest.mark.skipif(is_ios_simulator, reason="breakpad hangs after segfaults on iOS")
 def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     tmp_path, output = run_crash_stdout_for(
         "breakpad", cmake, ["before-send", "on-crash"]
@@ -494,7 +490,6 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
 )
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 @pytest.mark.skipif(is_wine, reason="Wine does not terminate after stack overflow")
-@pytest.mark.skipif(is_ios_simulator, reason="breakpad lacks a signal stack on iOS")
 def test_breakpad_stack_overflow_stdout(cmake, stack_size):
     env = dict(os.environ)
     if stack_size:
