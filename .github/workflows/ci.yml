@@ -546,7 +546,7 @@ jobs:
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
-          pytest --capture=no --verbose tests/test_unit.py
+          pytest --capture=no --verbose tests/test_unit.py tests/test_integration_stdout.py
 
       - name: Test
         if: ${{ !env['ANDROID_API'] && !env['TEST_IOS_SIMULATOR'] }}

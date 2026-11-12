@@ -250,6 +250,7 @@ def run(
             for key, value in env.items()
             if os.environ.get(key) != value
         }
+        child_env["SIMCTL_CHILD_SENTRY_TEST_CWD"] = str(cwd)
         cmd = [
             "xcrun",
             "simctl",

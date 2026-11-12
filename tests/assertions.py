@@ -1,6 +1,7 @@
 import email
 import gzip
 import json
+import os
 import platform
 import re
 import sys
@@ -13,7 +14,7 @@ import tests
 import msgpack
 
 from . import REPLAY_ID, SENTRY_VERSION
-from .conditions import is_android, is_asan, is_tsan
+from .conditions import is_android, is_asan, is_ios_simulator, is_tsan
 
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)[-.]?(.*)")
 
@@ -144,7 +145,22 @@ def assert_event_meta(
     if is_android:
         expected_sdk["name"] = "sentry.native.android"
     else:
-        if sys.platform == "win32":
+        if is_ios_simulator:
+            version = os.environ["IOS_SIMULATOR_VERSION"].split(".")
+            if len(version) < 3:
+                version.append("0")
+            version = ".".join(version)
+
+            assert_matches(
+                event["contexts"]["os"],
+                {
+                    "name": "iOS",
+                    "version": version,
+                    "kernel_version": platform.release(),
+                },
+            )
+            assert event["contexts"]["os"]["build"] is not None
+        elif sys.platform == "win32":
             assert_matches(
                 event["contexts"]["os"],
                 {"name": "Windows", "version": platform.version()},

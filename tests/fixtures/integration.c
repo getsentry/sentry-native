@@ -795,6 +795,14 @@ run_threads(thread_func_t func)
 int
 main(int argc, char **argv)
 {
+#if defined(SENTRY_PLATFORM_IOS)
+    // `simctl spawn` can't set the working directory
+    const char *cwd = getenv("SENTRY_TEST_CWD");
+    if (cwd && chdir(cwd) != 0) {
+        return EXIT_FAILURE;
+    }
+#endif
+
     sentry_options_t *options = sentry_options_new();
 
     if (has_arg(argc, argv, "disable-backend")) {
