@@ -11,11 +11,14 @@ Requires environment variables:
 - SENTRY_E2E_PROJECT: Sentry project slug
 - SENTRY_E2E_ANDROID_BUILD_DIR: Optional build directory of the prepared
   Android fixture APKs (defaults to build/android-e2e).
+- TEST_IOS_SIMULATOR: Optional, runs the iOS simulator tests on macOS.
 
 Skip these tests if env vars not set (for regular CI runs).
 """
 
+import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -35,6 +38,7 @@ from .conditions import (
     has_native,
     is_asan,
     is_android,
+    is_ios_simulator,
 )
 from .proxy import start_proxy
 
@@ -1217,3 +1221,137 @@ def test_e2e_android_native_background(android_e2e_app):
         assert_android_native_event(event, test_id, False)
     finally:
         adb("shell", "am", "force-stop", package, check=False)
+
+
+def simctl(*args, check=True, **kwargs):
+    return subprocess.run(["xcrun", "simctl", *args], check=check, **kwargs)
+
+
+def parse_version(version):
+    return tuple(int(part) for part in version.split("."))
+
+
+@pytest.fixture(scope="module")
+def ios_simulator():
+    get_sentry_headers()
+    get_sentry_org_project()
+    sdk = subprocess.run(
+        ["xcrun", "--sdk", "iphonesimulator", "--show-sdk-version"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    runtimes = json.loads(
+        simctl("list", "runtimes", "available", "--json", capture_output=True).stdout
+    )["runtimes"]
+    # the deployment target can't be newer than the SDK
+    runtime = max(
+        (
+            r
+            for r in runtimes
+            if r.get("platform") == "iOS"
+            and parse_version(r["version"]) <= parse_version(sdk)
+        ),
+        key=lambda r: parse_version(r["version"]),
+    )
+    device_type = next(
+        t["identifier"]
+        for t in runtime["supportedDeviceTypes"]
+        if t.get("productFamily") == "iPhone"
+    )
+    udid = simctl(
+        "create",
+        "sentry-native-e2e",
+        device_type,
+        runtime["identifier"],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    try:
+        simctl("boot", udid)
+        simctl("bootstatus", udid, "-b", capture_output=True)
+        yield udid, runtime["version"]
+    finally:
+        simctl("shutdown", udid, check=False)
+        simctl("delete", udid, check=False)
+
+
+@pytest.fixture(scope="module")
+def ios_e2e_app(ios_simulator, tmp_path_factory):
+    _, version = ios_simulator
+    build_dir = tmp_path_factory.mktemp("ios-e2e")
+    subprocess.run(
+        [
+            "cmake",
+            "-G",
+            "Xcode",
+            "-DCMAKE_SYSTEM_NAME=iOS",
+            f"-DCMAKE_OSX_DEPLOYMENT_TARGET={version}",
+            "-DSENTRY_BACKEND=native",
+            sourcedir,
+        ],
+        cwd=build_dir,
+        check=True,
+    )
+    subprocess.run(
+        [
+            "xcodebuild",
+            "build",
+            "-quiet",
+            "-project",
+            "Sentry-Native.xcodeproj",
+            "-target",
+            "sentry_test_integration",
+            "-configuration",
+            "Debug",
+            "-sdk",
+            "iphonesimulator",
+            "-arch",
+            platform.machine(),
+        ],
+        cwd=build_dir,
+        check=True,
+    )
+    app = build_dir / "Debug-iphonesimulator/sentry_test_integration.app"
+    return app / "sentry_test_integration"
+
+
+def ios_run(udid, exe, args, expect_failure=False):
+    env = dict(os.environ, SIMCTL_CHILD_SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+    result = subprocess.run(
+        ["xcrun", "simctl", "spawn", udid, str(exe), *args],
+        env=env,
+        stdout=subprocess.PIPE,
+        timeout=300,
+    )
+    sys.stdout.buffer.write(result.stdout)
+    assert (
+        result.returncode != 0
+    ) == expect_failure, f"unexpected exit code {result.returncode}"
+    return result.stdout
+
+
+@pytest.mark.skipif(not is_ios_simulator, reason="Tests need TEST_IOS_SIMULATOR")
+def test_e2e_ios_native(ios_simulator, ios_e2e_app):
+    """The next launch processes the crash and uploads it from the simulator."""
+    udid, _ = ios_simulator
+    output = ios_run(
+        udid, ios_e2e_app, ["log", "e2e-test", "crash"], expect_failure=True
+    )
+    test_id = extract_test_id(output)
+    ios_run(udid, ios_e2e_app, ["log", "no-setup"])
+
+    event = poll_sentry_for_event(test_id)
+    assert event["platform"] == "native"
+    exception = get_exception_from_event(event)["values"][0]
+    assert exception["mechanism"]["type"] in ["signalhandler", "minidump"]
+    assert len(exception["stacktrace"]["frames"]) >= 3
+
+    threads = get_threads_from_event(event)
+    assert any(thread["crashed"] for thread in threads["values"])
+    verify_no_thread_duplication(threads, "test_e2e_ios_native")
+
+    images = get_debug_meta_from_event(event)["images"]
+    assert any(
+        image["code_file"].endswith("/sentry_test_integration") for image in images
+    )
