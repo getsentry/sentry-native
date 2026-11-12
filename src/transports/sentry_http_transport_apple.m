@@ -376,12 +376,24 @@ apple_send_task(void *_client, sentry_prepared_http_request_t *req,
         }
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
         request.HTTPMethod = @(req->method);
+        sentry_stringbuilder_t sb;
+        sentry__stringbuilder_init(&sb);
         for (size_t i = 0; i < req->headers_len; i++) {
             if (req->headers[i].key && req->headers[i].value) {
                 [request setValue:@(req->headers[i].value)
                     forHTTPHeaderField:@(req->headers[i].key)];
+                sentry__stringbuilder_append(&sb, req->headers[i].key);
+                sentry__stringbuilder_append_char(&sb, ':');
+                sentry__stringbuilder_append(&sb, req->headers[i].value);
+                sentry__stringbuilder_append_char(&sb, '\n');
             }
         }
+        char *headers = sentry__stringbuilder_into_string(&sb);
+        if (headers) {
+            SENTRY_DEBUGF("sending request using NSURLSession to \"%s\":\n%s",
+                req->url, headers);
+        }
+        sentry_free(headers);
         if (client.userAgent) {
             [request setValue:client.userAgent
                 forHTTPHeaderField:@"User-Agent"];
