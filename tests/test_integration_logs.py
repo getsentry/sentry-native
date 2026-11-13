@@ -14,7 +14,7 @@ from .assertions import (
     assert_event,
     assert_logs,
 )
-from .conditions import has_http, has_breakpad, has_native, is_qemu
+from .conditions import has_http, has_breakpad, has_daemon, has_native, is_qemu
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -268,7 +268,19 @@ def test_logs_on_crash(cmake, httpserver, backend):
 
 
 @pytest.mark.skipif(not has_native or is_qemu, reason="test needs native backend")
-@pytest.mark.parametrize("rerun", [True, False], ids=["rerun", "no-rerun"])
+@pytest.mark.parametrize(
+    "rerun",
+    [
+        pytest.param(True, id="rerun"),
+        pytest.param(
+            False,
+            id="no-rerun",
+            marks=pytest.mark.skipif(
+                not has_daemon, reason="test needs the crash daemon"
+            ),
+        ),
+    ],
+)
 def test_logs_on_crash_native(cmake, httpserver, rerun):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
 

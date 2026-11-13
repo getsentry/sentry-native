@@ -51,6 +51,7 @@ from .assertions import (
 )
 from .conditions import has_files, has_http, has_system_proxy, is_arm64e, is_kcov
 from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
+from .conditions import has_daemon, is_ios_simulator
 from .proxy import proxy_test_finally, start_proxy, system_proxy
 
 pytestmark = pytest.mark.skipif(
@@ -145,6 +146,7 @@ def test_native_crash_hint_attachments(cmake, httpserver, callback, crash):
     ]
 
 
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_on_crashed_last_run(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -339,6 +341,7 @@ def test_native_stack_overflow(cmake, httpserver, stack_size):
     assert_native_crash(envelope, exception_code=exception_code)
 
 
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_capture_minidump_generated(cmake, httpserver):
     """Test that minidump file is generated"""
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
@@ -467,6 +470,7 @@ def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
 
 @pytest.mark.parametrize("mode", [0, 1, 2])
 @pytest.mark.parametrize("scoped_trace", [False, True])
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_scope_updates_without_snapshot(cmake, httpserver, mode, scoped_trace):
     tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -584,6 +588,7 @@ def is_gone(proc):
         return True
 
 
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_stall_bounds_updates(cmake, unreachable_dsn):
     tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
     with StallChild(tmp_path, "updates", unreachable_dsn) as stall:
@@ -604,6 +609,7 @@ def test_native_stall_bounds_updates(cmake, unreachable_dsn):
         assert time.monotonic() - started_at < STALL_CLOSED_TIMEOUT
 
 
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_stall_crash(cmake, httpserver):
     tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -622,6 +628,7 @@ def test_native_stall_crash(cmake, httpserver):
     assert waiting.result
 
 
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_stall_recovery(cmake, httpserver):
     tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -643,6 +650,7 @@ def test_native_stall_recovery(cmake, httpserver):
     assert event["extra"]["large"] == "x" * (2 * 1024 * 1024)
 
 
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_stall_killed_daemon(cmake, unreachable_dsn):
     tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
     with StallChild(tmp_path, "killed", unreachable_dsn) as stall:
@@ -658,6 +666,7 @@ def test_native_stall_killed_daemon(cmake, unreachable_dsn):
         assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) == 0
 
 
+@pytest.mark.skipif(is_ios_simulator, reason="test runs the app on the host")
 def test_native_byte_attachment_is_confined(cmake, unreachable_dsn):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
 
@@ -992,6 +1001,7 @@ def _parse_minidump(path):
     }
 
 
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_minidump_streams(cmake, httpserver):
     """
     Test that minidump contains required streams *and* that each
@@ -1185,6 +1195,7 @@ def _codesign_for_task_for_pid(*paths):
     is_wine,
     reason="Wine does not capture indirectly referenced minidump memory",
 )
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
     """
     Verify SMART minidump mode captures memory regions referenced by the
@@ -1291,6 +1302,7 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
     )
 
 
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_uses_existing_run(cmake):
     """The daemon adopts the existing run instead of creating root artifacts."""
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
@@ -1365,6 +1377,7 @@ def test_native_no_dsn_no_crash(cmake):
         # but won't be uploaded
 
 
+@pytest.mark.skipif(is_ios_simulator, reason="iOS can't start other processes")
 def test_native_external_crash_reporter(cmake, httpserver):
     """Test external crash reporter invocation with native backend"""
     tmp_path = cmake(
@@ -1410,6 +1423,7 @@ def test_native_external_crash_reporter(cmake, httpserver):
     assert_user_feedback(envelope)
 
 
+@pytest.mark.skipif(is_ios_simulator, reason="iOS can't start other processes")
 def test_native_external_crash_reporter_consent_revoked(cmake, httpserver):
     """With consent revoked, the daemon must not launch the external reporter.
 
@@ -1443,6 +1457,7 @@ def test_native_external_crash_reporter_consent_revoked(cmake, httpserver):
     assert len(list(cache_dir.glob("*.envelope"))) == 1
 
 
+@pytest.mark.skipif(is_ios_simulator, reason="iOS can't start other processes")
 def test_native_external_crash_reporter_consent_revoked_no_cache(cmake, httpserver):
     """With consent revoked and no cache_keep, the daemon discards the crash envelope."""
     tmp_path = cmake(
@@ -1470,6 +1485,7 @@ def test_native_external_crash_reporter_consent_revoked_no_cache(cmake, httpserv
     assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
 
 
+@pytest.mark.skipif(is_ios_simulator, reason="iOS can't start other processes")
 def test_native_external_crash_reporter_consent_flush(cmake, httpserver):
     """Cached crash envelope uploads once consent is given."""
     tmp_path = cmake(
@@ -1731,6 +1747,7 @@ def test_native_pdb(cmake, httpserver, build_args, run_args):
         assert all("symbol_addr" not in frame for frame in frames), frames
 
 
+@pytest.mark.skipif(is_ios_simulator, reason="iOS can't start other processes")
 def test_native_restart_on_crash(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
 
@@ -1856,6 +1873,7 @@ def test_native_reinstall(cmake, httpserver, crash_arg):
 
 
 @pytest.mark.parametrize("callback", ["crashing-on-crash", "hanging-on-crash"])
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_incomplete_crash(cmake, callback):
     tmp_path = cmake(
         ["sentry_test_integration"],
@@ -1979,6 +1997,7 @@ def test_native_http_retry(cmake, httpserver, unreachable_dsn, cache_args):
         ["log", "http-retry", "crash", *cache_args, *SANITIZER_ARGS],
         env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
         wait_for_daemon=True,
+        restart_args=["log", "http-retry", "no-setup", *cache_args],
     )
 
     cache_files = list(cache_dir.glob("*.envelope"))
@@ -2075,6 +2094,7 @@ def test_native_symbolication(cmake, httpserver, crash_mode, symbolize):
 
 
 @pytest.mark.parametrize("clear_hint", [False, True])
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_scope_updates_in_crash_callback(cmake, httpserver, clear_hint):
     tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -2148,6 +2168,7 @@ def test_native_proxy_set_empty(cmake, httpserver):
                 "sentry_test_integration",
                 ["log", "crash", "proxy-empty"],
                 env=env,
+                restart_args=["log", "proxy-empty", "no-setup"],
             )
         assert waiting.result
 
@@ -2204,6 +2225,7 @@ def test_native_proxy_system(cmake, httpserver, proxy_empty):
         (["large-attachment", "large-allocation", "128"], False, True),
     ],
 )
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_native_full_mode(cmake, httpserver, args, embedded, uploaded):
     # Static build so the hardened-runtime process can load itself without
     # tripping the dyld "different team IDs" check on ad-hoc-signed dylibs.

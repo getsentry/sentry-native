@@ -117,7 +117,7 @@ typedef struct {
 // Note: only GET macros are provided. For copying full register state between
 // mcontext structs, use struct assignment which preserves raw PAC-signed
 // values.
-#if defined(SENTRY_PLATFORM_MACOS) && defined(__aarch64__)
+#if defined(SENTRY_PLATFORM_DARWIN) && defined(__aarch64__)
 #    if defined(__DARWIN_OPAQUE_ARM_THREAD_STATE64)
 #        define SENTRY__ARM64_GET_FP(ss) __darwin_arm_thread_state64_get_fp(ss)
 #        define SENTRY__ARM64_GET_LR(ss) __darwin_arm_thread_state64_get_lr(ss)
@@ -185,7 +185,7 @@ typedef struct {
     sentry_thread_context_linux_t threads[SENTRY_CRASH_MAX_THREADS];
 } sentry_crash_platform_linux_t;
 
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
 
 #    include <mach/mach.h>
 
@@ -322,7 +322,7 @@ typedef struct {
     // Platform-specific crash context
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     sentry_crash_platform_linux_t platform;
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
     sentry_crash_platform_darwin_t platform;
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     sentry_crash_platform_windows_t platform;
@@ -412,7 +412,7 @@ sentry__crash_context_build_stacktrace(
     }
     sentry_value_set_by_key(stacktrace, "frames", frames);
     sentry_value_set_by_key(stacktrace, "registers", registers);
-#if defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_DARWIN)
     // the SDK's macOS unwinder already adjusts return addresses
     sentry_value_set_by_key(stacktrace, "instruction_addr_adjustment",
         sentry_value_new_string("none"));

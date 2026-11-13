@@ -85,7 +85,7 @@ sentry__app_hang_current_tid(void)
 {
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     return (uint64_t)syscall(SYS_gettid);
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
     uint64_t tid = 0;
     pthread_threadid_np(pthread_self(), &tid);
     return tid;

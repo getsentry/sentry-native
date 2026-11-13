@@ -1,7 +1,7 @@
 #include "sentry_boot.h"
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)         \
-    || defined(SENTRY_PLATFORM_MACOS)
+    || defined(SENTRY_PLATFORM_DARWIN)
 
 #    include "sentry_alloc.h"
 #    include "sentry_logger.h"
@@ -320,4 +320,4 @@ sentry__minidump_add_range(minidump_memory64_list_t **list, uint64_t *capacity,
 }
 
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID ||
-       // SENTRY_PLATFORM_MACOS
+       // SENTRY_PLATFORM_DARWIN

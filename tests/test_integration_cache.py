@@ -5,6 +5,7 @@ import pytest
 from . import make_dsn, run, run_crash
 from .assertions import wait_for, wait_for_file
 from .conditions import has_breakpad, has_files, has_http, has_native, is_qemu
+from .conditions import has_daemon
 
 pytestmark = [
     pytest.mark.skipif(not has_files, reason="tests need local filesystem"),
@@ -89,6 +90,7 @@ def test_cache_keep_native(cmake, cache_args, expect_cache, unreachable_dsn):
         ["log", "stdout", "crash"] + cache_args,
         env=env,
         wait_for_daemon=not expect_cache,
+        restart_args=["log", "no-setup"] + cache_args,
     )
 
     if expect_cache:
@@ -160,6 +162,7 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
             ],
             env=env,
             wait_for_daemon=backend == "native",
+            restart_args=["log", "no-http-retry", "cache-keep", "no-setup"],
         )
 
     if backend == "native":
@@ -233,6 +236,7 @@ def test_cache_max_age(cmake, backend, unreachable_dsn):
             ],
             env=env,
             wait_for_daemon=backend == "native",
+            restart_args=["log", "no-http-retry", "cache-keep", "no-setup"],
         )
 
     if backend == "native":
@@ -307,9 +311,10 @@ def test_cache_max_items(cmake, backend, unreachable_dsn):
             ],
             env=env,
             wait_for_daemon=backend == "native",
+            restart_args=["log", "no-http-retry", "cache-keep", "no-setup"],
         )
 
-    if backend == "native":
+    if backend == "native" and has_daemon:
         assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 6)
 
     # flush + cache
@@ -358,6 +363,7 @@ def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
             ["log", "cache-keep", "flush", "crash", "crash-mode", "native"],
             env=env,
             wait_for_daemon=backend == "native",
+            restart_args=["log", "cache-keep", "no-setup"],
         )
 
     if backend == "native":
@@ -492,6 +498,14 @@ def test_cache_consent_native(cmake, httpserver):
             "crash",
         ],
         env=env,
+        restart_args=[
+            "log",
+            "cache-keep",
+            "http-retry",
+            "require-user-consent",
+            "user-consent-revoke",
+            "no-setup",
+        ],
     )
 
     assert wait_for_file(cache_dir / "*.envelope")

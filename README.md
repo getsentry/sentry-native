@@ -283,7 +283,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   - **native**: An out-of-process crash handler that uses a lightweight daemon
     to monitor the application, generate minidumps, and send crash reports.
     Supports Linux, macOS, and Windows, where it is the default. Compatible with TSAN and ASAN
-    sanitizers. Support on Android is **experimental**.
+    sanitizers. Support on Android is **experimental**. On iOS, which cannot
+    spawn the daemon, it captures crashes in-process and reports them on the
+    next launch.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes. It is primarily used for tests.
 
@@ -362,20 +364,20 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 ### Support Matrix
 
-| Feature    | Windows | macOS | Linux | Android | iOS  |
-|------------|---------|-------|-------|---------|------|
-| Transports |         |       |       |         |      |
-| - curl     |         | ✓     | ☑     | (✓)**   |      |
-| - winhttp  | ☑       |       |       |         |      |
-| - apple    |         | ☑     |       |         | ☑    |
-| - none     | ✓       | ✓     | ✓     | ☑       | ✓    |
-|            |         |       |       |         |      |
-| Backends   |         |       |       |         |      |
-| - crashpad | ✓       | ✓     | ✓     |         |      |
-| - native   | ☑       | ☑     | ☑     | (✓)***  |      |
-| - breakpad | ✓       | ✓     | ✓     | (✓)*    | (✓)* |
-| - inproc   | ✓       | ✓     | ✓     | ☑       |      |
-| - none     | ✓       | ✓     | ✓     | ✓       |      |
+| Feature    | Windows | macOS | Linux | Android | iOS     |
+|------------|---------|-------|-------|---------|---------|
+| Transports |         |       |       |         |         |
+| - curl     |         | ✓     | ☑     | (✓)**   |         |
+| - winhttp  | ☑       |       |       |         |         |
+| - apple    |         | ☑     |       |         | ☑       |
+| - none     | ✓       | ✓     | ✓     | ☑       | ✓       |
+|            |         |       |       |         |         |
+| Backends   |         |       |       |         |         |
+| - crashpad | ✓       | ✓     | ✓     |         |         |
+| - native   | ☑       | ☑     | ☑     | (✓)***  | (✓)**** |
+| - breakpad | ✓       | ✓     | ✓     | (✓)*    | (✓)*    |
+| - inproc   | ✓       | ✓     | ✓     | ☑       |         |
+| - none     | ✓       | ✓     | ✓     | ✓       |         |
 
 Legend:
 
@@ -385,6 +387,7 @@ Legend:
 - `*`: `breakpad` on Android and iOS builds and should work according to upstream but is untested.
 - `**`: `curl` as a transport works on Android but isn't used in any supported configuration to reduce the size of our artifacts.
 - `***`: The `native` backend on Android is experimental.
+- `****`: The `native` backend on iOS has no crash daemon and reports crashes on the next launch.
 
 In addition to platform support, the "Advanced Usage" section of the SDK docs now [describes the tradeoffs](https://docs.sentry.io/platforms/native/advanced-usage/backend-tradeoffs/) involved in choosing a suitable backend for a particular use case.
 
@@ -399,7 +402,7 @@ and examples.
   the project's executable.
 - `sentry-crash`: When configured with the `native` backend, this is
   the out-of-process crash handler, which will need to be installed along with
-  the project's executable.
+  the project's executable. It is not built on iOS.
 - `sentry-wer`: With the `native` backend on Windows, this builds the WER
   module for fast-fail crash reporting. Install `sentry-wer.dll` alongside
   `sentry-crash.exe`.

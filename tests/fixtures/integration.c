@@ -795,6 +795,14 @@ run_threads(thread_func_t func)
 int
 main(int argc, char **argv)
 {
+#if defined(SENTRY_PLATFORM_IOS)
+    // `simctl spawn` can't set the working directory
+    const char *cwd = getenv("SENTRY_TEST_CWD");
+    if (cwd && chdir(cwd) != 0) {
+        return EXIT_FAILURE;
+    }
+#endif
+
     sentry_options_t *options = sentry_options_new();
 
     if (has_arg(argc, argv, "disable-backend")) {
@@ -804,6 +812,13 @@ main(int argc, char **argv)
     // this is an example. for real usage, make sure to set this explicitly to
     // an app specific cache location.
     sentry_options_set_database_path(options, ".sentry-native");
+#if defined(SENTRY_PLATFORM_IOS) && !TARGET_OS_SIMULATOR
+    // device apps start in a read-only working directory
+    char ios_database_path[1024];
+    snprintf(ios_database_path, sizeof(ios_database_path), "%s/.sentry-native",
+        getenv("TMPDIR"));
+    sentry_options_set_database_path(options, ios_database_path);
+#endif
 
     sentry_options_set_auto_session_tracking(options, false);
     const char *symbolize = get_arg_value(argc, argv, "symbolize-stacktraces");

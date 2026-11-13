@@ -18,10 +18,15 @@ import pytest
 
 from . import make_dsn, Envelope
 from .assertions import wait_for_file
-from .conditions import has_native, is_android
+from .conditions import has_native, is_android, is_ios_simulator
 
 pytestmark = pytest.mark.skipif(
-    not (has_native and sys.platform == "darwin" and not is_android),
+    not (
+        has_native
+        and sys.platform == "darwin"
+        and not is_android
+        and not is_ios_simulator
+    ),
     reason="macOS App Sandbox tests require native backend on macOS",
 )
 

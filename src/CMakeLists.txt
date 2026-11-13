@@ -191,6 +191,14 @@ elseif(SENTRY_BACKEND_NATIVE)
 			backends/native/minidump/sentry_minidump_indirect.c
 			backends/native/minidump/sentry_minidump_linux.c
 		)
+	elseif(IOS)
+		# iOS processes the crash on the next launch
+		sentry_target_sources_cwd(sentry
+			backends/native/sentry_crash_daemon.c
+			backends/native/minidump/sentry_minidump_common.c
+			backends/native/minidump/sentry_minidump_indirect.c
+			backends/native/minidump/sentry_minidump_macos.c
+		)
 	endif()
 	if(SENTRY_WITH_LIBUNWINDSTACK)
 		target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE)
@@ -206,7 +214,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	if(LINUX AND NOT ANDROID)
 		# Linux needs pthread and rt for shared memory
 		target_link_libraries(sentry PRIVATE pthread rt)
-	elseif(APPLE)
+	elseif(APPLE AND NOT IOS)
 		# macOS needs CoreFoundation and Security frameworks
 		find_library(COREFOUNDATION_LIBRARY CoreFoundation REQUIRED)
 		find_library(SECURITY_LIBRARY Security REQUIRED)

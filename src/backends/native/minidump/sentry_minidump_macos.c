@@ -1,15 +1,17 @@
 #include "sentry_boot.h"
 #include "sentry_utils.h"
 
-#if defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_DARWIN)
 
 #    include <errno.h>
 #    include <fcntl.h>
 #    include <mach-o/dyld.h>
 #    include <mach-o/loader.h>
 #    include <mach/mach.h>
-#    include <mach/mach_vm.h>
-#    include <mach/shared_region.h>
+#    if defined(SENTRY_PLATFORM_MACOS)
+#        include <mach/mach_vm.h>
+#        include <mach/shared_region.h>
+#    endif
 #    include <pthread.h>
 #    include <signal.h>
 #    include <stdbool.h>
@@ -29,6 +31,54 @@
 
 // Use shared constants from crash context
 #    include "../sentry_crash_context.h"
+
+#    if defined(SENTRY_PLATFORM_IOS)
+// iOS has neither mach_vm.h nor shared_region.h. The next launch writes the
+// minidump from the crash context without a task port, so these are never
+// reached.
+#        define SHARED_REGION_BASE 0
+#        define SHARED_REGION_SIZE 0
+
+static kern_return_t
+mach_vm_read_overwrite(vm_map_t task, mach_vm_address_t addr,
+    mach_vm_size_t size, mach_vm_address_t data, mach_vm_size_t *out_size)
+{
+    (void)task;
+    (void)addr;
+    (void)size;
+    (void)data;
+    (void)out_size;
+    return KERN_NOT_SUPPORTED;
+}
+
+static kern_return_t
+mach_vm_region(vm_map_t task, mach_vm_address_t *addr, mach_vm_size_t *size,
+    vm_region_flavor_t flavor, vm_region_info_t info,
+    mach_msg_type_number_t *info_count, mach_port_t *object_name)
+{
+    (void)task;
+    (void)addr;
+    (void)size;
+    (void)flavor;
+    (void)info;
+    (void)info_count;
+    (void)object_name;
+    return KERN_NOT_SUPPORTED;
+}
+
+static kern_return_t
+mach_vm_page_range_query(vm_map_t task, mach_vm_offset_t addr,
+    mach_vm_size_t size, mach_vm_address_t dispositions,
+    mach_vm_size_t *dispositions_count)
+{
+    (void)task;
+    (void)addr;
+    (void)size;
+    (void)dispositions;
+    (void)dispositions_count;
+    return KERN_NOT_SUPPORTED;
+}
+#    endif
 
 // CodeView record format for storing UUID
 // CV signature: 'RSDS' for PDB 7.0 format (we use it for Mach-O UUID too)
@@ -294,7 +344,11 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     sysinfo.processor_architecture = MINIDUMP_CPU_ARM;
 #    endif
 
+#    if defined(SENTRY_PLATFORM_IOS)
+    sysinfo.platform_id = MINIDUMP_OS_IOS;
+#    else
     sysinfo.platform_id = MINIDUMP_OS_MACOS;
+#    endif
 
     int mib[2] = { CTL_HW, HW_NCPU };
     int ncpu = 1;
@@ -594,7 +648,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // In fallback mode (no task_for_pid), use threads from crash context
     if (thread_count == 0 && writer->crash_ctx) {
         if (writer->crash_ctx->platform.num_threads > 0) {
-            thread_count = writer->crash_ctx->platform.num_threads;
+            thread_count = (uint32_t)writer->crash_ctx->platform.num_threads;
             // Bounds check to prevent out-of-bounds access on corrupted crash
             // context
             if (thread_count > SENTRY_CRASH_MAX_THREADS) {
@@ -715,8 +769,9 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 // Write thread context (registers)
                 thread->thread_context.rva
                     = write_thread_context(writer, &mcontext);
-                thread->thread_context.size
-                    = thread->thread_context.rva ? get_context_size() : 0;
+                thread->thread_context.size = thread->thread_context.rva
+                    ? (uint32_t)get_context_size()
+                    : 0;
 
                 // Write stack memory
                 uint64_t sp;
@@ -729,7 +784,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 uint64_t stack_start = 0;
                 thread->stack.memory.rva
                     = write_thread_stack(writer, sp, &stack_size, &stack_start);
-                thread->stack.memory.size = stack_size;
+                thread->stack.memory.size = (uint32_t)stack_size;
                 thread->stack.start_address = stack_start;
                 record_thread_stack(writer, thread, mach_tid);
             }
@@ -745,14 +800,15 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
             // Use thread ID captured in signal handler (portable across
             // processes)
-            thread->thread_id = writer->crash_ctx->platform.threads[i].tid;
+            thread->thread_id
+                = (uint32_t)writer->crash_ctx->platform.threads[i].tid;
 
             // Write thread context (registers)
             const _STRUCT_MCONTEXT *state
                 = &writer->crash_ctx->platform.threads[i].state;
             thread->thread_context.rva = write_thread_context(writer, state);
             thread->thread_context.size
-                = thread->thread_context.rva ? get_context_size() : 0;
+                = thread->thread_context.rva ? (uint32_t)get_context_size() : 0;
             SENTRY_DEBUGF("Thread %zu: wrote context at RVA 0x%x", i,
                 thread->thread_context.rva);
 
@@ -781,7 +837,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                             thread->stack.memory.rva = write_data(
                                 writer, stack_buffer, saved_stack_size);
                             thread->stack.memory.size = thread->stack.memory.rva
-                                ? saved_stack_size
+                                ? (uint32_t)saved_stack_size
                                 : 0;
                             thread->stack.start_address
                                 = thread->stack.memory.rva ? sp : 0;
@@ -816,7 +872,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 uint64_t stack_start = 0;
                 thread->stack.memory.rva
                     = write_thread_stack(writer, sp, &stack_size, &stack_start);
-                thread->stack.memory.size = stack_size;
+                thread->stack.memory.size = (uint32_t)stack_size;
                 thread->stack.start_address = stack_start;
                 record_thread_stack(
                     writer, thread, writer->crash_ctx->platform.threads[i].tid);
@@ -834,7 +890,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     dir->stream_type = MINIDUMP_STREAM_THREAD_LIST;
     dir->rva = write_data(writer, thread_list, list_size);
-    dir->data_size = list_size;
+    dir->data_size = (uint32_t)list_size;
 
     sentry_free(thread_list);
     return dir->rva ? 0 : -1;
@@ -865,7 +921,7 @@ write_thread_names_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     if (thread_count == 0 && writer->crash_ctx) {
         if (writer->crash_ctx->platform.num_threads > 0) {
-            thread_count = writer->crash_ctx->platform.num_threads;
+            thread_count = (uint32_t)writer->crash_ctx->platform.num_threads;
             if (thread_count > SENTRY_CRASH_MAX_THREADS) {
                 thread_count = SENTRY_CRASH_MAX_THREADS;
             }
@@ -988,7 +1044,7 @@ write_thread_names_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     }
     dir->stream_type = MINIDUMP_STREAM_THREAD_NAMES;
     dir->rva = rva;
-    dir->data_size = list_size;
+    dir->data_size = (uint32_t)list_size;
     return 0;
 }
 
@@ -1128,8 +1184,9 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     const _STRUCT_MCONTEXT *crash_state = &writer->crash_ctx->platform.mcontext;
     exception_stream.thread_context.rva
         = write_thread_context(writer, crash_state);
-    exception_stream.thread_context.size
-        = exception_stream.thread_context.rva ? get_context_size() : 0;
+    exception_stream.thread_context.size = exception_stream.thread_context.rva
+        ? (uint32_t)get_context_size()
+        : 0;
     SENTRY_DEBUGF("Exception: wrote context at RVA 0x%x for thread %u",
         exception_stream.thread_context.rva, exception_stream.thread_id);
 
@@ -1171,7 +1228,7 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         // Set module base address and size
         mdmodule->base_of_image = module->base_address;
-        mdmodule->size_of_image = module->size;
+        mdmodule->size_of_image = (uint32_t)module->size;
 
         // Set VS_FIXEDFILEINFO signature (first uint32_t of version_info)
         // This is required for minidump processors to recognize the module
@@ -1208,15 +1265,15 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             minidump_rva_t cv_rva = write_cv_record(writer, module->name, uuid);
             if (cv_rva) {
                 mdmodule->cv_record.rva = cv_rva;
-                mdmodule->cv_record.size
-                    = sizeof(cv_info_pdb70_t) + strlen(module->name);
+                mdmodule->cv_record.size = (uint32_t)(sizeof(cv_info_pdb70_t)
+                    + strlen(module->name));
             }
         }
     }
 
     dir->stream_type = MINIDUMP_STREAM_MODULE_LIST;
     dir->rva = write_data(writer, module_list, list_size);
-    dir->data_size = list_size;
+    dir->data_size = (uint32_t)list_size;
 
     sentry_free(module_list);
     return dir->rva ? 0 : -1;
@@ -1690,7 +1747,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             goto empty_list;
         }
 
-        memory_list->count = total_count;
+        memory_list->count = (uint32_t)total_count;
 
         size_t mem_idx = 0;
 
@@ -1762,7 +1819,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 mem->start_address = region->address;
                 mem->memory.rva
                     = write_data(writer, region_buffer, region_size);
-                mem->memory.size = mem->memory.rva ? region_size : 0;
+                mem->memory.size = mem->memory.rva ? (uint32_t)region_size : 0;
             } else {
                 mem->start_address = region->address;
                 mem->memory.size = 0;
@@ -1774,7 +1831,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
         dir->rva = write_data(writer, memory_list, list_size);
-        dir->data_size = list_size;
+        dir->data_size = (uint32_t)list_size;
 
         sentry_free(memory_list);
 
@@ -1807,7 +1864,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
     dir->rva = write_data(writer, memory_list, list_size);
-    dir->data_size = list_size;
+    dir->data_size = (uint32_t)list_size;
 
     sentry_free(memory_list);
     return dir->rva ? 0 : -1;
@@ -1848,8 +1905,13 @@ sentry__write_minidump(
 
     // Try to get task port for crashed process (may fail without entitlements)
     SENTRY_DEBUG("write_minidump: getting task port");
+#    if defined(SENTRY_PLATFORM_IOS)
+    // the crashed process is gone, and its pid may even be ours by now
+    kern_return_t kr = KERN_FAILURE;
+#    else
     kern_return_t kr
         = task_for_pid(mach_task_self(), ctx->crashed_pid, &writer.task);
+#    endif
     if (kr != KERN_SUCCESS) {
         SENTRY_DEBUGF("write_minidump: task_for_pid failed (%d), writing "
                       "minimal minidump",
@@ -2063,4 +2125,4 @@ cleanup_error:
     return -1;
 }
 
-#endif // SENTRY_PLATFORM_MACOS
+#endif // SENTRY_PLATFORM_DARWIN

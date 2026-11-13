@@ -45,9 +45,11 @@ from .assertions import (
 from .conditions import (
     has_http,
     has_breakpad,
+    has_daemon,
     has_native,
     has_files,
     is_asan,
+    is_ios_simulator,
     is_qemu,
     is_wine,
 )
@@ -314,6 +316,7 @@ def test_user_feedback_with_attachments_http(cmake, httpserver):
         ),
     ],
 )
+@pytest.mark.skipif(is_ios_simulator, reason="iOS can't start other processes")
 def test_external_crash_reporter_http(cmake, httpserver, build_args):
     tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"], build_args)
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
@@ -1183,7 +1186,7 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
             expect_failure=True,
             env=env,
         )
-        if backend != "native":
+        if backend != "native" or not has_daemon:
             # inproc/breakpad cache to disk; the next launch ships them.
             run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
     assert waiting.result
@@ -1654,6 +1657,7 @@ def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn)
     ],
 )
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
+@pytest.mark.skipif(is_ios_simulator, reason="iOS can't start other processes")
 def test_restart_on_crash(cmake, httpserver, backend):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
 

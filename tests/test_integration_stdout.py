@@ -25,7 +25,7 @@ from .assertions import (
     wait_for,
     assert_crash_stack,
 )
-from .conditions import has_breakpad, has_files, is_qemu, is_wine
+from .conditions import has_breakpad, has_files, is_ios_simulator, is_qemu, is_wine
 
 
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
@@ -205,6 +205,7 @@ def test_sdk_name_override(cmake):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
+@pytest.mark.skipif(is_ios_simulator, reason="test runs the app on the host")
 def test_multi_process(cmake):
     # NOTE: It would have been nice to do *everything* in a unicode-named
     # directory, but apparently cmake does not like that either.

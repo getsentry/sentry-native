@@ -665,7 +665,7 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     sentry_free(ipc);
 }
 
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
 
 #    include <errno.h>
 #    include <fcntl.h>
@@ -677,7 +677,7 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 #    include <unistd.h>
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
+sentry__crash_ipc_init_app(const char *dir, sentry_mutex_t *init_mutex)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
@@ -688,12 +688,13 @@ sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
     ipc->message_fd[0] = -1;
     ipc->message_fd[1] = -1;
 
-    // Build a file path for shared memory using the system temp directory.
+    // Build a file path for shared memory using the given directory or the
+    // system temp directory.
     // Unlike shm_open(), regular files in $TMPDIR work inside App Sandbox.
     // $TMPDIR is per-app in sandbox (e.g. .../Containers/.../T/).
     uint64_t tid = (uint64_t)pthread_self();
     uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    const char *tmpdir = getenv("TMPDIR");
+    const char *tmpdir = dir ? dir : getenv("TMPDIR");
     if (!tmpdir) {
         tmpdir = "/tmp";
     }
@@ -862,6 +863,7 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
 
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
+        close(shm_fd);
         return NULL;
     }
     ipc->is_daemon = true;
@@ -1381,7 +1383,7 @@ sentry__crash_ipc_signal_ready(sentry_crash_ipc_t *ipc)
     } else {
         SENTRY_DEBUG("daemon: signaled ready to parent");
     }
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
     // Signal via pipe
     char byte = 1;
     if (write(ipc->ready_pipe[1], &byte, 1) < 0) {
@@ -1445,7 +1447,7 @@ sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
         SENTRY_WARNF("select on ready_eventfd failed: %s", strerror(errno));
         return false;
     }
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
     // Wait on ready_pipe with select
     fd_set readfds;
     FD_ZERO(&readfds);
@@ -1960,7 +1962,7 @@ sentry__crash_ipc_receive(sentry_crash_ipc_t *ipc, int timeout_ms)
             ipc->notify_pending = sentry__crash_ipc_wait(ipc, delay);
             remaining -= delay;
 #else
-#    if defined(SENTRY_PLATFORM_MACOS)
+#    if defined(SENTRY_PLATFORM_DARWIN)
             int notify_fd = ipc->notify_pipe[0];
 #    else
             int notify_fd = ipc->notify_fd;

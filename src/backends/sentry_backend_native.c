@@ -29,6 +29,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_crash_context.h"
+#include "sentry_crash_daemon.h"
 #include "sentry_crash_handler.h"
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
@@ -53,8 +54,8 @@
 // This lives for the entire backend lifetime and is shared across all threads
 #if defined(SENTRY_PLATFORM_WINDOWS)
 static HANDLE g_ipc_mutex = NULL;
-#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
-// macOS/Android use a plain pthread mutex instead of named semaphores
+#elif defined(SENTRY_PLATFORM_DARWIN) || defined(SENTRY_PLATFORM_ANDROID)
+// macOS/iOS/Android use a plain pthread mutex instead of named semaphores
 // (sem_open) because App Sandbox blocks POSIX named semaphores and Android has
 // no shm_open.
 static sentry_mutex_t g_ipc_sync_mutex = SENTRY__MUTEX_INIT;
@@ -134,6 +135,7 @@ take_android_crash_daemon_config(
 }
 #endif
 
+#if !defined(SENTRY_PLATFORM_IOS)
 static char *
 resolve_handler_path(const sentry_options_t *options)
 {
@@ -141,7 +143,7 @@ resolve_handler_path(const sentry_options_t *options)
         return sentry__string_clone(options->handler_path->path);
     }
 
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
     Dl_info info;
     if (dladdr((void *)resolve_handler_path, &info) == 0 || !info.dli_fname) {
         SENTRY_WARN("unable to resolve sentry library path for crash daemon");
@@ -187,14 +189,14 @@ resolve_handler_path(const sentry_options_t *options)
     char *handler_path_str = sentry__string_clone(handler_path->path);
     sentry__path_free(handler_path);
     return handler_path_str;
-#else
+#    else
     return NULL;
-#endif
+#    endif
 }
+#endif
 
 // Mutex to protect IPC initialization (Windows and Linux only, not macOS/iOS or
-// Android) macOS/Android use g_ipc_sync_mutex directly; iOS has no
-// out-of-process daemon.
+// Android) macOS/iOS/Android use g_ipc_sync_mutex directly.
 #if defined(SENTRY_PLATFORM_WINDOWS)                                           \
     || (!defined(SENTRY_PLATFORM_MACOS) && !defined(SENTRY_PLATFORM_ANDROID)   \
         && !defined(SENTRY_PLATFORM_IOS))
@@ -379,10 +381,12 @@ typedef struct {
     volatile long crashed;
 } native_backend_state_t;
 
+#if !defined(SENTRY_PLATFORM_IOS)
 static sentry_value_t attachment_list(
     native_backend_state_t *state, const sentry_scope_t *scope);
 static void sync_attachments(void *data, sentry_value_t attachment);
 static bool observe_scope(native_backend_state_t *state);
+#endif
 static void native_backend_shutdown(sentry_backend_t *backend);
 
 static void
@@ -423,11 +427,56 @@ add_attachment(void *data, sentry_value_t attachment)
     // locations.
 }
 
+#if defined(SENTRY_PLATFORM_IOS)
+/**
+ * Processes the crash context that a crashed launch left in its run folder.
+ */
+static void
+process_crash_context(
+    const sentry_options_t *options, const sentry_path_t *run_path)
+{
+    static const char prefix[] = ".sentry-shm-";
+
+    sentry_pathiter_t *it = sentry__path_iter_directory(run_path);
+    const sentry_path_t *file;
+    while (it && (file = sentry__pathiter_next(it)) != NULL) {
+        if (!sentry__path_is_file(file) || sentry__path_is_symlink(file)
+            || strncmp(sentry__path_filename(file), prefix, sizeof(prefix) - 1)
+                != 0
+            || sentry__path_get_size(file) != SENTRY_CRASH_SHM_SIZE) {
+            continue;
+        }
+
+        int fd = open(file->path, O_RDWR | O_CLOEXEC);
+        if (fd < 0) {
+            continue;
+        }
+        // remove before processing to prevent a crash loop
+        sentry__path_remove(file);
+        sentry_crash_ipc_t *ipc
+            = sentry__crash_ipc_init_daemon(0, 0, -1, -1, fd, -1);
+        if (ipc && ipc->shmem->version == SENTRY_CRASH_VERSION
+            && sentry__atomic_fetch(&ipc->shmem->state)
+                == SENTRY_CRASH_STATE_CRASHED
+            && sentry__crash_scope_init(
+                &ipc->scope, ipc->shmem->max_breadcrumbs)) {
+            sentry__process_crash(options, ipc, NULL);
+        }
+        sentry__crash_ipc_free(ipc);
+    }
+    sentry__pathiter_free(it);
+}
+#endif
+
 static bool
 native_backend_process_old_run(sentry_backend_t *backend,
     const sentry_options_t *options, const sentry_path_t *run_path)
 {
     (void)backend;
+
+#if defined(SENTRY_PLATFORM_IOS)
+    process_crash_context(options, run_path);
+#endif
 
     sentry_pathiter_t *it = sentry__path_iter_directory(run_path);
     const sentry_path_t *file;
@@ -458,6 +507,7 @@ native_backend_process_old_run(sentry_backend_t *backend,
     return true;
 }
 
+#if !defined(SENTRY_PLATFORM_IOS)
 /**
  * Start crash daemon for monitoring app process
  * This forks a child process (Unix) or creates a new process (Windows) that
@@ -469,22 +519,22 @@ native_backend_process_old_run(sentry_backend_t *backend,
  * @param ready_handle Ready signal handle
  * @return Daemon PID on success, -1 on failure
  */
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
     int ready_eventfd, int shm_fd, int message_fd, const char *handler_path)
-#elif defined(SENTRY_PLATFORM_MACOS)
+#    elif defined(SENTRY_PLATFORM_MACOS)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
     int ready_pipe_write, int shm_fd, int message_fd, const char *handler_path)
-#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     HANDLE ready_event_handle, HANDLE message_read_handle,
     const char *handler_path)
-#endif
+#    endif
 {
-#if defined(SENTRY_PLATFORM_MACOS)
+#    if defined(SENTRY_PLATFORM_MACOS)
     // macOS: Use posix_spawn instead of fork+exec for App Sandbox
     // compatibility. posix_spawn is Apple's recommended API and works correctly
     // in sandboxed processes, unlike fork() which can have issues with sandbox
@@ -574,7 +624,7 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     return daemon_pid;
 
-#elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     // Linux: Use fork+exec
     pid_t daemon_pid = fork();
 
@@ -648,7 +698,7 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Parent process - return daemon PID
     return daemon_pid;
 
-#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
     // On Windows, create a separate daemon process using CreateProcess
     // Spawn the sentry-crash.exe executable
 
@@ -780,8 +830,9 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     // Return daemon process ID
     return pi.dwProcessId;
-#endif
+#    endif
 }
+#endif
 
 static int
 native_backend_startup(
@@ -813,12 +864,12 @@ native_backend_startup(
     }
 
     sentry__mutex_unlock(&g_ipc_init_mutex);
-#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
-    // macOS/Android use a plain pthread mutex (no sem_open/shm_open which is
-    // blocked by App Sandbox, or missing on Android). The mutex is statically
-    // initialized - no setup needed.
+#elif defined(SENTRY_PLATFORM_DARWIN) || defined(SENTRY_PLATFORM_ANDROID)
+    // macOS/iOS/Android use a plain pthread mutex (no sem_open/shm_open which
+    // is blocked by App Sandbox, or missing on Android). The mutex is
+    // statically initialized - no setup needed.
     (void)0;
-#elif !defined(SENTRY_PLATFORM_IOS)
+#else
     // Create process-wide IPC initialization semaphore (singleton pattern)
     // Protected by mutex to handle concurrent backend startups
     SENTRY__MUTEX_INIT_DYN_ONCE(g_ipc_init_mutex);
@@ -853,8 +904,6 @@ native_backend_startup(
     // access)
 #if defined(SENTRY_PLATFORM_WINDOWS)
     state->ipc = sentry__crash_ipc_init_app(g_ipc_mutex);
-#elif defined(SENTRY_PLATFORM_IOS)
-    state->ipc = sentry__crash_ipc_init_app(NULL);
 #elif defined(SENTRY_PLATFORM_ANDROID)
     int service_shm_fd = -1;
     int service_notify_fd = -1;
@@ -872,8 +921,12 @@ native_backend_startup(
             options->database_path ? options->database_path->path : NULL,
             &g_ipc_sync_mutex);
     }
+#elif defined(SENTRY_PLATFORM_IOS)
+    // keep the crash context with its run for the next launch
+    state->ipc
+        = sentry__crash_ipc_init_app(state->run_path->path, &g_ipc_sync_mutex);
 #elif defined(SENTRY_PLATFORM_MACOS)
-    state->ipc = sentry__crash_ipc_init_app(&g_ipc_sync_mutex);
+    state->ipc = sentry__crash_ipc_init_app(NULL, &g_ipc_sync_mutex);
 #else
     state->ipc = sentry__crash_ipc_init_app(g_ipc_init_sem);
 #endif
@@ -900,9 +953,9 @@ native_backend_startup(
             return 1;
         }
     }
-#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
+#elif defined(SENTRY_PLATFORM_DARWIN) || defined(SENTRY_PLATFORM_ANDROID)
     sentry__mutex_lock(&g_ipc_sync_mutex);
-#elif !defined(SENTRY_PLATFORM_IOS)
+#else
     if (g_ipc_init_sem && sem_wait(g_ipc_init_sem) < 0) {
         SENTRY_WARNF("failed to acquire semaphore for context setup: %s",
             strerror(errno));
@@ -1049,17 +1102,16 @@ native_backend_startup(
     if (g_ipc_mutex) {
         ReleaseMutex(g_ipc_mutex);
     }
-#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
+#elif defined(SENTRY_PLATFORM_DARWIN) || defined(SENTRY_PLATFORM_ANDROID)
     sentry__mutex_unlock(&g_ipc_sync_mutex);
-#elif !defined(SENTRY_PLATFORM_IOS)
+#else
     // Release semaphore after context configuration
     if (g_ipc_init_sem) {
         sem_post(g_ipc_init_sem);
     }
 #endif
 
-    // Install crash handlers (signal handlers on Linux/macOS, Mach exception
-    // handler on iOS)
+    // Install crash handlers (signal handlers on Linux/macOS/iOS)
 #if defined(SENTRY_PLATFORM_IOS)
     if (sentry__crash_handler_init(
             state->ipc, SENTRY_HANDLER_STRATEGY_DEFAULT, NULL)
@@ -1274,8 +1326,7 @@ native_backend_shutdown(sentry_backend_t *backend)
     wer_unregister_module();
 #endif
 
-    // Shutdown crash handlers (signal handlers on Linux/macOS, Mach exception
-    // handler on iOS)
+    // Shutdown crash handlers (signal handlers on Linux/macOS/iOS)
     sentry__crash_handler_shutdown();
 
     sentry__crash_ipc_send(
@@ -1452,6 +1503,7 @@ write_crash_event(native_backend_state_t *state, sentry_value_t event)
     sentry__path_free(path);
 }
 
+#if !defined(SENTRY_PLATFORM_IOS)
 static sentry_value_t
 attachment_list(native_backend_state_t *state, const sentry_scope_t *scope)
 {
@@ -1584,18 +1636,18 @@ send_update(native_backend_state_t *state, uint16_t type, sentry_value_t value)
     }
 }
 
-#define VALUE_OBSERVER(Name, Type)                                             \
-    static void Name(void *data, sentry_value_t value)                         \
-    {                                                                          \
-        send_update(data, Type, value);                                        \
-    }
+#    define VALUE_OBSERVER(Name, Type)                                         \
+        static void Name(void *data, sentry_value_t value)                     \
+        {                                                                      \
+            send_update(data, Type, value);                                    \
+        }
 
 VALUE_OBSERVER(set_release, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE)
 VALUE_OBSERVER(set_environment, SENTRY_CRASH_IPC_MESSAGE_SET_ENVIRONMENT)
 VALUE_OBSERVER(set_transaction, SENTRY_CRASH_IPC_MESSAGE_SET_TRANSACTION)
 VALUE_OBSERVER(set_fingerprint, SENTRY_CRASH_IPC_MESSAGE_SET_FINGERPRINT)
 VALUE_OBSERVER(add_breadcrumb, SENTRY_CRASH_IPC_MESSAGE_ADD_BREADCRUMB)
-#undef VALUE_OBSERVER
+#    undef VALUE_OBSERVER
 
 static void
 set_user(void *data, sentry_value_t user)
@@ -1651,18 +1703,18 @@ set_context(void *data, const char *key, sentry_value_t value)
     }
 }
 
-#define REMOVE_OBSERVER(Name, Type)                                            \
-    static void Name(void *data, const char *key)                              \
-    {                                                                          \
-        sentry_value_t value = sentry_value_new_string(key);                   \
-        send_update(data, Type, value);                                        \
-        sentry_value_decref(value);                                            \
-    }
+#    define REMOVE_OBSERVER(Name, Type)                                        \
+        static void Name(void *data, const char *key)                          \
+        {                                                                      \
+            sentry_value_t value = sentry_value_new_string(key);               \
+            send_update(data, Type, value);                                    \
+            sentry_value_decref(value);                                        \
+        }
 
 REMOVE_OBSERVER(remove_tag, SENTRY_CRASH_IPC_MESSAGE_REMOVE_TAG)
 REMOVE_OBSERVER(remove_extra, SENTRY_CRASH_IPC_MESSAGE_REMOVE_EXTRA)
 REMOVE_OBSERVER(remove_context_key, SENTRY_CRASH_IPC_MESSAGE_REMOVE_CONTEXT)
-#undef REMOVE_OBSERVER
+#    undef REMOVE_OBSERVER
 
 static void
 remove_context(void *data, const char *key)
@@ -1694,7 +1746,7 @@ init_scope_observer(void *data, const sentry_scope_t *scope)
     return snapshot_scope(state, scope);
 }
 
-#if defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
 static native_backend_state_t *
 android_service_backend_state(const sentry_options_t *options)
 {
@@ -1755,7 +1807,7 @@ sentry_android_crash_daemon_reattach(
     }
     return reattached;
 }
-#endif
+#    endif
 
 static bool
 observe_scope(native_backend_state_t *state)
@@ -1792,6 +1844,7 @@ observe_scope(native_backend_state_t *state)
     }
     return sent;
 }
+#endif
 
 /**
  * Handle exception - called from signal handler via sentry_handle_exception

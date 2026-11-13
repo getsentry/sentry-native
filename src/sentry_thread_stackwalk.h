@@ -8,7 +8,7 @@
 
 // A platform thread stackwalker is compiled in only for the targets below.
 // On any other target `sentry__thread_stackwalk` has no definition.
-#if defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_WINDOWS)         \
+#if defined(SENTRY_PLATFORM_DARWIN) || defined(SENTRY_PLATFORM_WINDOWS)        \
     || defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #    define SENTRY_HAS_THREAD_STACKWALK 1
 #else

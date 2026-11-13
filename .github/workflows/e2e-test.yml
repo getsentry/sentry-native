@@ -142,3 +142,32 @@ jobs:
             export ANDROID_NDK="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
             python scripts/setup-android-e2e.py sentry-java
             pytest --capture=no --verbose tests/test_e2e_sentry.py
+
+  ios:
+    name: E2E Test (iOS Simulator)
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Annotate build errors
+        run: echo "::add-matcher::.github/problem-matchers.json"
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run E2E tests
+        env:
+          TEST_IOS_SIMULATOR: 1
+          SENTRY_E2E_DSN: ${{ secrets.SENTRY_E2E_DSN }}
+          SENTRY_E2E_AUTH_TOKEN: ${{ secrets.SENTRY_E2E_AUTH_TOKEN }}
+          SENTRY_E2E_ORG: ${{ secrets.SENTRY_E2E_ORG }}
+          SENTRY_E2E_PROJECT: ${{ secrets.SENTRY_E2E_PROJECT }}
+        run: pytest --capture=no --verbose tests/test_e2e_sentry.py -k test_e2e_ios

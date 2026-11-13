@@ -40,7 +40,8 @@ int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
 /**
  * Process crash and generate minidump with envelope
  *
- * Called by the crash daemon (out-of-process on Linux/macOS).
+ * Called by the crash daemon (out-of-process on Linux/macOS), or by the app on
+ * the next launch on iOS.
  *
  * It writes the minidump, creates an envelope with all attachments,
  * and sends it via transport. Signal-safe, avoids SDK mutexes.

@@ -79,8 +79,8 @@ signal_safe_memcpy(void *dest, const void *src, size_t n)
     }
 }
 
-// signal_safe_memzero is only used on macOS (for thread state zeroing)
-#    if defined(SENTRY_PLATFORM_MACOS)
+// signal_safe_memzero is only used on macOS/iOS (for thread state zeroing)
+#    if defined(SENTRY_PLATFORM_DARWIN)
 /**
  * Signal-safe memory zero that bypasses TSAN/ASAN interception.
  */
@@ -92,7 +92,7 @@ signal_safe_memzero(void *dest, size_t n)
         d[i] = 0;
     }
 }
-#    endif // SENTRY_PLATFORM_MACOS
+#    endif // SENTRY_PLATFORM_DARWIN
 
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #        include <dirent.h>
@@ -104,11 +104,10 @@ signal_safe_memzero(void *dest, size_t n)
 #        endif
 #    endif
 
-#    if defined(SENTRY_PLATFORM_MACOS)
+#    if defined(SENTRY_PLATFORM_DARWIN)
 #        include <mach-o/dyld.h>
 #        include <mach-o/loader.h>
 #        include <mach/mach.h>
-#        include <mach/mach_vm.h>
 #    endif
 
 // Signals to handle
@@ -183,7 +182,7 @@ get_tid(void)
 {
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     return (pid_t)syscall(SYS_gettid);
-#    elif defined(SENTRY_PLATFORM_MACOS)
+#    elif defined(SENTRY_PLATFORM_DARWIN)
     // Use pthread_threadid_np for a unique thread ID that matches
     // what we store in the crash context. Note: mach_thread_self()
     // would leak a Mach port reference in signal handler context.
@@ -195,8 +194,8 @@ get_tid(void)
 #    endif
 }
 
-// safe_strxxx are only used on macOS (for stack path and module names)
-#    if defined(SENTRY_PLATFORM_MACOS)
+// safe_strxxx are only used on macOS/iOS (for stack path and module names)
+#    if defined(SENTRY_PLATFORM_DARWIN)
 /**
  * Safe string length (signal-safe)
  */
@@ -493,9 +492,9 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     ctx->capture.frame_pointer = false;
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     uintptr_t fault_ip = sentry__ucontext_get_ip(uctx);
-#    elif defined(SENTRY_PLATFORM_MACOS) && defined(__x86_64__)
+#    elif defined(SENTRY_PLATFORM_DARWIN) && defined(__x86_64__)
     uintptr_t fault_ip = uctx->uc_mcontext->__ss.__rip;
-#    elif defined(SENTRY_PLATFORM_MACOS) && defined(__aarch64__)
+#    elif defined(SENTRY_PLATFORM_DARWIN) && defined(__aarch64__)
     uintptr_t fault_ip
         = SENTRY__ARM64_GET_PC(uctx->uc_mcontext->__ss) & 0x00007FFFFFFFFFFFULL;
 #    else
@@ -520,7 +519,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     signal_safe_memcpy(&ctx->platform.threads[0].context, uctx,
         sizeof(ctx->platform.threads[0].context));
 
-#    elif defined(SENTRY_PLATFORM_MACOS)
+#    elif defined(SENTRY_PLATFORM_DARWIN)
     ctx->platform.signum = signum;
     // Use signal-safe memcpy to avoid TSAN-intercepted memcpy in signal handler
     signal_safe_memcpy(
@@ -546,7 +545,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     capture_frame_pointer_stack(&ctx->capture, uctx);
 #        endif
 
-#    elif defined(SENTRY_PLATFORM_MACOS)
+#    elif defined(SENTRY_PLATFORM_DARWIN)
 #        if defined(SENTRY_WITH_UNWINDER_LIBUNWIND_MAC)
     capture_stack(&ctx->capture, uctx);
 #        endif
@@ -709,15 +708,16 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 #        endif
 
             if (sp > 0) {
-                // Query stack bounds using vm_region (signal-safe)
-                mach_vm_address_t address = sp;
-                mach_vm_size_t region_size = 0;
+                // Query stack bounds using vm_region (signal-safe), as
+                // mach_vm_region is unavailable on iOS
+                vm_address_t address = sp;
+                vm_size_t region_size = 0;
                 vm_region_basic_info_data_64_t info;
                 mach_msg_type_number_t info_count
                     = VM_REGION_BASIC_INFO_COUNT_64;
                 mach_port_t object_name;
 
-                kern_return_t kr = mach_vm_region(task, &address, &region_size,
+                kern_return_t kr = vm_region_64(task, &address, &region_size,
                     VM_REGION_BASIC_INFO_64, (vm_region_info_t)&info,
                     &info_count, &object_name);
 
@@ -923,7 +923,11 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
             SENTRY_CRASH_STATE_CRASHED)) {
 
         // Successfully claimed crash slot, notify daemon
+#    if defined(SENTRY_PLATFORM_IOS)
+        bool notified = false; // no daemon on iOS
+#    else
         bool notified = sentry__crash_ipc_notify(ipc);
+#    endif
 
         // Wait for daemon to finish processing (keep process alive for
         // minidump), unless no daemon was there to notify

@@ -2355,7 +2355,8 @@ sentry_options_get_thread_stackwalk_mode(const sentry_options_t *opts);
  * application can terminate after crash data has been captured while the daemon
  * continues upload and shutdown work.
  *
- * This setting only has an effect when using the `native` backend.
+ * This setting only has an effect when using the `native` backend, except on
+ * iOS, where crashes are always reported on the next launch.
  * Default is `SENTRY_CRASH_UPLOAD_MODE_SYNC`.
  */
 SENTRY_API void sentry_options_set_crash_upload_mode(

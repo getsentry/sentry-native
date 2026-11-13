@@ -8,6 +8,7 @@ from werkzeug.wrappers import Response
 from . import (
     make_dsn,
     run,
+    run_crash,
     Envelope,
     SENTRY_VERSION,
 )
@@ -17,6 +18,7 @@ from .assertions import (
     assert_gzip_file_header,
 )
 from .conditions import has_breakpad, has_files, has_http, has_native, is_qemu
+from .conditions import has_daemon
 
 pytestmark = [
     pytest.mark.skipif(not has_http, reason="tests need http transport"),
@@ -776,6 +778,7 @@ def test_tus_crash_restart(cmake, httpserver, backend):
 
 
 @pytest.mark.skipif(not has_native or is_qemu, reason="native backend not available")
+@pytest.mark.skipif(not has_daemon, reason="test needs the crash daemon")
 def test_tus_crash_native(cmake, httpserver):
     # The native backend's daemon process handles the crash out-of-process: it
     # caches the large attachment, writes the envelope with attachment-ref
@@ -868,7 +871,7 @@ def test_tus_crash_native_retry(cmake, httpserver):
         "", status=503
     )
 
-    run(
+    run_crash(
         tmp_path,
         "sentry_test_integration",
         [
@@ -880,9 +883,16 @@ def test_tus_crash_native_retry(cmake, httpserver):
             "shutdown-timeout",
             "10000",
         ],
-        expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         wait_for_daemon=True,
+        restart_args=[
+            "log",
+            "http-retry",
+            "large-attachment",
+            "no-setup",
+            "shutdown-timeout",
+            "10000",
+        ],
     )
 
     # the daemon keeps the envelope for retry instead of sending it without the

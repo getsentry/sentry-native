@@ -4,6 +4,7 @@ import shutil
 
 is_aix = sys.platform == "aix" or sys.platform == "os400"
 is_android = int(os.environ.get("ANDROID_API") or "0")
+is_ios_simulator = bool(os.environ.get("TEST_IOS_SIMULATOR"))
 is_wine = bool(os.environ.get("TEST_WINE"))
 is_x86 = os.environ.get("TEST_X86")
 is_arm32 = bool(os.environ.get("TEST_ARM32"))
@@ -32,6 +33,8 @@ has_breakpad = (
     and not (is_asan and sys.platform == "darwin")
     # breakpad accesses thread state registers directly, which doesn't work on arm64e
     and not (is_arm64e and sys.platform == "darwin")
+    # breakpad hangs after segfaults on iOS
+    and not is_ios_simulator
 )
 # crashpad requires http, needs porting to AIX, and doesn’t work with kcov/valgrind/tsan or Wine cross-builds
 has_crashpad = (
@@ -39,6 +42,7 @@ has_crashpad = (
     and not is_valgrind
     and not is_kcov
     and not is_android
+    and not is_ios_simulator
     and not is_aix
     and not is_tsan
     and not is_wine
@@ -58,5 +62,8 @@ has_oom = sys.platform != "linux" and not is_asan and not is_valgrind
 has_native = not (is_asan and sys.platform == "darwin") and (
     not is_android or is_android >= 23
 )
+# iOS can't spawn the native crash daemon, so the native backend captures
+# crashes in-process and delivers them on the next launch
+has_daemon = not is_ios_simulator
 
 has_sccache = os.environ.get("USE_SCCACHE") and shutil.which("sccache")

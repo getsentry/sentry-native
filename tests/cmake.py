@@ -9,9 +9,10 @@ from pathlib import Path
 import pytest
 
 from . import adb, exe_name, lib_name
-from .conditions import has_sccache
+from .conditions import has_sccache, is_ios_simulator
 from .build_config import (
     get_android_config,
+    get_ios_config,
     get_platform_cmake_args,
     get_cflags,
     get_tsan_env,
@@ -55,6 +56,12 @@ class CMake:
 
         # ensure that there are no left-overs from previous runs
         shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
+        if is_ios_simulator:
+            # apps start in the simulator's home directory
+            shutil.rmtree(
+                Path(os.environ["IOS_SIMULATOR_HOME"]) / ".sentry-native",
+                ignore_errors=True,
+            )
 
         # Inject a sub-path into the temporary build directory as the CWD for all tests to verify UTF-8 path handling.
         if os.environ.get("UTF8_TEST_CWD"):
@@ -167,6 +174,7 @@ def cmake_configure(cwd, options, cflags=None, source_dir=None):
     )
 
     options.update(get_android_config())
+    options.update(get_ios_config())
 
     if source_dir is None:
         source_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -193,6 +201,8 @@ def cmake_configure(cwd, options, cflags=None, source_dir=None):
         # The Visual Studio generator does not support CMAKE_C_COMPILER_LAUNCHER.
         # Use Ninja instead to enable sccache.
         config_cmd.extend(["-G", "Ninja"])
+    elif is_ios_simulator:
+        config_cmd.extend(["-G", "Xcode"])
 
     for key, value in options.items():
         config_cmd.append("-D{}={}".format(key, value))
@@ -253,6 +263,9 @@ def cmake_build(cwd, targets, options):
 
     buildcmd = [*cmake, "--build", "."]
     for target in targets:
+        if is_ios_simulator and target == "sentry-crash":
+            # iOS has no crash daemon
+            continue
         buildcmd.extend(["--target", target])
     buildcmd.append("--parallel")
     if "CMAKE_BUILD_TYPE" in options:
