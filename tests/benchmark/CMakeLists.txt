@@ -7,6 +7,12 @@ sentry_get_property(INTERFACE_LINK_LIBRARIES)
 
 list(FILTER SENTRY_SOURCES EXCLUDE REGEX "\\.rc$")
 
+if(SENTRY_TRANSPORT_APPLE)
+	set_source_files_properties(
+		${PROJECT_SOURCE_DIR}/src/transports/sentry_http_transport_apple.m
+		PROPERTIES COMPILE_FLAGS -fobjc-arc)
+endif()
+
 add_executable(sentry_benchmark
 	${SENTRY_SOURCES}
 	benchmark_init.cpp
