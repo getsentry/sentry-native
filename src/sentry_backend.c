@@ -1,6 +1,8 @@
 #include "sentry_backend.h"
 #include "sentry_string.h"
 
+#include <stdlib.h>
+
 void
 sentry__backend_free(sentry_backend_t *backend)
 {
@@ -42,8 +44,7 @@ static const backend_entry_t g_backends[] = {
     { "none", NULL, NULL },
 };
 
-// set by sentry_backend_preload()
-static const char *g_selected = SENTRY_BACKEND_DEFAULT;
+static const char *g_backend = NULL;
 
 static const backend_entry_t *
 find_backend(const char *name)
@@ -64,7 +65,7 @@ sentry_backend_preload(const char *name)
     if (!entry) {
         return 1;
     }
-    g_selected = entry->name;
+    g_backend = entry->name;
     if (entry->preload_func) {
         entry->preload_func();
     }
@@ -72,16 +73,28 @@ sentry_backend_preload(const char *name)
 }
 
 #ifndef SENTRY_BACKEND_CUSTOM
+static const backend_entry_t *
+resolve_backend(void)
+{
+    // SENTRY_BACKEND overrides the default for testing
+    const backend_entry_t *entry
+        = find_backend(g_backend ? g_backend : getenv("SENTRY_BACKEND"));
+    return entry ? entry : find_backend(SENTRY_BACKEND_DEFAULT);
+}
+
 void
 sentry__backend_preload(void)
 {
-    sentry_backend_preload(g_selected);
+    const backend_entry_t *entry = resolve_backend();
+    if (entry && entry->preload_func) {
+        entry->preload_func();
+    }
 }
 
 sentry_backend_t *
 sentry__backend_new(void)
 {
-    const backend_entry_t *entry = find_backend(g_selected);
+    const backend_entry_t *entry = resolve_backend();
     if (!entry || !entry->new_func) {
         return NULL;
     }
