@@ -1265,9 +1265,11 @@ native_backend_shutdown(sentry_backend_t *backend)
 
     if (state->scope_observer) {
         SENTRY_WITH_SCOPE_MUT (scope) {
+            sentry__mutex_lock(&scope->observers_lock);
             sentry__scope_remove_observer(scope, state->scope_observer);
+            state->scope_observer = NULL;
+            sentry__mutex_unlock(&scope->observers_lock);
         }
-        state->scope_observer = NULL;
     }
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
@@ -1695,12 +1697,13 @@ init_scope_observer(void *data, const sentry_scope_t *scope)
 }
 
 #if defined(SENTRY_PLATFORM_ANDROID)
+// shutdown clears scope_observer under observers_lock before freeing the IPC
 static native_backend_state_t *
 android_service_backend_state(const sentry_options_t *options)
 {
     native_backend_state_t *state
         = options->backend ? options->backend->data : NULL;
-    if (!state || !state->android_service_daemon
+    if (!state || !state->android_service_daemon || !state->scope_observer
         || sentry__atomic_fetch(&state->crashed)) {
         return NULL;
     }
@@ -1712,10 +1715,18 @@ sentry_android_crash_daemon_dup_shm_fd(void)
 {
     int fd = -1;
     SENTRY_WITH_OPTIONS (options) {
+        // prevent the IPC lookup from racing with backend shutdown or reinstall
+        sentry_scope_t *scope = sentry_scope_acquire();
+        if (!scope) {
+            continue;
+        }
+        sentry__mutex_lock(&scope->observers_lock);
         native_backend_state_t *state = android_service_backend_state(options);
         if (state) {
             fd = fcntl(state->ipc->shm_fd, F_DUPFD_CLOEXEC, 0);
         }
+        sentry__mutex_unlock(&scope->observers_lock);
+        sentry_scope_release(scope);
     }
     return fd;
 }
@@ -1727,16 +1738,15 @@ sentry_android_crash_daemon_reattach(
     bool reattached = false;
     bool taken = false;
     SENTRY_WITH_OPTIONS (options) {
-        native_backend_state_t *state = android_service_backend_state(options);
-        if (!state) {
-            continue;
-        }
         // scope changes notify under this lock, so none lands before the
         // snapshot
         SENTRY_WITH_SCOPE_MUT (scope) {
             sentry__mutex_lock(&scope->observers_lock);
-            taken = true;
-            if (sentry__crash_ipc_reattach(
+            native_backend_state_t *state
+                = android_service_backend_state(options);
+            taken = state != NULL;
+            if (taken
+                && sentry__crash_ipc_reattach(
                     state->ipc, notify_fd, ready_fd, message_fd)) {
                 // as at startup, the new daemon waits for the configured app
                 uint64_t ready = 1;
