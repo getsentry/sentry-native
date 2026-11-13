@@ -676,9 +676,18 @@ sentry__atomic_compare_swap(volatile long *val, long expected, long desired)
  * only 32 bits wide on Windows and 32-bit POSIX targets, so callers that need
  * a full 64-bit atomic (e.g. a monotonic timestamp that must not tear on a
  * 32-bit platform) use these instead.
+ *
+ * `uint64_t` is only 4-byte aligned on 32-bit x86, so POSIX targets declare the
+ * operands as `sentry_atomic_u64_t` to keep the accesses lock-free.
  */
+#ifdef SENTRY_PLATFORM_WINDOWS
+typedef uint64_t sentry_atomic_u64_t;
+#else
+typedef uint64_t sentry_atomic_u64_t __attribute__((aligned(8)));
+#endif
+
 static inline void
-sentry__atomic_store_u64(uint64_t *val, uint64_t value)
+sentry__atomic_store_u64(sentry_atomic_u64_t *val, uint64_t value)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     InterlockedExchange64((volatile LONG64 *)val, (LONG64)value);
@@ -688,7 +697,7 @@ sentry__atomic_store_u64(uint64_t *val, uint64_t value)
 }
 
 static inline uint64_t
-sentry__atomic_fetch_u64(uint64_t *val)
+sentry__atomic_fetch_u64(sentry_atomic_u64_t *val)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     return (uint64_t)InterlockedCompareExchange64((volatile LONG64 *)val, 0, 0);

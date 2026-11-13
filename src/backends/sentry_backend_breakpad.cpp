@@ -30,6 +30,7 @@ extern "C" {
 #    pragma GCC diagnostic push
 #    pragma GCC diagnostic ignored "-Wpedantic"
 #    pragma GCC diagnostic ignored "-Wvariadic-macros"
+#    pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -148,27 +149,23 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         sentry_hint_t hint;
         sentry__hint_init(&hint);
 
-        bool should_handle = true;
-
-        if (options->on_crash_func) {
-            sentry_ucontext_t *uctx = nullptr;
+        sentry_ucontext_t *uctx = nullptr;
 
 #if defined(SENTRY_PLATFORM_DARWIN)                                            \
     && !(defined(SENTRY_BREAKPAD_SYSTEM) || defined(SENTRY_PLATFORM_IOS))
-            sentry_ucontext_t uctx_data;
-            uctx_data.user_context = user_context;
-            uctx = &uctx_data;
+        sentry_ucontext_t uctx_data;
+        uctx_data.user_context = user_context;
+        uctx = &uctx_data;
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-            sentry_ucontext_t uctx_data;
-            uctx_data.exception_ptrs = *exinfo;
-            uctx = &uctx_data;
+        sentry_ucontext_t uctx_data;
+        uctx_data.exception_ptrs = *exinfo;
+        uctx = &uctx_data;
 #endif
 
-            event = sentry__invoke_on_crash(options, uctx, event, &hint);
-            should_handle = !sentry_value_is_null(event);
-        }
+        event = sentry__invoke_on_crash(options, uctx, event, &hint);
+        bool should_handle = !sentry_value_is_null(event);
 
         sentry__transport_suspend(options->transport);
 
@@ -238,8 +235,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry_path_t *path = sentry__screenshot_get_path(options);
                 sentry_value_t screenshot
                     = sentry_attachment_from_file(path ? path->path : nullptr);
-                if (!sentry_value_is_null(screenshot)
-                    && sentry__screenshot_capture(path, 0)) {
+                if (path && !sentry_value_is_null(screenshot)
+                    && sentry_screenshot_capture(path->path, 0) == 0) {
                     sentry__envelope_add_attachment(envelope, screenshot);
                 }
                 sentry_value_decref(screenshot);

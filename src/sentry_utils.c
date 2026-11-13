@@ -143,6 +143,9 @@ sentry__url_parse(sentry_url_t *url_out, const char *url, bool requires_path)
         tmp = ptr;
         SKIP_WHILE_NOT(tmp, '/');
         aux_buf = sentry__string_clone_n_unchecked(ptr, (size_t)(tmp - ptr));
+        if (!aux_buf) {
+            goto error;
+        }
         char *end;
         url_out->port = (int)strtol(aux_buf, &end, 10);
         if (end != aux_buf + strlen(aux_buf)) {

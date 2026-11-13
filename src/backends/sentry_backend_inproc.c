@@ -379,51 +379,6 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
 
 static void handle_signal(int signum, siginfo_t *info, void *user_context);
 
-/**
- * Sets up an alternate signal stack for the current thread if one isn't
- * already configured. The allocated stack is stored in `out_stack` so it
- * can be freed later via `teardown_sigaltstack()`.
- */
-static void
-setup_sigaltstack(stack_t *out_stack, const char *context)
-{
-    memset(out_stack, 0, sizeof(*out_stack));
-
-    stack_t old_sig_stack;
-    int ret = sigaltstack(NULL, &old_sig_stack);
-    if (ret == 0 && old_sig_stack.ss_flags == SS_DISABLE) {
-        SENTRY_DEBUGF(
-            "installing %s sigaltstack (size: %d)", context, SIGNAL_STACK_SIZE);
-        out_stack->ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
-        if (!out_stack->ss_sp) {
-            SENTRY_WARN("failed to allocate signal stack");
-            return;
-        }
-        out_stack->ss_size = SIGNAL_STACK_SIZE;
-        out_stack->ss_flags = 0;
-        sigaltstack(out_stack, 0);
-    } else if (ret == 0) {
-        SENTRY_DEBUGF("using existing signal stack (size: %d, flags: %d)",
-            old_sig_stack.ss_size, old_sig_stack.ss_flags);
-    } else if (ret == -1) {
-        SENTRY_WARNF("failed to query signal stack: %s", strerror(errno));
-    }
-}
-
-/**
- * Tears down a signal stack previously set up via `setup_sigaltstack()`.
- */
-static void
-teardown_sigaltstack(stack_t *sig_stack)
-{
-    if (sig_stack->ss_sp) {
-        sig_stack->ss_flags = SS_DISABLE;
-        sigaltstack(sig_stack, 0);
-        sentry_free(sig_stack->ss_sp);
-        sig_stack->ss_sp = NULL;
-    }
-}
-
 static void
 reset_signal_handlers(void)
 {
@@ -467,7 +422,7 @@ install_signal_handlers(void)
         }
     }
 
-    setup_sigaltstack(&g_signal_stack, "init");
+    sentry__setup_sigaltstack(&g_signal_stack, SIGNAL_STACK_SIZE, "init");
 
     sigemptyset(&g_sigaction.sa_mask);
     g_sigaction.sa_sigaction = handle_signal;
@@ -539,7 +494,7 @@ shutdown_inproc_backend(sentry_backend_t *backend)
     // signal we still observe will fall through to the previously installed
     // handler.
     if (!sentry__atomic_fetch(&g_preloaded)) {
-        teardown_sigaltstack(&g_signal_stack);
+        sentry__teardown_sigaltstack(&g_signal_stack);
         reset_signal_handlers();
     }
 
@@ -710,6 +665,8 @@ make_signal_event(const struct signal_slot *sig_slot,
     sentry_value_set_by_key(exc, "stacktrace", stacktrace);
     sentry_event_add_exception(event, exc);
 
+    sentry__event_ensure_modules(event);
+
     return event;
 }
 
@@ -770,10 +727,12 @@ process_ucontext_deferred(const sentry_options_t *options,
         sentry_hint_t hint;
         sentry__hint_init(&hint);
 
-        if (options->on_crash_func && !skip_hooks) {
+        if (!skip_hooks) {
             event = sentry__invoke_on_crash(options, uctx, event, &hint);
             should_handle = !sentry_value_is_null(event);
-        } else if (skip_hooks && options->on_crash_func) {
+        }
+
+        if (skip_hooks && options->on_crash_func) {
             SENTRY_DEBUG("skipping `on_crash` hook due to recursive crash");
         }
 
@@ -813,8 +772,8 @@ process_ucontext_deferred(const sentry_options_t *options,
                 sentry_path_t *path = sentry__screenshot_get_path(options);
                 sentry_value_t screenshot
                     = sentry_attachment_from_file(path ? path->path : NULL);
-                if (!sentry_value_is_null(screenshot)
-                    && sentry__screenshot_capture(path, 0)) {
+                if (path && !sentry_value_is_null(screenshot)
+                    && sentry_screenshot_capture(path->path, 0) == 0) {
                     sentry__envelope_add_attachment(envelope, screenshot);
                 }
                 sentry_value_decref(screenshot);
@@ -883,7 +842,8 @@ handler_thread_main(void *data)
 #ifdef SENTRY_PLATFORM_UNIX
     // Set up an alternate signal stack for the handler thread
     stack_t handler_thread_stack;
-    setup_sigaltstack(&handler_thread_stack, "handler");
+    sentry__setup_sigaltstack(
+        &handler_thread_stack, SIGNAL_STACK_SIZE, "handler");
 #endif
     sentry__unwind_init();
 
@@ -947,7 +907,7 @@ handler_thread_main(void *data)
     }
 
 #ifdef SENTRY_PLATFORM_UNIX
-    teardown_sigaltstack(&handler_thread_stack);
+    sentry__teardown_sigaltstack(&handler_thread_stack);
 #endif
 
     sentry_options_free(options);

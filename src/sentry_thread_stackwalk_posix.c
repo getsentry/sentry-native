@@ -28,7 +28,6 @@
 
 static sem_t g_done;
 static volatile sig_atomic_t g_active = 0;
-static void *g_ips[SENTRY_APP_HANG_MAX_FRAMES];
 static volatile sig_atomic_t g_count = 0;
 static volatile sig_atomic_t g_want = 0;
 
@@ -38,6 +37,8 @@ static sem_t
     g_unwind_done; // watchdog -> handler: unwind complete, you may return
 static volatile sig_atomic_t g_abort_park = 0;
 static ucontext_t *volatile g_park_uctx = NULL;
+#    else
+static void *g_ips[SENTRY_APP_HANG_MAX_FRAMES];
 #    endif
 
 static void
@@ -89,7 +90,7 @@ handler(int sig, siginfo_t *info, void *ucontext)
         }
     }
     g_park_uctx = NULL;
-    // watchdog wrote g_ips/g_count before releasing us
+    // watchdog wrote g_count before releasing us
     n = (size_t)__atomic_load_n(&g_count, __ATOMIC_RELAXED);
 #    else
     (void)ucontext;
@@ -147,15 +148,14 @@ ensure_installed(void)
     // dl_iterate_phdr for the first time inside the signal handler.
     unw_context_t uc;
     unw_cursor_t cur;
-#        ifdef __clang__
+#        ifdef __GNUC__
 // This pragma is required to build with Werror on ARM64 Ubuntu
-#            pragma clang diagnostic push
-#            pragma clang diagnostic ignored                                   \
-                "-Wgnu-statement-expression-from-macro-expansion"
+#            pragma GCC diagnostic push
+#            pragma GCC diagnostic ignored "-Wpedantic"
 #        endif
     int got_context = unw_getcontext(&uc);
-#        ifdef __clang__
-#            pragma clang diagnostic pop
+#        ifdef __GNUC__
+#            pragma GCC diagnostic pop
 #        endif
     if (got_context == 0 && unw_init_local(&cur, &uc) == 0) {
         for (int i = 0; i < 5 && unw_step(&cur) > 0; i++) { }
