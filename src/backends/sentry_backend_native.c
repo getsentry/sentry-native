@@ -448,11 +448,13 @@ process_crash_context(
         }
 
         int fd = open(file->path, O_RDWR | O_CLOEXEC);
+        if (fd < 0) {
+            continue;
+        }
         // remove before processing to prevent a crash loop
         sentry__path_remove(file);
-        sentry_crash_ipc_t *ipc = fd >= 0
-            ? sentry__crash_ipc_init_daemon(0, 0, -1, -1, fd, -1)
-            : NULL;
+        sentry_crash_ipc_t *ipc
+            = sentry__crash_ipc_init_daemon(0, 0, -1, -1, fd, -1);
         if (ipc && ipc->shmem->version == SENTRY_CRASH_VERSION
             && sentry__atomic_fetch(&ipc->shmem->state)
                 == SENTRY_CRASH_STATE_CRASHED
