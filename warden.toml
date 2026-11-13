@@ -14,6 +14,11 @@ effort = "medium"
 [defaults.auxiliary]
 effort = "medium"
 
+# 3000-line default skips sentry_crash_daemon.c and breaks incremental review.
+[defaults.scan]
+maxFileLines = 6000
+maxChangedLines = 20000
+
 [[skills]]
 name = "native-code-review"
 paths = ["src/**", "include/**", "ndk/lib/src/main/jni/**"]
