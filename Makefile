@@ -10,7 +10,7 @@ update-test-discovery:
 
 build/Makefile configure: CMakeLists.txt
 	@mkdir -p build
-	@cmake -S . -B build $(if $(SENTRY_BACKEND),-DSENTRY_BACKEND=$(SENTRY_BACKEND)) $(if $(SENTRY_TRANSPORT),-DSENTRY_TRANSPORT=$(SENTRY_TRANSPORT))
+	@cmake -S . -B build $(if $(SENTRY_BACKEND),-DSENTRY_BACKEND="$(SENTRY_BACKEND)") $(if $(SENTRY_TRANSPORT),-DSENTRY_TRANSPORT=$(SENTRY_TRANSPORT))
 .PHONY: configure
 
 build: configure
@@ -25,7 +25,7 @@ test-unit: update-test-discovery CMakeLists.txt
 	@cd unit-build; cmake \
 		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(PWD)/unit-build \
 		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO=$(PWD)/unit-build \
-		-DSENTRY_BACKEND=$(or $(SENTRY_BACKEND),none) \
+		-DSENTRY_BACKEND="$(or $(SENTRY_BACKEND),none)" \
 		$(if $(SENTRY_TRANSPORT),-DSENTRY_TRANSPORT=$(SENTRY_TRANSPORT)) \
 		..
 	@cmake --build unit-build --target sentry_test_unit --parallel --config RelWithDebInfo
@@ -40,7 +40,7 @@ test-leaks: update-test-discovery CMakeLists.txt
 	@mkdir -p leak-build
 	@cd leak-build; cmake \
 		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(PWD)/leak-build \
-		-DSENTRY_BACKEND=$(or $(SENTRY_BACKEND),none) \
+		-DSENTRY_BACKEND="$(or $(SENTRY_BACKEND),none)" \
 		$(if $(SENTRY_TRANSPORT),-DSENTRY_TRANSPORT=$(SENTRY_TRANSPORT)) \
 		-DWITH_ASAN_OPTION=ON \
 		-DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
@@ -60,7 +60,7 @@ stack-frames:
 	@cmake -S . -B stack-frames-build \
 		-DCMAKE_C_FLAGS=-fstack-usage \
 		-DCMAKE_CXX_FLAGS=-fstack-usage \
-		$(if $(SENTRY_BACKEND),-DSENTRY_BACKEND=$(SENTRY_BACKEND),-U SENTRY_BACKEND) \
+		$(if $(SENTRY_BACKEND),-DSENTRY_BACKEND="$(SENTRY_BACKEND)",-U SENTRY_BACKEND) \
 		-DSENTRY_BUILD_TESTS=OFF
 	@cmake --build stack-frames-build \
 		--target sentry --parallel

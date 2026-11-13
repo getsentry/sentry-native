@@ -1420,7 +1420,7 @@ handle_except(sentry_backend_t *UNUSED(backend), const sentry_ucontext_t *uctx)
 }
 
 void
-sentry__backend_preload(void)
+sentry__backend_inproc_preload(void)
 {
 #ifdef SENTRY_PLATFORM_UNIX
     if (install_signal_handlers() == 0) {
@@ -1430,7 +1430,7 @@ sentry__backend_preload(void)
 }
 
 sentry_backend_t *
-sentry__backend_new(void)
+sentry__backend_inproc_new(void)
 {
     sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
     if (!backend) {

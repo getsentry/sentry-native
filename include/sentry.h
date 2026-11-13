@@ -1326,6 +1326,13 @@ SENTRY_EXPERIMENTAL_API void sentry_http_transport_set_client_shutdown_func(
 struct sentry_backend_s;
 typedef struct sentry_backend_s sentry_backend_t;
 
+/**
+ * Selects a compiled-in backend, or `none`, by name for `sentry_options_new`,
+ * and preloads it. On Unix, this installs the inproc and native signal handlers
+ * before `sentry_init`. Returns 0 on success.
+ */
+SENTRY_EXPERIMENTAL_API int sentry_backend_preload(const char *name);
+
 /* -- Options APIs -- */
 
 /**

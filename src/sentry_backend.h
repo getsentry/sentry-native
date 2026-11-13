@@ -34,6 +34,7 @@ struct sentry_backend_s {
     void *data;
     // Whether this backend still runs after shutdown_func was called.
     bool can_capture_after_shutdown;
+    const char *name;
 };
 
 /**

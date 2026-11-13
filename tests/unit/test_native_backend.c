@@ -30,6 +30,8 @@
 #        include <sys/socket.h>
 #    endif
 
+extern sentry_backend_t *sentry__backend_native_new(void);
+
 static void
 noop_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
 {
@@ -1226,6 +1228,7 @@ SENTRY_TEST(native_scope_updates)
     const char *crash_mode = getenv("SENTRY_TEST_NATIVE_SCOPE_CRASH");
     bool callback = getenv("SENTRY_TEST_NATIVE_SCOPE_CALLBACK") != NULL;
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_backend(options, sentry__backend_native_new());
     if (callback) {
         sentry_options_set_on_crash(options, native_scope_on_crash, NULL);
     }
@@ -1412,6 +1415,7 @@ SENTRY_TEST(native_stall)
     int crumbs = 64;
     int recovery_crumbs = 10;
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_backend(options, sentry__backend_native_new());
     sentry_options_set_dsn(options, getenv("SENTRY_DSN"));
     sentry_options_set_max_breadcrumbs(options, crumbs + recovery_crumbs);
     if (crash) {

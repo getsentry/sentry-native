@@ -268,28 +268,37 @@ if(NOT DEFINED SENTRY_BACKEND)
 		"The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad', 'crashpad', or 'native'.")
 endif()
 
-if(SENTRY_BACKEND STREQUAL "crashpad")
-	set(SENTRY_BACKEND_CRASHPAD TRUE)
-elseif(SENTRY_BACKEND STREQUAL "inproc")
-	set(SENTRY_BACKEND_INPROC TRUE)
-elseif(SENTRY_BACKEND STREQUAL "breakpad")
-	set(SENTRY_BACKEND_BREAKPAD TRUE)
-elseif(SENTRY_BACKEND STREQUAL "native")
-	if(ANDROID)
-		message(WARNING "The 'native' backend on Android is experimental. "
-			"It may have incomplete features or unexpected behavior.")
+foreach(_SENTRY_BACKEND IN LISTS SENTRY_BACKEND)
+	if(_SENTRY_BACKEND STREQUAL "crashpad")
+		set(SENTRY_BACKEND_CRASHPAD TRUE)
+	elseif(_SENTRY_BACKEND STREQUAL "inproc")
+		set(SENTRY_BACKEND_INPROC TRUE)
+	elseif(_SENTRY_BACKEND STREQUAL "breakpad")
+		set(SENTRY_BACKEND_BREAKPAD TRUE)
+	elseif(_SENTRY_BACKEND STREQUAL "native")
+		if(ANDROID)
+			message(WARNING "The 'native' backend on Android is experimental. "
+				"It may have incomplete features or unexpected behavior.")
+		endif()
+		set(SENTRY_BACKEND_NATIVE TRUE)
+	elseif(_SENTRY_BACKEND STREQUAL "none")
+		set(SENTRY_BACKEND_NONE TRUE)
+	elseif(_SENTRY_BACKEND STREQUAL "custom")
+		message(DEBUG
+			"SENTRY_BACKEND set to 'custom' - a custom backend source must be added to the compilation unit by the downstream SDK.")
+		set(SENTRY_BACKEND_CUSTOM TRUE)
+	else()
+		message(FATAL_ERROR
+			"SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad', 'native', or 'none'.
+			Downstream SDKs may choose to provide their own by specifying 'custom'.")
 	endif()
-	set(SENTRY_BACKEND_NATIVE TRUE)
-elseif(SENTRY_BACKEND STREQUAL "none")
-	set(SENTRY_BACKEND_NONE TRUE)
-elseif(SENTRY_BACKEND STREQUAL "custom")
-	message(DEBUG
-		"SENTRY_BACKEND set to 'custom' - a custom backend source must be added to the compilation unit by the downstream SDK.")
-else()
-	message(FATAL_ERROR
-		"SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad', 'native', or 'none'.
-		Downstream SDKs may choose to provide their own by specifying 'custom'.")
+endforeach()
+
+list(LENGTH SENTRY_BACKEND _SENTRY_BACKEND_COUNT)
+if(SENTRY_BACKEND_CUSTOM AND _SENTRY_BACKEND_COUNT GREATER 1)
+	message(FATAL_ERROR "SENTRY_BACKEND 'custom' cannot be combined with other backends")
 endif()
+list(GET SENTRY_BACKEND 0 SENTRY_BACKEND_DEFAULT)
 
 if(SENTRY_BACKEND_CRASHPAD AND ANDROID)
 	message(FATAL_ERROR "The Crashpad backend is not currently supported on Android")
@@ -856,7 +865,9 @@ if(SENTRY_BACKEND_CRASHPAD)
 			DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 	endif()
 	add_dependencies(sentry crashpad::handler)
-elseif(SENTRY_BACKEND_BREAKPAD)
+endif()
+
+if(SENTRY_BACKEND_BREAKPAD)
 	option(SENTRY_BREAKPAD_SYSTEM "Use system breakpad" OFF)
 	if(SENTRY_BREAKPAD_SYSTEM)
 		target_compile_definitions(sentry PRIVATE SENTRY_BREAKPAD_SYSTEM)
@@ -888,9 +899,13 @@ elseif(SENTRY_BACKEND_BREAKPAD)
 			)
 		endif()
 	endif()
-elseif(SENTRY_BACKEND_INPROC)
+endif()
+
+if(SENTRY_BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
-elseif(SENTRY_BACKEND_NATIVE)
+endif()
+
+if(SENTRY_BACKEND_NATIVE)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_NATIVE_BACKEND)
 
 	# Native backend sources and configuration are in src/CMakeLists.txt
@@ -930,6 +945,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 	get_target_property(SENTRY_SOURCES sentry SOURCES)
 	# Exclude integrations that are not needed in the daemon
 	list(FILTER SENTRY_SOURCES EXCLUDE REGEX "[/\\\\]integrations[/\\\\]")
+	# Exclude the other backends
+	list(FILTER SENTRY_SOURCES EXCLUDE REGEX "[/\\\\]backends[/\\\\]sentry_backend_(crashpad|breakpad|inproc)")
 
 	# Create daemon executable with same SDK sources
 	add_executable(sentry-crash
@@ -977,6 +994,9 @@ elseif(SENTRY_BACKEND_NATIVE)
 		# The daemon is always a static executable, never a shared library
 		list(REMOVE_ITEM SENTRY_COMPILE_DEFS "SENTRY_BUILD_SHARED" "SENTRY_LINK_CURL")
 		list(FILTER SENTRY_COMPILE_DEFS EXCLUDE REGEX "^SENTRY_INTEGRATION_")
+		# The daemon only compiles the native backend
+		list(FILTER SENTRY_COMPILE_DEFS EXCLUDE REGEX
+			"^SENTRY_BACKEND_(CRASHPAD|BREAKPAD|INPROC|DEFAULT=.*)$|^SENTRY_WITH_INPROC_BACKEND$")
 		target_compile_definitions(sentry-crash PRIVATE ${SENTRY_COMPILE_DEFS})
 	endif()
 
@@ -984,6 +1004,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	target_compile_definitions(sentry-crash PRIVATE
 		SENTRY_CRASH_DAEMON_STANDALONE
 		SENTRY_BUILD_STATIC
+		SENTRY_BACKEND_DEFAULT="native"
 	)
 
 	if(SENTRY_WITH_LIBUNWIND AND LINUX)

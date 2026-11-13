@@ -451,3 +451,13 @@ SENTRY_TEST(options_shutdown_timeout)
 
     sentry_options_free(options);
 }
+
+SENTRY_TEST(options_backend_preload)
+{
+    TEST_CHECK_INT_EQUAL(sentry_backend_preload("unknown"), 1);
+    TEST_CHECK_INT_EQUAL(sentry_backend_preload("none"), 0);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_CHECK(!options->backend);
+    sentry_options_free(options);
+}
