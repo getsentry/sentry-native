@@ -1894,7 +1894,8 @@ SENTRY_TEST(crash_daemon_shutdown_during_crash)
         execl(daemon, daemon, pid, tid, notify, ready, shm, message, NULL);
         _exit(1);
     }
-    TEST_CHECK(sentry__crash_ipc_wait_for_ready(ipc, 5000));
+    TEST_CHECK(sentry__crash_ipc_wait_for_ready(
+        ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS));
     sleep_ms(100);
     TEST_CHECK_INT_EQUAL(waitpid(child, NULL, WNOHANG), 0);
 
@@ -1902,7 +1903,7 @@ SENTRY_TEST(crash_daemon_shutdown_during_crash)
     sentry__crash_ipc_notify(ipc);
     int status = 0;
     pid_t result = 0;
-    for (int i = 0; i < 500; i++) {
+    for (int i = 0; i < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS / 10; i++) {
         result = waitpid(child, &status, WNOHANG);
         if (result != 0) {
             break;
