@@ -8,6 +8,7 @@ from werkzeug.wrappers import Response
 from . import (
     make_dsn,
     run,
+    run_crash,
     Envelope,
     SENTRY_VERSION,
 )
@@ -870,7 +871,7 @@ def test_tus_crash_native_retry(cmake, httpserver):
         "", status=503
     )
 
-    run(
+    run_crash(
         tmp_path,
         "sentry_test_integration",
         [
@@ -882,9 +883,16 @@ def test_tus_crash_native_retry(cmake, httpserver):
             "shutdown-timeout",
             "10000",
         ],
-        expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         wait_for_daemon=True,
+        restart_args=[
+            "log",
+            "http-retry",
+            "large-attachment",
+            "no-setup",
+            "shutdown-timeout",
+            "10000",
+        ],
     )
 
     # the daemon keeps the envelope for retry instead of sending it without the
