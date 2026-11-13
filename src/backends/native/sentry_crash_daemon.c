@@ -3898,7 +3898,7 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         sentry_value_t filename_val
             = sentry_value_get_by_key(attach_info, "filename");
         sentry_value_t attachment_type_val
-            = sentry_value_get_by_key(attach_info, "attachment_type");
+            = sentry_value_get_by_key(attach_info, "type");
         sentry_value_t content_type_val
             = sentry_value_get_by_key(attach_info, "content_type");
 
@@ -4118,7 +4118,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
         sentry_value_t filename_val
             = sentry_value_get_by_key(attach_info, "filename");
         sentry_value_t attachment_type_val
-            = sentry_value_get_by_key(attach_info, "attachment_type");
+            = sentry_value_get_by_key(attach_info, "type");
         sentry_value_t content_type_val
             = sentry_value_get_by_key(attach_info, "content_type");
 

@@ -1481,7 +1481,7 @@ attachment_list(native_backend_state_t *state, const sentry_scope_t *scope)
         const char *type = sentry__attachment_get_type(attachment);
         if (!sentry__string_empty(type)) {
             sentry_value_set_by_key(
-                attach_info, "attachment_type", sentry_value_new_string(type));
+                attach_info, "type", sentry_value_new_string(type));
         }
         const char *content_type
             = sentry__attachment_get_content_type(attachment);

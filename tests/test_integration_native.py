@@ -32,6 +32,7 @@ from . import (
 )
 from .assertions import (
     assert_attachment,
+    assert_attachment_view_hierarchy,
     assert_breadcrumb,
     assert_crash_timestamp,
     assert_crash_hint_attachments,
@@ -83,7 +84,7 @@ def test_native_capture_crash(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_test_integration",
-            ["log", "stdout", "test-logger", "crash"],
+            ["log", "stdout", "test-logger", "attach-view-hierarchy", "crash"],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -91,6 +92,7 @@ def test_native_capture_crash(cmake, httpserver):
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_native_crash(envelope)
+    assert_attachment_view_hierarchy(envelope)
 
 
 @pytest.mark.parametrize(
