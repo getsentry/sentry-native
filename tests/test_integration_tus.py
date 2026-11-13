@@ -871,7 +871,15 @@ def test_tus_crash_native_retry(cmake, httpserver):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "http-retry", "large-attachment", "crash"],
+        [
+            "log",
+            "http-retry",
+            "large-attachment",
+            "crash",
+            # extra time for slow sanitizer runners
+            "shutdown-timeout",
+            "10000",
+        ],
         expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         wait_for_daemon=True,
