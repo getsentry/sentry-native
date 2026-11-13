@@ -1911,6 +1911,9 @@ static void
 close_message_stream(sentry_crash_ipc_t *ipc)
 {
     ipc->message_closed = true;
+    sentry_free(ipc->message_buf);
+    ipc->message_buf = NULL;
+    ipc->message_len = 0;
 #if defined(SENTRY_PLATFORM_WINDOWS)
     CloseHandle(ipc->message_read_handle);
     ipc->message_read_handle = NULL;
