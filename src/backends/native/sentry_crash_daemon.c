@@ -4182,14 +4182,18 @@ ensure_device_arch(sentry_value_t event)
     sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
     if (sentry_value_is_null(contexts)) {
         contexts = sentry_value_new_object();
-        sentry_value_set_by_key(event, "contexts", contexts);
+        if (sentry_value_set_by_key(event, "contexts", contexts) != 0) {
+            return;
+        }
     }
     sentry_value_t device = sentry_value_get_by_key(contexts, "device");
     if (sentry_value_is_null(device)) {
         device = sentry_value_new_object();
         sentry_value_set_by_key(
             device, "type", sentry_value_new_string("device"));
-        sentry_value_set_by_key(contexts, "device", device);
+        if (sentry_value_set_by_key(contexts, "device", device) != 0) {
+            return;
+        }
     }
     if (!sentry_value_is_null(sentry_value_get_by_key(device, "arch"))) {
         return;
