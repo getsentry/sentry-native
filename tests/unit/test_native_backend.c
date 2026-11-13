@@ -1649,12 +1649,18 @@ SENTRY_TEST(crash_ipc_awaiting_ready)
     memset(large, 'x', size);
     sentry_value_t value = sentry_value_new_string_n(large, size);
     sentry_free(large);
-    // nothing reads yet, so the frame stalls at once and counts as sent
+    // the send serializes too, so leave that time out of the bound
     uint64_t start = sentry__monotonic_time();
+    size_t len = 0;
+    sentry_free(sentry_value_to_msgpack(value, &len));
+    uint64_t serialize = sentry__monotonic_time() - start;
+    // nothing reads yet, so the frame stalls at once and counts as sent
+    start = sentry__monotonic_time();
     TEST_CHECK(sentry__crash_ipc_send(
         ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
-    TEST_CHECK(
-        sentry__monotonic_time() - start < SENTRY_CRASH_IPC_SEND_TIMEOUT_MS);
+    // a blocking write would wait out the whole send timeout
+    TEST_CHECK(sentry__monotonic_time() - start
+        < serialize + SENTRY_CRASH_IPC_SEND_TIMEOUT_MS / 2);
     sentry_value_decref(value);
     TEST_CHECK(ipc->stalled);
     TEST_CHECK(ipc->awaiting_ready);
