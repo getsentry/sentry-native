@@ -863,6 +863,7 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
 
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
+        close(shm_fd);
         return NULL;
     }
     ipc->is_daemon = true;
