@@ -146,8 +146,7 @@ configure_proxy(SentryURLSessionClient *client,
     }
 
     NSDictionary *dict = nil;
-    if (sentry__string_eq(url.scheme, "http")
-        || sentry__string_eq(url.scheme, "https")) {
+    if (sentry__string_eq(url.scheme, "http")) {
         // the keys refer to the target URL, not to the proxy URL
         NSNumber *port = @(url.port);
         dict = @{
