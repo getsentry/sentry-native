@@ -20,6 +20,11 @@ function(sentry_get_property NAME)
 	if(NOT prop)
 		set(prop)
 	endif()
+	if(NAME STREQUAL "SOURCES" AND SENTRY_TRANSPORT_APPLE)
+		set_source_files_properties(
+			${SENTRY_SOURCE_DIR}/src/transports/sentry_http_transport_apple.m
+			PROPERTIES COMPILE_FLAGS -fobjc-arc)
+	endif()
 	set("SENTRY_${NAME}" "${prop}" PARENT_SCOPE)
 endfunction()
 
