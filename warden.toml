@@ -2,17 +2,24 @@ version = 1
 
 # Repo skills are layered on the org config (getsentry/.github warden.toml),
 # which keeps running security-review. Repo skills inherit the org model,
-# effort, runtime, and incrementalApp, but not its reportOn, failOn, or
+# runtime, and incrementalApp, but not its reportOn, failOn, or
 # ignorePaths, so set the report thresholds here to match the org.
 [defaults]
 reportOn = "low"
 failOn = "off"
+
+[defaults.agent]
+effort = "medium"
+
+[defaults.auxiliary]
+effort = "medium"
 
 [[skills]]
 name = "native-code-review"
 paths = ["src/**", "include/**", "ndk/lib/src/main/jni/**"]
 ignorePaths = ["**/*.md", "src/CMakeLists.txt", "src/exports.map"]
 incremental = true
+maxTurns = 30
 
 [[skills.triggers]]
 type = "pull_request"
@@ -40,6 +47,7 @@ paths = [
 ]
 ignorePaths = ["**/*.md", "external/**", "vendor/**", ".github/ISSUE_TEMPLATE/**"]
 incremental = true
+maxTurns = 30
 
 [[skills.triggers]]
 type = "pull_request"
@@ -59,6 +67,7 @@ ignorePaths = [
   "tests/fixtures/*.so",
 ]
 incremental = true
+maxTurns = 30
 
 [[skills.triggers]]
 type = "pull_request"
