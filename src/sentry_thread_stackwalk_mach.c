@@ -1,7 +1,7 @@
 #include "sentry_boot.h"
 #include "sentry_thread_stackwalk.h"
 
-#if defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_DARWIN)
 
 #    include "sentry.h"
 #    include "sentry_logger.h"
