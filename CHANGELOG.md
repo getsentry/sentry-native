@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Experimental: build several backends with a list in `SENTRY_BACKEND`, such as `native;crashpad`, and select one at runtime with `sentry_backend_preload`. ([#2308](https://github.com/getsentry/sentry-native/pull/2308))
+
 ## 1.0.0-beta.1
 
 **Breaking / Important behavior changes**:

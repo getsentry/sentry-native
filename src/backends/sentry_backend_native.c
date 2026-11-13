@@ -1957,7 +1957,7 @@ native_backend_reinstall(sentry_backend_t *backend)
 }
 
 void
-sentry__backend_preload(void)
+sentry__backend_native_preload(void)
 {
 #ifdef SENTRY_PLATFORM_UNIX
     if (sentry__crash_handler_preload() < 0) {
@@ -1970,7 +1970,7 @@ sentry__backend_preload(void)
  * Create native backend
  */
 sentry_backend_t *
-sentry__backend_new(void)
+sentry__backend_native_new(void)
 {
     sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
     if (!backend) {

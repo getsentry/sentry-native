@@ -341,7 +341,8 @@ sentry_init(sentry_options_t *options)
     // and then we will start the backend, since it requires a valid run
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
-        SENTRY_DEBUG("starting backend");
+        SENTRY_DEBUGF("starting backend \"%s\"",
+            backend->name ? backend->name : "custom");
         if (backend->startup_func(backend, options) != 0) {
             SENTRY_WARN("failed to initialize backend");
             goto fail;

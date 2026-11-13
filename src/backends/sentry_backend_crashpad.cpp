@@ -1439,13 +1439,8 @@ crashpad_backend_reinstall(sentry_backend_t *backend)
 }
 #endif
 
-void
-sentry__backend_preload(void)
-{
-}
-
 sentry_backend_t *
-sentry__backend_new(void)
+sentry__backend_crashpad_new(void)
 {
     auto *backend = SENTRY_MAKE(sentry_backend_t);
     if (!backend) {

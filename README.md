@@ -284,6 +284,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes. It is primarily used for tests.
 
+  Experimental: a list, such as `native;crashpad`, builds several backends.
+  The first one is the default, and `sentry_backend_preload()` selects another.
+
 - `SENTRY_INTEGRATION_QT` (Default: `OFF`):
   Builds the Qt integration, which turns Qt log messages into breadcrumbs.
 

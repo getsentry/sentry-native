@@ -19,16 +19,6 @@
 #include <math.h>
 #include <stdlib.h>
 
-#ifdef SENTRY_BACKEND_CRASHPAD
-#    define SENTRY_BACKEND "crashpad"
-#elif defined(SENTRY_BACKEND_BREAKPAD)
-#    define SENTRY_BACKEND "breakpad"
-#elif defined(SENTRY_BACKEND_INPROC)
-#    define SENTRY_BACKEND "inproc"
-#elif defined(SENTRY_BACKEND_NATIVE)
-#    define SENTRY_BACKEND "native"
-#endif
-
 static const sentry_level_t SENTRY_LEVEL_NONE = SENTRY_LEVEL_TRACE - 1;
 
 struct sentry_scope_data_s {
@@ -218,12 +208,6 @@ get_client_sdk(void)
     sentry_value_t packages = sentry_value_new_list();
     sentry_value_append(packages, package);
     sentry_value_set_by_key(client_sdk, "packages", packages);
-
-#ifdef SENTRY_BACKEND
-    sentry_value_t integrations = sentry_value_new_list();
-    sentry_value_append(integrations, sentry_value_new_string(SENTRY_BACKEND));
-    sentry_value_set_by_key(client_sdk, "integrations", integrations);
-#endif
 
     return client_sdk;
 }
@@ -507,7 +491,19 @@ init_global_scope(const sentry_options_t *options)
         sentry_value_set_by_key(
             sdk, "name", sentry_value_new_string(options->sdk_name));
     }
-    sentry_value_t integrations = sentry_value_get_by_key(sdk, "integrations");
+    sentry_value_t integrations = sentry_value_new_null();
+    const char *backend = options->backend ? options->backend->name : NULL;
+#ifdef SENTRY_BACKEND
+    // unnamed custom backends may still name themselves via this define
+    if (options->backend && !backend) {
+        backend = SENTRY_BACKEND;
+    }
+#endif
+    if (backend) {
+        integrations = sentry_value_new_list();
+        sentry_value_set_by_key(sdk, "integrations", integrations);
+        sentry_value_append(integrations, sentry_value_new_string(backend));
+    }
     for (size_t i = 0; i < options->num_integrations; i++) {
         const char *name = options->integrations[i]->name;
         if (!name) {
