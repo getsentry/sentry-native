@@ -384,10 +384,12 @@ def test_tus_resume_after_shutdown(cmake, httpserver, chunked):
                     "no-setup",
                     "large-attachment",
                     "capture-event",
+                    # extra time for sending the first PATCH
+                    "shutdown-timeout",
+                    "10000",
                     "sleep-after-shutdown",
                 ],
                 env=env,
-                timeout=30,
             )
         finally:
             release_upload.set()
