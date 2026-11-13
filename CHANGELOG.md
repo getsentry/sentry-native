@@ -65,6 +65,7 @@
 
 - Crashpad/Windows: Breadcrumb and scope IPC updates time out after 5 seconds instead of blocking forever on a stalled handler. ([#2280](https://github.com/getsentry/sentry-native/pull/2280), [crashpad#178](https://github.com/getsentry/crashpad/pull/178))
 - Crashpad/Linux: fix a handler crash after launching an external crash reporter. ([#2287](https://github.com/getsentry/sentry-native/pull/2287), [crashpad#179](https://github.com/getsentry/crashpad/pull/179))
+- Native/Linux: fix incorrect fault addresses in minidumps on 32-bit systems when the address has its highest bit set, and remove pointer-width compiler warnings. ([#2305](https://github.com/getsentry/sentry-native/pull/2305))
 
 **Thank you**:
 

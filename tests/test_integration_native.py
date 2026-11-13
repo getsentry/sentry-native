@@ -7,6 +7,7 @@ multi-thread capture, and FPU/SIMD register capture on all platforms.
 
 import os
 import queue
+import signal
 import subprocess
 import sys
 import threading
@@ -50,7 +51,7 @@ from .assertions import (
     assert_crash_stack,
 )
 from .conditions import has_files, has_http, has_system_proxy, is_arm64e, is_kcov
-from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
+from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine, is_x86
 from .proxy import proxy_test_finally, start_proxy, system_proxy
 
 pytestmark = pytest.mark.skipif(
@@ -1123,6 +1124,32 @@ def test_native_minidump_streams(cmake, httpserver):
                 f"writer should put the originating signal there for "
                 f"consumers that key on it."
             )
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux" or not is_x86 or is_wine or is_asan or is_tsan,
+    reason="Requires unsanitized 32-bit Linux with a fixed high-address mapping",
+)
+def test_native_minidump_high_fault_address(cmake):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    result = run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "crash-high-address"],
+        expect_failure=True,
+        env=dict(os.environ, SENTRY_DSN=""),
+    )
+    if result.returncode == 77:
+        pytest.skip("High-address mapping unavailable")
+    assert result.returncode == -signal.SIGSEGV
+
+    db_dir = tmp_path / ".sentry-native"
+    assert wait_for_file(db_dir / "*.run/__sentry-crash.dmp")
+    dump = _parse_minidump(next(db_dir.glob("*.run/__sentry-crash.dmp")))
+    assert 6 in dump["streams"]
+    _, rva = dump["streams"][6]
+    exception_address = struct.unpack_from("<Q", dump["data"], rva + 24)[0]
+    assert exception_address == 0xF1234000, f"Fault address: {exception_address:#018x}"
 
 
 def _codesign_for_task_for_pid(*paths):

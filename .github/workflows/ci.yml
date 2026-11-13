@@ -488,7 +488,8 @@ jobs:
 
       - name: Install .NET Android workload
         if: ${{ env['ANDROID_API'] }}
-        run: dotnet workload restore tests/fixtures/dotnet_signal/test_dotnet.csproj
+        working-directory: tests/fixtures/dotnet_signal
+        run: dotnet workload restore test_dotnet.csproj
 
       - name: Enable KVM group perms
         if: ${{ runner.os == 'Linux' && env['ANDROID_API'] }}
