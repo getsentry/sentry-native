@@ -588,6 +588,7 @@ sentry__scope_init(const sentry_options_t *options)
     }
     sentry_scope_t *scope = new_isolation_scope();
     if (!scope) {
+        reset_global_scope();
         return false;
     }
 
