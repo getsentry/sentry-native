@@ -1465,6 +1465,14 @@ SENTRY_TEST(before_breadcrumb_discard)
         sentry_value_decref(event);
     }
 
+    sentry_scope_t *local_scope = sentry_local_scope_new();
+    sentry_scope_add_breadcrumb(
+        local_scope, sentry_value_new_breadcrumb(NULL, "discarded"));
+    sentry_value_t breadcrumbs = sentry__scope_breadcrumbs_to_list(local_scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(breadcrumbs), 0);
+    sentry_value_decref(breadcrumbs);
+    sentry_scope_free(local_scope);
+
     sentry_close();
 }
 

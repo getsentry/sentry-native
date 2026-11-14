@@ -173,6 +173,7 @@ scope_data_write_unlock(sentry_scope_data_t *data, bool locked)
 
 static size_t begin_scope_notify(sentry_scope_t *scope);
 static void end_scope_notify(sentry_scope_t *scope);
+static sentry_options_t *ref_options(const sentry_scope_t *scope);
 
 // notify observers registered before this notification started
 #define SENTRY_SCOPE_NOTIFY(scope, callback, ...)                              \
@@ -1699,11 +1700,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 void
 sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
 {
-    sentry__mutex_lock(&scope->observers_lock);
-    const sentry_options_t *options = sentry__options_incref(scope->state);
-    sentry__mutex_unlock(&scope->observers_lock);
+    sentry_options_t *options = ref_options(scope);
     breadcrumb = sentry__invoke_before_breadcrumb(options, breadcrumb);
-    sentry_options_free((sentry_options_t *)options);
+    sentry_options_free(options);
     if (sentry_value_is_null(breadcrumb)) {
         return;
     }
