@@ -8,6 +8,7 @@ from werkzeug.wrappers import Response
 from . import (
     make_dsn,
     run,
+    run_crash,
     Envelope,
     SENTRY_VERSION,
 )
@@ -662,11 +663,10 @@ def test_tus_crash_restart(cmake, httpserver, backend):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     # First run: crash with large attachment (no server expectations needed)
-    run(
+    run_crash(
         tmp_path,
         "sentry_test_integration",
         ["log", "large-attachment", "crash"],
-        expect_failure=True,
         env=env,
     )
 
@@ -808,7 +808,7 @@ def test_tus_crash_native(cmake, httpserver):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     with httpserver.wait(timeout=15) as waiting:
-        run(
+        run_crash(
             tmp_path,
             "sentry_test_integration",
             [
@@ -817,7 +817,6 @@ def test_tus_crash_native(cmake, httpserver):
                 "async-crash-upload",
                 "crash",
             ],
-            expect_failure=True,
             env=env,
             wait_for_daemon=True,
         )
@@ -870,7 +869,7 @@ def test_tus_crash_native_retry(cmake, httpserver):
         "", status=503
     )
 
-    run(
+    run_crash(
         tmp_path,
         "sentry_test_integration",
         [
@@ -882,7 +881,6 @@ def test_tus_crash_native_retry(cmake, httpserver):
             "shutdown-timeout",
             "10000",
         ],
-        expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         wait_for_daemon=True,
     )
