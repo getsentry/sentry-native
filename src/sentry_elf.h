@@ -282,7 +282,7 @@ sentry__elf_compute_size_from_phdrs(const char *elf_path, uint64_t elf_offset)
             if (phdrs[i].p_vaddr < min_vaddr) {
                 min_vaddr = phdrs[i].p_vaddr;
             }
-            uint64_t end = phdrs[i].p_vaddr + phdrs[i].p_memsz;
+            uint64_t end = (uint64_t)phdrs[i].p_vaddr + phdrs[i].p_memsz;
             if (end > max_vaddr) {
                 max_vaddr = end;
             }
