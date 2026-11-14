@@ -29,6 +29,7 @@ from . import (
     run_command,
     Envelope,
     split_log_request_cond,
+    unreachable,
     REPLAY_ID,
 )
 from .assertions import (
@@ -1996,17 +1997,19 @@ def test_native_scope_snapshot(cmake, httpserver):
         pytest.param(["cache-keep-always"], id="always"),
     ],
 )
-def test_native_http_retry(cmake, httpserver, unreachable_dsn, cache_args):
+def test_native_http_retry(cmake, httpserver, cache_args):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
     cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    run_crash(
-        tmp_path,
-        "sentry_test_integration",
-        ["log", "http-retry", "crash", *cache_args, *SANITIZER_ARGS],
-        env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
-        wait_for_daemon=True,
-    )
+    with unreachable(httpserver):
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "http-retry", "crash", *cache_args, *SANITIZER_ARGS],
+            env=env,
+            wait_for_daemon=True,
+        )
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 1
@@ -2024,7 +2027,7 @@ def test_native_http_retry(cmake, httpserver, unreachable_dsn, cache_args):
             tmp_path,
             "sentry_test_integration",
             ["log", "http-retry", "no-setup", *cache_args],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=env,
         )
     assert waiting.result
     assert len(httpserver.log) == 1
@@ -2279,3 +2282,39 @@ def test_native_full_mode(cmake, httpserver, args, embedded, uploaded):
     assert uploaded == any(
         req.headers.get("upload-metadata") == metadata for req in requests
     )
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["crash-mode", "minidump"],
+        ["crash-mode", "native"],
+        ["crash-mode", "native-with-minidump"],
+        ["crash-reporter"],
+    ],
+)
+def test_native_hint_dsn(cmake, httpserver, args):
+    targets = ["sentry_test_integration"]
+    if "crash-reporter" in args:
+        targets.append("sentry_crash_reporter")
+    tmp_path = cmake(targets, {"SENTRY_BACKEND": "native"})
+    hint_dsn = make_dsn(httpserver, auth="hintkey", id=654321)
+
+    # the external crash reporter also sends user feedback
+    for _ in range(2 if "crash-reporter" in args else 1):
+        httpserver.expect_oneshot_request("/api/654321/envelope/").respond_with_data(
+            "OK"
+        )
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "hint-dsn", hint_dsn, *args, "crash"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    for request, _ in httpserver.log:
+        envelope = Envelope.deserialize(request.get_data())
+        assert envelope.headers["dsn"] == hint_dsn

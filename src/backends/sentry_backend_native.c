@@ -1454,6 +1454,20 @@ write_crash_event(native_backend_state_t *state, sentry_value_t event)
     sentry__path_free(path);
 }
 
+static void
+write_crash_dsn(native_backend_state_t *state, const char *dsn)
+{
+    if (!state || !state->run_path || !dsn) {
+        return;
+    }
+    sentry_path_t *path
+        = sentry__path_join_str(state->run_path, "__sentry-dsn");
+    if (path) {
+        sentry__path_write_buffer(path, dsn, strlen(dsn));
+        sentry__path_free(path);
+    }
+}
+
 static sentry_value_t
 attachment_list(native_backend_state_t *state, const sentry_scope_t *scope)
 {
@@ -1878,6 +1892,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                         scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
                 }
                 write_crash_event(state, event);
+                write_crash_dsn(state, hint.dsn);
 
 #ifndef SENTRY_SCREENSHOT_NONE
                 // The screenshot is captured by the daemon out-of-process, so

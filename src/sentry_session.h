@@ -59,6 +59,12 @@ sentry_session_t *sentry__end_current_session_with_status(
     const sentry_options_t *options, sentry_session_status_t status);
 
 /**
+ * This will send `session` in a new envelope.
+ */
+void sentry__capture_session(
+    const sentry_options_t *options, sentry_session_t *session);
+
+/**
  * This will add `error_count` new errors to the current session.
  */
 void sentry__record_errors_on_current_session(

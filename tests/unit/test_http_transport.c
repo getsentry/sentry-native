@@ -354,3 +354,80 @@ SENTRY_TEST(http_transport_new_null_client_free_func_is_safe)
     // Must not crash freeing a transport with no client-free hook.
     sentry_transport_free(transport);
 }
+
+static int
+record_request_send(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    sentry_value_t request = sentry_value_new_object();
+    sentry_value_set_by_key(request, "url", sentry_value_new_string(req->url));
+    for (size_t i = 0; i < req->headers_len; i++) {
+        if (strcmp(req->headers[i].key, "x-sentry-auth") == 0) {
+            sentry_value_set_by_key(request, "auth",
+                sentry_value_new_string(req->headers[i].value));
+        }
+    }
+    sentry_value_append(*(sentry_value_t *)client, request);
+
+    if (strstr(req->url, "/api/43/")) {
+        resp->status_code = 429;
+        resp->retry_after = sentry__string_clone("60");
+    } else {
+        resp->status_code = 200;
+    }
+    return 1;
+}
+
+static void
+capture_with_dsn(const char *dsn)
+{
+    sentry_hint_t *hint = sentry_hint_new();
+    if (dsn) {
+        TEST_CHECK_INT_EQUAL(sentry_hint_set_dsn(hint, dsn), 0);
+    }
+    sentry_scope_capture_event(NULL, sentry_value_new_event(), hint);
+}
+
+static void
+check_request(sentry_value_t request, const char *url, const char *key)
+{
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(request, "url")), url);
+    TEST_CHECK(
+        strstr(sentry_value_as_string(sentry_value_get_by_key(request, "auth")),
+            key)
+        != NULL);
+}
+
+SENTRY_TEST(http_transport_routes_by_dsn)
+{
+    sentry_value_t requests = sentry_value_new_list();
+    sentry_transport_t *transport
+        = sentry__http_transport_new(&requests, record_request_send);
+    TEST_ASSERT(!!transport);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    capture_with_dsn(NULL);
+    capture_with_dsn("http://bar@other.invalid:8080/43");
+    // rate limited by the previous response
+    capture_with_dsn("http://bar@other.invalid:8080/43");
+    capture_with_dsn("https://baz@sentry.invalid/44");
+    capture_with_dsn("not a dsn");
+    capture_with_dsn(NULL);
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(requests), 4);
+    check_request(sentry_value_get_by_index(requests, 0),
+        "https://sentry.invalid:443/api/42/envelope/", "sentry_key=foo,");
+    check_request(sentry_value_get_by_index(requests, 1),
+        "http://other.invalid:8080/api/43/envelope/", "sentry_key=bar,");
+    check_request(sentry_value_get_by_index(requests, 2),
+        "https://sentry.invalid:443/api/44/envelope/", "sentry_key=baz,");
+    check_request(sentry_value_get_by_index(requests, 3),
+        "https://sentry.invalid:443/api/42/envelope/", "sentry_key=foo,");
+    sentry_value_decref(requests);
+}

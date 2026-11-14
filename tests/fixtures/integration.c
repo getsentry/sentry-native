@@ -199,6 +199,22 @@ on_crash_callback(const sentry_ucontext_t *uctx, sentry_value_t event,
     return event;
 }
 
+static sentry_value_t
+hint_dsn_before_send(sentry_value_t event, sentry_hint_t *hint, void *user_data)
+{
+    sentry_hint_set_dsn(hint, user_data);
+    return event;
+}
+
+static sentry_value_t
+hint_dsn_on_crash(const sentry_ucontext_t *uctx, sentry_value_t event,
+    sentry_hint_t *hint, void *user_data)
+{
+    (void)uctx;
+    sentry_hint_set_dsn(hint, user_data);
+    return event;
+}
+
 static sentry_value_t create_debug_crumb(const char *message);
 
 static void
@@ -920,6 +936,14 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "hanging-on-crash")) {
         sentry_options_set_on_crash(options, on_crash_callback, "hang");
+    }
+
+    const char *hint_dsn = get_arg_value(argc, argv, "hint-dsn");
+    if (hint_dsn) {
+        sentry_options_set_before_send(
+            options, hint_dsn_before_send, (void *)hint_dsn);
+        sentry_options_set_on_crash(
+            options, hint_dsn_on_crash, (void *)hint_dsn);
     }
 
     if (has_arg(argc, argv, "before-transaction")) {

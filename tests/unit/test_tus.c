@@ -400,6 +400,69 @@ SENTRY_TEST(tus_placeholder_uses_raw_location)
 #endif
 }
 
+typedef struct {
+    tus_capture_state_t cap;
+    sentry_value_t urls;
+} tus_url_state_t;
+
+static int
+tus_url_send(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    tus_url_state_t *state = client;
+    sentry_value_append(state->urls, sentry_value_new_string(req->url));
+    return tus_capture_send(&state->cap, req, resp);
+}
+
+SENTRY_TEST(tus_hint_dsn)
+{
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
+    SKIP_TEST();
+#else
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_hint_dsn";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    create_large_test_file(test_file_str);
+
+    tus_url_state_t state = { { 0 }, sentry_value_new_list() };
+    sentry_transport_t *transport
+        = sentry__http_transport_new(&state, tus_url_send);
+    TEST_ASSERT(!!transport);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_enable_large_attachments(options, 1);
+    sentry_init(options);
+
+    sentry_hint_t *hint = sentry_hint_new();
+    sentry_hint_set_dsn(hint, "http://bar@other.invalid:8080/43");
+    sentry_hint_attach_file(hint, test_file_str);
+    sentry_scope_capture_event(NULL,
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"), hint);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(state.urls), 3);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_index(state.urls, 0)),
+        "http://other.invalid:8080/api/43/upload/");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_index(state.urls, 1)),
+        "http://other.invalid:8080/api/42/upload/019db3e0/"
+        "?length=104857600&signature=test");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_index(state.urls, 2)),
+        "http://other.invalid:8080/api/43/envelope/");
+
+    sentry_value_decref(state.urls);
+    sentry_free(state.cap.captured_body);
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+#endif
+}
+
 static void
 capture_serialized_ref(const char *path)
 {

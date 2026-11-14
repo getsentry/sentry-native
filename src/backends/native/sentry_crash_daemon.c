@@ -533,6 +533,20 @@ read_attachment_manifest(const sentry_path_t *run_folder)
     return attachments;
 }
 
+// the DSN that `on_crash` set on the hint, or the options DSN
+static char *
+read_crash_dsn(const sentry_options_t *options, const sentry_path_t *run_folder)
+{
+    sentry_path_t *path
+        = run_folder ? sentry__path_join_str(run_folder, "__sentry-dsn") : NULL;
+    char *dsn = path ? sentry__path_read_to_buffer(path, NULL) : NULL;
+    sentry__path_free(path);
+    if (!dsn && options && options->dsn) {
+        dsn = sentry__string_clone(sentry_options_get_dsn(options));
+    }
+    return dsn;
+}
+
 static sentry_value_t
 read_crash_event(const sentry_path_t *run_folder)
 {
@@ -3729,7 +3743,7 @@ static bool
 write_envelope_with_native_stacktrace(const sentry_options_t *options,
     const char *envelope_path, const sentry_crash_context_t *ctx,
     sentry_value_t base, const char *minidump_path, sentry_path_t *run_folder,
-    sentry_value_t attachments)
+    sentry_value_t attachments, const char *dsn)
 {
     // Build native crash event (always include threads with names)
     SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s",
@@ -3768,8 +3782,6 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     }
 
     // Write envelope header
-    const char *dsn
-        = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
     char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
     int header_len;
     if (dsn && !sentry__string_empty(event_id)) {
@@ -3953,7 +3965,7 @@ static bool
 write_envelope_with_minidump(const sentry_options_t *options,
     const sentry_crash_context_t *ctx, const char *envelope_path,
     sentry_value_t base, const char *minidump_path, sentry_path_t *run_folder,
-    sentry_value_t attachments)
+    sentry_value_t attachments, const char *dsn)
 {
     sentry_value_t event = sentry__value_clone(base);
 #if defined(SENTRY_PLATFORM_WINDOWS)
@@ -3988,8 +4000,6 @@ write_envelope_with_minidump(const sentry_options_t *options,
     }
 
     // Write envelope headers (just DSN and event ID if available)
-    const char *dsn
-        = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
     char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
     int header_len;
     if (dsn && !sentry__string_empty(event_id)) {
@@ -4307,6 +4317,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     if (sentry_value_is_null(attachments)) {
         attachments = sentry_value_incref(ipc->scope.attachments);
     }
+    char *dsn = read_crash_dsn(options, run_folder);
 #if defined(SENTRY_PLATFORM_WINDOWS)
     ensure_device_arch(base);
 #endif
@@ -4329,6 +4340,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         SENTRY_WARN("Envelope path truncated or invalid");
         sentry_value_decref(base);
         sentry_value_decref(attachments);
+        sentry_free(dsn);
         if (run_folder) {
             sentry__path_free(run_folder);
         }
@@ -4441,18 +4453,20 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
             embedded_minidump[0] ? embedded_minidump : "NULL");
         envelope_written
             = write_envelope_with_native_stacktrace(options, envelope_path, ctx,
-                base, embedded_minidump, run_folder, attachments);
+                base, embedded_minidump, run_folder, attachments, dsn);
     } else {
         // Mode 0 (MINIDUMP only)
         SENTRY_DEBUG("Writing envelope with minidump");
-        envelope_written = write_envelope_with_minidump(options, ctx,
-            envelope_path, base, embedded_minidump, run_folder, attachments);
+        envelope_written
+            = write_envelope_with_minidump(options, ctx, envelope_path, base,
+                embedded_minidump, run_folder, attachments, dsn);
     }
 
     if (!envelope_written) {
         SENTRY_WARN("Failed to write envelope");
         sentry_value_decref(base);
         sentry_value_decref(attachments);
+        sentry_free(dsn);
         if (run_folder) {
             sentry__path_free(run_folder);
         }
@@ -4499,7 +4513,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         // Report the crash with a native stacktrace, which needs no minidump
         SENTRY_WARN("Failed to read envelope file, retrying without minidump");
         if (write_envelope_with_native_stacktrace(options, envelope_path, ctx,
-                base, NULL, run_folder, attachments)) {
+                base, NULL, run_folder, attachments, dsn)) {
             envelope = sentry__envelope_from_path(env_path);
         }
     }
@@ -4592,6 +4606,7 @@ cleanup:
     sentry__path_free(run_folder);
     sentry_value_decref(base);
     sentry_value_decref(attachments);
+    sentry_free(dsn);
 
     SENTRY_DEBUG("Crash processing completed successfully");
 

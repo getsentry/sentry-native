@@ -16,6 +16,7 @@ sentry_hint_new(void)
     }
     hint->attachments = sentry_value_new_null();
     hint->modified = false;
+    hint->dsn = NULL;
     return hint;
 }
 
@@ -28,12 +29,14 @@ sentry__hint_init(sentry_hint_t *hint)
         hint->attachments = sentry__scope_load_attachments(scope);
     }
     hint->modified = false;
+    hint->dsn = NULL;
 }
 
 void
 sentry__hint_deinit(sentry_hint_t *hint)
 {
     sentry_value_decref(hint->attachments);
+    sentry_free(hint->dsn);
 }
 
 bool
@@ -189,4 +192,25 @@ sentry_hint_clear_attachments(sentry_hint_t *hint)
         hint->attachments = sentry_value_new_null();
         hint->modified = true;
     }
+}
+
+int
+sentry_hint_set_dsn(sentry_hint_t *hint, const char *dsn)
+{
+    return sentry_hint_set_dsn_n(hint, dsn, sentry__guarded_strlen(dsn));
+}
+
+int
+sentry_hint_set_dsn_n(sentry_hint_t *hint, const char *dsn, size_t dsn_len)
+{
+    if (!hint || (dsn && (!dsn_len || memchr(dsn, '\0', dsn_len)))) {
+        return 1;
+    }
+    char *copy = sentry__string_clone_n(dsn, dsn_len);
+    if (dsn && !copy) {
+        return 1;
+    }
+    sentry_free(hint->dsn);
+    hint->dsn = copy;
+    return 0;
 }
