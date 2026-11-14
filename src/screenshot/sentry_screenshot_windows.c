@@ -147,9 +147,13 @@ calculate_region(DWORD pid, HRGN region)
     }
 }
 
-bool
-sentry__screenshot_capture(const sentry_path_t *path, uint32_t pid)
+int
+sentry_screenshot_capture(const char *path, uint32_t pid)
 {
+    sentry_path_t *screenshot_path = sentry__path_from_str(path);
+    if (!screenshot_path) {
+        return 1;
+    }
     // Use provided PID, or current process if 0
     DWORD target_pid = pid ? pid : GetCurrentProcessId();
     HRGN region = CreateRectRgn(0, 0, 0, 0);
@@ -162,7 +166,8 @@ sentry__screenshot_capture(const sentry_path_t *path, uint32_t pid)
     if (width <= 0 || height <= 0) {
         SENTRY_INFO("no visible windows to capture");
         DeleteObject(region);
-        return false;
+        sentry__path_free(screenshot_path);
+        return 1;
     }
 
     HDC src = GetDC(NULL);
@@ -173,16 +178,17 @@ sentry__screenshot_capture(const sentry_path_t *path, uint32_t pid)
     SelectClipRgn(hdc, region);
     BitBlt(hdc, 0, 0, width, height, src, box.left, box.top, SRCCOPY);
 
-    bool rv = save_bitmap(bitmap, path->path_w);
+    bool rv = save_bitmap(bitmap, screenshot_path->path_w);
     if (!rv) {
-        SENTRY_WARNF("Failed to save screenshot: \"%s\"", path->path);
+        SENTRY_WARNF("Failed to save screenshot: \"%s\"", path);
     } else {
-        SENTRY_DEBUGF("Saved screenshot: \"%s\"", path->path);
+        SENTRY_DEBUGF("Saved screenshot: \"%s\"", path);
     }
 
     DeleteObject(bitmap);
     DeleteDC(hdc);
     ReleaseDC(NULL, src);
     DeleteObject(region);
-    return rv;
+    sentry__path_free(screenshot_path);
+    return rv ? 0 : 1;
 }

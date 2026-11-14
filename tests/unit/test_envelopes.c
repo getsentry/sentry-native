@@ -21,10 +21,7 @@
 
 static char *const SERIALIZED_ENVELOPE_STR
     = "{\"dsn\":\"https://foo@sentry.invalid/42\","
-      "\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"trace\":{"
-      "\"public_key\":\"foo\",\"sample_rate\":0,\"sample_"
-      "rand\":0.01006918276309107,\"release\":\"test-release\",\"environment\":"
-      "\"production\",\"sampled\":\"false\"}}\n"
+      "\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
       "{\"type\":\"event\",\"length\":71}\n"
       "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"some-"
       "context\":1234}\n"
@@ -91,39 +88,6 @@ SENTRY_TEST(basic_http_request_preparation_for_transaction)
         "\"transaction\"}");
 #endif
     sentry__prepared_http_request_free(req);
-    sentry_envelope_free(envelope);
-
-    sentry__dsn_decref(dsn);
-}
-
-SENTRY_TEST(basic_http_request_preparation_for_user_report)
-{
-    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
-
-    sentry_uuid_t event_id
-        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
-    sentry_value_t user_report;
-    SENTRY_TEST_DEPRECATED(
-        user_report = sentry_value_new_user_feedback(
-            &event_id, "some-name", "some-email", "some-comment"));
-    sentry__envelope_add_user_report(envelope, user_report);
-
-    sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
-    TEST_CHECK_STRING_EQUAL(req->method, "POST");
-    TEST_CHECK_STRING_EQUAL(
-        req->url, "https://sentry.invalid:443/api/42/envelope/");
-#ifndef SENTRY_TRANSPORT_COMPRESSION
-    TEST_CHECK_STRING_EQUAL(req->body,
-        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
-        "{\"type\":\"user_report\",\"length\":117}\n"
-        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"name\":"
-        "\"some-name\",\"email\":\"some-email\",\"comments\":"
-        "\"some-comment\"}");
-#endif
-    sentry__prepared_http_request_free(req);
-    sentry_value_decref(user_report);
     sentry_envelope_free(envelope);
 
     sentry__dsn_decref(dsn);
@@ -1535,4 +1499,37 @@ SENTRY_TEST(minidump_rate_limit)
 
     sentry__rate_limiter_free(rl);
     sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(attachment_ref_chunk_size_roundtrip)
+{
+    size_t sizes[] = { 32 * 1024 * 1024, SIZE_MAX };
+    for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+        sentry_envelope_t *envelope = sentry__envelope_new(NULL);
+        sentry_attachment_ref_t ref = { 0 };
+        ref.path = "abc-crashlog.bin";
+        sentry_envelope_item_t *item = sentry__envelope_add_attachment_ref(
+            envelope, &ref, "crashlog.bin", NULL, 12345);
+        TEST_ASSERT(!!item);
+        TEST_CHECK(sentry__envelope_item_get_attachment_ref(item, &ref));
+        TEST_CHECK_INT_EQUAL(ref.chunk_size, 0);
+        sentry__attachment_ref_cleanup(&ref);
+        TEST_CHECK(sentry__envelope_item_resolve_attachment_ref(
+            item, "abc-crashlog.bin", "/upload/abc", sizes[i]));
+
+        size_t len = 0;
+        char *buf = sentry_envelope_serialize(envelope, &len);
+        TEST_ASSERT(!!buf);
+        sentry_envelope_free(envelope);
+        envelope = sentry_envelope_deserialize(buf, len);
+        sentry_free(buf);
+        TEST_ASSERT(!!envelope);
+        item = sentry__envelope_get_item(envelope, 0);
+        TEST_CHECK(sentry__envelope_item_get_attachment_ref(item, &ref));
+        TEST_CHECK_STRING_EQUAL(ref.path, "abc-crashlog.bin");
+        TEST_CHECK_STRING_EQUAL(ref.location, "/upload/abc");
+        TEST_CHECK(ref.chunk_size == sizes[i]);
+        sentry__attachment_ref_cleanup(&ref);
+        sentry_envelope_free(envelope);
+    }
 }

@@ -30,6 +30,7 @@ extern "C" {
 #    pragma GCC diagnostic push
 #    pragma GCC diagnostic ignored "-Wpedantic"
 #    pragma GCC diagnostic ignored "-Wvariadic-macros"
+#    pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -238,8 +239,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry_path_t *path = sentry__screenshot_get_path(options);
                 sentry_value_t screenshot
                     = sentry_attachment_from_file(path ? path->path : nullptr);
-                if (!sentry_value_is_null(screenshot)
-                    && sentry__screenshot_capture(path, 0)) {
+                if (path && !sentry_value_is_null(screenshot)
+                    && sentry_screenshot_capture(path->path, 0) == 0) {
                     sentry__envelope_add_attachment(envelope, screenshot);
                 }
                 sentry_value_decref(screenshot);

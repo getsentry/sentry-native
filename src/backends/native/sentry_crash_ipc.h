@@ -3,9 +3,17 @@
 
 #include "sentry_boot.h"
 #include "sentry_crash_context.h"
+#include "sentry_ringbuffer.h"
+
+#include <stddef.h>
+#include <stdint.h>
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-#    include <semaphore.h>
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include "sentry_sync.h"
+#    else
+#        include <semaphore.h>
+#    endif
 #    include <sys/eventfd.h>
 #    include <sys/mman.h>
 #elif defined(SENTRY_PLATFORM_MACOS)
@@ -15,6 +23,81 @@
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <windows.h>
 #endif
+
+#define SENTRY_CRASH_IPC_MESSAGE_PREFIX_SIZE 4u
+#define SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE 16u
+#define SENTRY_CRASH_IPC_MESSAGE_MIN_LEN 12u
+#define SENTRY_CRASH_IPC_MESSAGE_MAX_LEN (256u * 1024u * 1024u)
+#define SENTRY_CRASH_IPC_SEND_TIMEOUT_MS 1000
+#define SENTRY_CRASH_IPC_PIPE_SIZE (64u * 1024u)
+
+/**
+ * Frames use little-endian length/type/flags/sequence, followed by one msgpack
+ * value. Flags are reserved (zero). Snapshots carry {event, attachments}; keyed
+ * setters carry [key, value], removals carry the key, and other updates carry
+ * the new value. Crash and shutdown frames have no payload.
+ */
+typedef enum {
+    SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT = 1,
+    SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE = 2,
+    SENTRY_CRASH_IPC_MESSAGE_SET_ENVIRONMENT = 3,
+    SENTRY_CRASH_IPC_MESSAGE_SET_TRANSACTION = 4,
+    SENTRY_CRASH_IPC_MESSAGE_SET_FINGERPRINT = 5,
+    SENTRY_CRASH_IPC_MESSAGE_SET_LEVEL = 6,
+    SENTRY_CRASH_IPC_MESSAGE_SET_USER = 7,
+    SENTRY_CRASH_IPC_MESSAGE_SET_TAG = 8,
+    SENTRY_CRASH_IPC_MESSAGE_REMOVE_TAG = 9,
+    SENTRY_CRASH_IPC_MESSAGE_SET_EXTRA = 10,
+    SENTRY_CRASH_IPC_MESSAGE_REMOVE_EXTRA = 11,
+    SENTRY_CRASH_IPC_MESSAGE_SET_CONTEXT = 12,
+    SENTRY_CRASH_IPC_MESSAGE_REMOVE_CONTEXT = 13,
+    SENTRY_CRASH_IPC_MESSAGE_ADD_BREADCRUMB = 14,
+    SENTRY_CRASH_IPC_MESSAGE_SET_ATTACHMENT_LIST = 15,
+    SENTRY_CRASH_IPC_MESSAGE_CRASH = 16,
+    SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN = 17,
+} sentry_crash_ipc_message_type_t;
+
+typedef enum {
+    SENTRY_CRASH_IPC_MESSAGE_OK = 0,
+    SENTRY_CRASH_IPC_MESSAGE_PARTIAL = 1,
+    SENTRY_CRASH_IPC_MESSAGE_INVALID = 2,
+    SENTRY_CRASH_IPC_MESSAGE_OVERSIZED = 3,
+    SENTRY_CRASH_IPC_MESSAGE_UNKNOWN_TYPE = 4,
+    SENTRY_CRASH_IPC_MESSAGE_OOM = 5,
+} sentry_crash_ipc_message_result_t;
+
+typedef struct {
+    uint16_t type;
+    uint16_t flags;
+    uint64_t sequence;
+    const char *payload;
+    size_t payload_len;
+} sentry_crash_ipc_message_t;
+
+bool sentry__crash_ipc_message_type_is_known(uint16_t type);
+
+sentry_crash_ipc_message_result_t sentry__crash_ipc_message_encode(
+    uint16_t type, uint16_t flags, uint64_t sequence, const char *payload,
+    size_t payload_len, char **out_buf, size_t *out_len);
+
+sentry_crash_ipc_message_result_t sentry__crash_ipc_message_decode(
+    const char *buf, size_t buf_len, sentry_crash_ipc_message_t *message);
+
+typedef struct {
+    sentry_value_t event;
+    sentry_value_t attachments;
+    sentry_ringbuffer_t *breadcrumbs;
+    uint64_t sequence;
+    bool initialized;
+    bool stopped;
+} sentry_crash_scope_t;
+
+bool sentry__crash_scope_init(
+    sentry_crash_scope_t *scope, size_t max_breadcrumbs);
+void sentry__crash_scope_free(sentry_crash_scope_t *scope);
+bool sentry__crash_scope_apply(
+    sentry_crash_scope_t *scope, const sentry_crash_ipc_message_t *message);
+sentry_value_t sentry__crash_scope_event(const sentry_crash_scope_t *scope);
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
 typedef HANDLE sentry_process_handle_t;
@@ -28,25 +111,59 @@ typedef pid_t sentry_process_handle_t;
 typedef struct {
     sentry_crash_context_t *shmem;
 
+    // app-only writer guard; crash handling must never wait for its owner
+    volatile long writing;
+    volatile long message_failed;
+    volatile long stopped;
+    // set from a torn frame until a snapshot reaches the daemon
+    volatile long stalled;
+    // set until a daemon that attaches later signals ready
+    volatile long awaiting_ready;
+    uint64_t sequence;
+    // frame with an unsent tail, owned by the writer guard
+    char *torn_frame;
+    size_t torn_len;
+    size_t torn_sent;
+
+    // daemon-only staged state and incremental frame reader
+    sentry_crash_scope_t scope;
+    char *message_buf;
+    size_t message_len;
+    size_t message_size;
+    bool message_closed;
+    bool notify_pending;
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     int shm_fd;
     int notify_fd; // Eventfd for crash notifications
     int ready_fd; // Eventfd for daemon ready signal
+    // Anonymous app-to-daemon message stream: app writes, daemon reads.
+    int message_fd[2];
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    char shm_name[SENTRY_CRASH_MAX_PATH]; // File path, bionic has no shm_open()
+    sentry_mutex_t *init_mutex; // Process-wide initialization mutex
+#    else
     char shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     sem_t *init_sem; // Named semaphore for initialization synchronization
     char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];
+#    endif
 #elif defined(SENTRY_PLATFORM_MACOS)
     int shm_fd;
     int notify_pipe[2]; // Pipe for crash notifications (fork-safe)
     int ready_pipe[2]; // Pipe for daemon ready signal (fork-safe)
+    int message_fd[2]; // Anonymous app-to-daemon message stream: app writes,
+                       // daemon reads
     char shm_path[SENTRY_CRASH_MAX_PATH]; // File-backed shm path (sandbox-safe)
     sentry_mutex_t
         *init_mutex; // Process-wide mutex (sandbox-safe, no sem_open)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     HANDLE shm_handle;
     HANDLE event_handle; // Event for crash notifications (parent -> daemon)
-    HANDLE
-    ready_event_handle; // Event for daemon ready signal (daemon -> parent)
+    HANDLE ready_event_handle; // Event for ready signal (daemon -> parent)
+    HANDLE message_read_handle; // App-to-daemon message stream read end
+    HANDLE message_write_handle; // App-to-daemon message stream write end
+    OVERLAPPED message_write; // Write of the current frame
+    bool message_write_pending; // Set while that write is in flight
     wchar_t shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     wchar_t event_name[SENTRY_CRASH_IPC_NAME_SIZE];
     wchar_t ready_event_name[SENTRY_CRASH_IPC_NAME_SIZE];
@@ -60,11 +177,24 @@ typedef struct {
 /**
  * Initialize IPC for application process.
  * Creates shared memory and notification mechanism.
+ * @param database_path Android-only directory for the file-backed mapping
  * @param init_sem Optional semaphore for synchronizing init (can be NULL)
  * @param init_mutex Optional mutex for synchronizing init on Windows (can be
  * NULL)
  */
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_ANDROID)
+sentry_crash_ipc_t *sentry__crash_ipc_init_app(
+    const char *database_path, sentry_mutex_t *init_mutex);
+sentry_crash_ipc_t *sentry__crash_ipc_init_app_with_fds(int shm_fd,
+    int notify_fd, int ready_fd, int message_fd, sentry_mutex_t *init_mutex);
+/**
+ * Replaces the app's daemon fds with those of a restarted crash service, and
+ * takes ownership of the new fds. Fails while a crash is being handled. The
+ * caller sends a scope snapshot next.
+ */
+bool sentry__crash_ipc_reattach(
+    sentry_crash_ipc_t *ipc, int notify_fd, int ready_fd, int message_fd);
+#elif defined(SENTRY_PLATFORM_LINUX)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(sem_t *init_sem);
 #elif defined(SENTRY_PLATFORM_MACOS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex);
@@ -72,6 +202,14 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex);
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(HANDLE init_mutex);
 #else
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
+#endif
+
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+/**
+ * Creates anonymous shared memory that depends on neither the disk nor
+ * /dev/shm. Returns -1 on failure.
+ */
+int sentry__crash_ipc_create_memfd(void);
 #endif
 
 /**
@@ -85,14 +223,17 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
  * Linux, pipe fd on macOS, event on Windows)
  */
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(
-    pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd);
+sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
+    uint64_t app_tid, int notify_eventfd, int ready_eventfd, int shm_fd,
+    int message_fd);
 #elif defined(SENTRY_PLATFORM_MACOS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
-    uint64_t app_tid, int notify_pipe_read, int ready_pipe_write, int shm_fd);
+    uint64_t app_tid, int notify_pipe_read, int ready_pipe_write, int shm_fd,
+    int message_fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
-    uint64_t app_tid, HANDLE event_handle, HANDLE ready_event_handle);
+    uint64_t app_tid, HANDLE event_handle, HANDLE ready_event_handle,
+    HANDLE message_read_handle);
 #endif
 
 /**
@@ -109,8 +250,9 @@ bool sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms);
 /**
  * Notify daemon that a crash occurred (called from signal handler).
  * This function is signal-safe.
+ * Returns false if no daemon could be notified, for example because it is gone.
  */
-void sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc);
+bool sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc);
 
 /**
  * Wait for crash notification (called by daemon).
@@ -118,6 +260,34 @@ void sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc);
  * Returns true if crash occurred, false on timeout.
  */
 bool sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms);
+
+/**
+ * Send a borrowed value. Scope updates must hold the scope observer lock.
+ * Returns false on failure or if a crash interrupted another writer.
+ * A send that times out keeps the unsent tail of its frame and stalls the
+ * stream. Later sends first flush the tail, and return false if it stays
+ * unsent. That flush blocks only for a shutdown frame, up to the send timeout.
+ * Only a scope snapshot clears the stall.
+ * Until a daemon that attaches later signals ready, sends never block, and a
+ * frame that stalls the stream still counts as sent.
+ */
+bool sentry__crash_ipc_send(
+    sentry_crash_ipc_t *ipc, uint16_t type, sentry_value_t value);
+
+/**
+ * Flush the tail of a stalled stream without blocking.
+ * Returns true once the tail is through, and the stream is ready for a scope
+ * snapshot.
+ */
+bool sentry__crash_ipc_flush(sentry_crash_ipc_t *ipc);
+
+/**
+ * Receive and apply ordered frames, returning true on a crash notification.
+ * Early crash notifications keep the staged scope mutable.
+ * An out-of-band notification drains complete available frames first; an
+ * interrupted partial frame is discarded without changing staged state.
+ */
+bool sentry__crash_ipc_receive(sentry_crash_ipc_t *ipc, int timeout_ms);
 
 /**
  * Unlink the shared memory.

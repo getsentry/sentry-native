@@ -124,6 +124,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
+option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in sentry and sentry-crash as errors on GCC and Clang" OFF)
 
 option(SENTRY_INTEGRATION_PLATFORM
 	"Enable the downstream-provided platform integration" OFF)
@@ -200,6 +201,8 @@ elseif(SENTRY_TRANSPORT STREQUAL "curl")
 	set(SENTRY_TRANSPORT_CURL TRUE)
 elseif(SENTRY_TRANSPORT STREQUAL "none")
 	set(SENTRY_TRANSPORT_NONE TRUE)
+elseif(SENTRY_TRANSPORT STREQUAL "stdout")
+	set(SENTRY_TRANSPORT_STDOUT TRUE)
 elseif(SENTRY_TRANSPORT STREQUAL "pshttp")
 	# Not implemented here, but in the downstream SDK
 	if(NOT PROSPERO)
@@ -244,6 +247,7 @@ if("${CMAKE_SOURCE_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
 endif()
 
 option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT}")
+option(SENTRY_INSTALL_PKGCONFIG "Generate and install pkg-config file for shared builds" ON)
 
 if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
 	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'breakpad'")
@@ -251,7 +255,7 @@ if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
 elseif(MSVC AND (XBOX OR WINGDK))
 	set(SENTRY_DEFAULT_BACKEND "breakpad")
 elseif((APPLE AND NOT IOS) OR WIN32 OR LINUX)
-	set(SENTRY_DEFAULT_BACKEND "crashpad")
+	set(SENTRY_DEFAULT_BACKEND "native")
 else()
 	set(SENTRY_DEFAULT_BACKEND "inproc")
 endif()
@@ -271,6 +275,10 @@ elseif(SENTRY_BACKEND STREQUAL "inproc")
 elseif(SENTRY_BACKEND STREQUAL "breakpad")
 	set(SENTRY_BACKEND_BREAKPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "native")
+	if(ANDROID)
+		message(WARNING "The 'native' backend on Android is experimental. "
+			"It may have incomplete features or unexpected behavior.")
+	endif()
 	set(SENTRY_BACKEND_NATIVE TRUE)
 elseif(SENTRY_BACKEND STREQUAL "none")
 	set(SENTRY_BACKEND_NONE TRUE)
@@ -389,6 +397,27 @@ add_library(sentry ${SENTRY_LIBRARY_TYPE} "${PROJECT_SOURCE_DIR}/src/sentry_mpac
 if (XBOX)
 	set_target_properties(sentry PROPERTIES VS_USER_PROPS gdk_build.props)
 endif()
+
+set_target_properties(sentry PROPERTIES
+	VERSION "${SENTRY_VERSION_BASE}"
+	SOVERSION "${SENTRY_VERSION_MAJOR}")
+
+if(WIN32 AND SENTRY_BUILD_SHARED_LIBS)
+	set(_SENTRY_IMAGE_VERSION "${SENTRY_VERSION_MAJOR}.${SENTRY_VERSION_MINOR}")
+	if(CMAKE_GENERATOR MATCHES "^Visual Studio " AND CMAKE_VERSION VERSION_LESS 4.1)
+		# VS generators before CMake 4.1 ignore VERSION for the PE image header.
+		target_link_options(sentry PRIVATE "/VERSION:${_SENTRY_IMAGE_VERSION}")
+	elseif(MINGW)
+		include(CheckLinkerFlag)
+		check_linker_flag(C "LINKER:/version:0.0" _SENTRY_LINKER_SUPPORTS_PE_VERSION)
+		if(_SENTRY_LINKER_SUPPORTS_PE_VERSION)
+			# lld silently ignores CMake's GNU image-version flags.
+			target_link_options(sentry PRIVATE "LINKER:/version:${_SENTRY_IMAGE_VERSION}")
+		endif()
+	endif()
+	unset(_SENTRY_IMAGE_VERSION)
+endif()
+
 target_sources(sentry PRIVATE "${PROJECT_SOURCE_DIR}/include/sentry.h")
 add_library(sentry::sentry ALIAS sentry)
 
@@ -397,10 +426,10 @@ if(SENTRY_EMBED_INFO)
 	# SENTRY_BUILD_ID cache variable takes precedence
 	if(SENTRY_BUILD_ID)
 		set(SENTRY_EMBEDDED_BUILD_ID "${SENTRY_BUILD_ID}")
-	elseif(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\+(.+)$")
-		# Extract build ID from SENTRY_VERSION_FULL if present (format: major.minor.patch+build-id)
+	elseif(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+(-[^+]+)?\\+(.+)$")
+		# Extract build ID from SENTRY_VERSION_FULL if present (format: major.minor.patch[-prerelease]+build-id)
 		# This handles cases where downstream SDKs modify sentry.h to include build metadata
-		set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_1}")
+		set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_2}")
 	else()
 		# No build ID found in version or provided, use timestamp as default
 		# Format: YYYYMMDD-HHMMSS (semver-compliant: alphanumerics and hyphens only)
@@ -604,12 +633,17 @@ if(MSVC)
 	endif()
 else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	if(SENTRY_ERROR_ON_WARNINGS)
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Werror>)
+	endif()
 	# The crashpad and breakpad headers generate the following warnings that we
 	# ignore specifically
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-multichar>)
 	else()
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-gnu-include-next -Wno-multichar>)
+		# glibc 2.43 headers expand `memchr` and friends to `_Generic`
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-c11-extensions>)
 	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
@@ -707,8 +741,9 @@ if(MINGW)
 		-Wno-unused-variable
 		-Wno-unused-parameter
 		-Wno-format
-		-Wno-incompatible-pointer-types
+		$<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-pointer-types>
 		-Wno-incompatible-function-pointer-types
+		-Wno-cast-function-type
 	)
 endif()
 
@@ -955,12 +990,23 @@ elseif(SENTRY_BACKEND_NATIVE)
 		target_compile_definitions(sentry-crash PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)
 	endif()
 
+	# Copy warning options from sentry target
+	if(NOT MSVC)
+		get_target_property(SENTRY_COMPILE_OPTIONS sentry COMPILE_OPTIONS)
+		target_compile_options(sentry-crash PRIVATE ${SENTRY_COMPILE_OPTIONS})
+	endif()
+
 	# Copy include directories from sentry target
 	target_include_directories(sentry-crash PRIVATE
 		${PROJECT_SOURCE_DIR}/include
 		${PROJECT_SOURCE_DIR}/src
 		${PROJECT_SOURCE_DIR}/src/backends/native
 	)
+	if(SENTRY_WITH_LIBUNWINDSTACK)
+		target_include_directories(sentry-crash PRIVATE
+			${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include
+		)
+	endif()
 
 	# Link same libraries as sentry
 	target_link_libraries(sentry-crash PRIVATE ${_SENTRY_PLATFORM_LIBS})
@@ -1015,12 +1061,12 @@ elseif(SENTRY_BACKEND_NATIVE)
 	endif()
 
 	# Install daemon
-	install(TARGETS sentry-crash
-		RUNTIME DESTINATION bin
+	sentry_install(TARGETS sentry-crash
+		RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 	)
 	if(WIN32)
-		install(TARGETS sentry-wer
-			RUNTIME DESTINATION bin
+		sentry_install(TARGETS sentry-wer
+			RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
@@ -1159,7 +1205,7 @@ if(SENTRY_BUILD_TESTS)
 	else()
 		# Disable all optimizations for the `sentry_test_integration` in gcc/clang. This allows us to keep crash triggers simple.
 		# The effects besides reproducible code-gen across compiler versions, will be negligible for build- and runtime.
-		target_compile_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:-O0>)
+		target_compile_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:-O0 -fno-omit-frame-pointer>)
 	endif()
 
 	if(CMAKE_GENERATOR STREQUAL "Xcode")
@@ -1191,4 +1237,35 @@ if(SENTRY_BUILD_SHARED_LIBS)
 	target_link_libraries(sentry PRIVATE
 	    "$<$<PLATFORM_ID:Android>:-Wl,-z,max-page-size=16384>"
 	)
+endif()
+
+# Generate and install pkg-config file
+if(SENTRY_INSTALL_PKGCONFIG AND SENTRY_BUILD_SHARED_LIBS)
+  set(PREFIX "${CMAKE_INSTALL_PREFIX}")
+  set(PKGCONFIG_VERSION "${SENTRY_VERSION_FULL}")
+  # Use absolute paths for libdir, includedir, and bindir to support non-standard layouts (e.g., lib64)
+  if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}")
+    set(PKGCONFIG_LIBDIR "${CMAKE_INSTALL_LIBDIR}")
+  else()
+    set(PKGCONFIG_LIBDIR "\${prefix}/${CMAKE_INSTALL_LIBDIR}")
+  endif()
+  if(IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}")
+    set(PKGCONFIG_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}")
+  else()
+    set(PKGCONFIG_INCLUDEDIR "\${prefix}/${CMAKE_INSTALL_INCLUDEDIR}")
+  endif()
+  if(IS_ABSOLUTE "${CMAKE_INSTALL_BINDIR}")
+    set(PKGCONFIG_BINDIR "${CMAKE_INSTALL_BINDIR}")
+  else()
+    set(PKGCONFIG_BINDIR "\${prefix}/${CMAKE_INSTALL_BINDIR}")
+  endif()
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/sentry.pc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/sentry.pc"
+    @ONLY
+  )
+  sentry_install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/sentry.pc"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+  )
 endif()

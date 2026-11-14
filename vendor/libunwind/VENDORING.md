@@ -30,6 +30,7 @@ Two CMake targets are provided:
 | x86 (i686, 32-bit) | `src/x86/`     | `include/tdep-x86/`     |
 | aarch64            | `src/aarch64/` | `include/tdep-aarch64/` |
 | arm (32-bit)       | `src/arm/`     | `include/tdep-arm/`     |
+| riscv              | `src/riscv/`   | `include/tdep-riscv/`   |
 
 Core shared code: `src/mi/`, `src/dwarf/`, `src/os-linux.c`,
 `src/dl-iterate-phdr.c`.
@@ -91,7 +92,6 @@ custom `CMakeLists.txt`:
 
 | Path                                                                                                     | Notes                                                                                                                                      |
 |----------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `src/riscv/`, `include/tdep-riscv/`                                                                      | RISC-V — kept for potential future use                                                                                                     |
 | `src/unwind/`, `src/mi/_ReadULEB.c`, `src/mi/_ReadSLEB.c`                                                | C++ exception ABI conflicts with `libgcc_eh.a`; see [above](#excluded-c-exception-abi-sources)                                             |
 | `include/libunwind-*.h` for removed arches                                                               | Referenced via `#ifdef` in `include/libunwind.h` — harmless dead code                                                                      |
 | Autotools artifacts (`configure`, `configure.ac`, `Makefile.am`, `Makefile.in`, `aclocal.m4`, `INSTALL`) | Carried over from the release tarball. Not used by CMake, but `configure.ac` and `Makefile.am` are useful as reference for the build logic |
@@ -115,7 +115,7 @@ never calls into the C++ exception ABI.
 
 | File                                | Purpose                                                                                                                                           |
 |-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `CMakeLists.txt`                    | Custom CMake build that replaces the upstream autotools + upstream CMake build. Builds a static `unwind` target for x86, x86_64, and aarch64 only |
+| `CMakeLists.txt`                    | Custom CMake build that replaces the upstream autotools + upstream CMake build. Builds static `unwind` and `unwind_remote` targets                |
 | `cmake/config.h.cmake.in`           | CMake template for `config.h` (replaces autotools `configure`-generated header)                                                                   |
 | `cmake/libunwind-common.h.cmake.in` | CMake template for `libunwind-common.h`                                                                                                           |
 | `VENDORING.md`                      | This file                                                                                                                                         |
@@ -171,7 +171,8 @@ both GCC and Clang.
      `__attribute__((aligned(...)))`.
    - Scan for other C11/C23 constructs incompatible with C99.
 
-7. Build and test on all four architectures: x86_64, x86 (32-bit), aarch64, arm (32-bit).
+7. Build and test on all supported architectures: x86_64, x86 (32-bit), aarch64,
+   arm (32-bit), and riscv.
 
 8. To add a **new architecture**, also:
    - Keep its `src/<arch>/` and `include/tdep-<arch>/` directories from the

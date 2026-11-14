@@ -69,11 +69,17 @@ jobs:
             CC: gcc-9
             CXX: g++-9
             TEST_X86: 1
-          - name: Linux Arm32 (gcc-arm-linux-gnueabihf + qemu-user)
+          - name: Linux Arm32 (cross-GCC + QEMU)
             os: ubuntu-24.04-arm
             CC: arm-linux-gnueabihf-gcc
             CXX: arm-linux-gnueabihf-g++
             TEST_ARM32: 1
+            TEST_QEMU: 1
+          - name: Linux RISC-V (cross-GCC + QEMU)
+            os: ubuntu-24.04-arm
+            CC: riscv64-linux-gnu-gcc
+            CXX: riscv64-linux-gnu-g++
+            TEST_RISCV: 1
             TEST_QEMU: 1
           - name: Linux (GCC 9.5.0)
             os: ubuntu-24.04
@@ -95,6 +101,7 @@ jobs:
             os: ubuntu-24.04
             CC: gcc-14
             CXX: g++-14
+            ERROR_ON_WARNINGS: off # analyzer false positives
             RUN_ANALYZER: gcc
           - name: Linux (GCC 15 + runtime curl)
             os: ubuntu-26.04
@@ -119,31 +126,26 @@ jobs:
             os: ubuntu-24.04
             CC: clang-20
             CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
           - name: Linux Arm64 (clang 20 + asan + llvm-cov)
             os: ubuntu-24.04-arm
             CC: clang-20
             CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
           - name: Linux (clang 20 + tsan)
             os: ubuntu-24.04
             CC: clang-20
             CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: tsan
           - name: Linux Arm64 (clang 20 + tsan)
             os: ubuntu-24.04-arm
             CC: clang-20
             CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: tsan
           - name: Linux (clang 20 + kcov)
             os: ubuntu-24.04
             CC: clang-20
             CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
           - name: Linux (GCC 13.3.0 + valgrind)
             CC: gcc-13
@@ -166,28 +168,23 @@ jobs:
             CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SYSTEM=ON
           - name: macOS 15 (xcode llvm)
             os: macos-15
-            ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             TEST_SYSTEM_PROXY: 1
           - name: macOS 26 (xcode llvm)
             os: macos-26
-            ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
           - name: macOS 15 (xcode llvm + universal)
             os: macos-15
-            ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
           - name: macOS 15 (clang 18 + asan + llvm-cov)
             os: macos-15-large
             CC: clang
             CXX: clang++
-            ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
           - name: macOS 26 (arm64e + PAC test)
             os: macos-26
-            ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64e
           - name: Windows (old VS, 32-bit)
@@ -260,11 +257,12 @@ jobs:
       TEST_MINGW: ${{ matrix.TEST_MINGW }}
       TEST_WINE: ${{ matrix.TEST_WINE }}
       TEST_ARM32: ${{ matrix.TEST_ARM32 }}
+      TEST_RISCV: ${{ matrix.TEST_RISCV }}
       TEST_QEMU: ${{ matrix.TEST_QEMU }}
       TEST_SYSTEM_PROXY: ${{ matrix.TEST_SYSTEM_PROXY }}
       USE_SCCACHE: ${{ matrix.USE_SCCACHE }}
       SCCACHE_GHA_ENABLED: ${{ matrix.USE_SCCACHE && 'true' || '' }}
-      ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
+      ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS || 1 }}
       RUN_ANALYZER: ${{ matrix.RUN_ANALYZER }}
       ANDROID_API: ${{ matrix.ANDROID_API }}
       ANDROID_NDK: ${{ matrix.ANDROID_NDK }}
@@ -280,6 +278,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+
+      - name: Annotate build errors
+        run: echo "::add-matcher::.github/problem-matchers.json"
 
       - name: Debug runner architecture
         if: ${{ runner.os == 'macOS' }}
@@ -297,7 +298,7 @@ jobs:
           [ -n "$CC" ] && [ -n "$CXX" ] || { echo "Ubuntu runner configurations require toolchain selection via CC and CXX" >&2; exit 1; }
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !env['TEST_ARM32'] && !env['ANDROID_API'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !env['TEST_ARM32'] && !env['TEST_RISCV'] && !env['ANDROID_API'] && !matrix.container }}
         run: |
           sudo apt update
           # Install common dependencies
@@ -368,10 +369,28 @@ jobs:
             libstdc++6:armhf
 
       - name: Installing qemu-user
-        if: ${{ runner.os == 'Linux' && env['TEST_QEMU'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && env['TEST_ARM32'] && !matrix.container }}
         run: |
           sudo apt update
           sudo apt install -y qemu-user-static binfmt-support
+
+      - name: Installing Linux RISC-V Dependencies
+        if: ${{ runner.os == 'Linux' && env['TEST_RISCV'] && !matrix.container }}
+        run: |
+          sudo dpkg --add-architecture riscv64
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            gcc-riscv64-linux-gnu g++-riscv64-linux-gnu \
+            zlib1g-dev:riscv64 libssl-dev:riscv64 \
+            libcurl4-openssl-dev:riscv64 liblzma-dev:riscv64 \
+            libstdc++6:riscv64
+          echo "PKG_CONFIG_LIBDIR=/usr/lib/riscv64-linux-gnu/pkgconfig:/usr/share/pkgconfig" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        if: ${{ runner.os == 'Linux' && env['TEST_RISCV'] && !matrix.container }}
+        with:
+          platforms: riscv64
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
@@ -502,20 +521,29 @@ jobs:
 
       - name: Test (Android)
         if: ${{ env['ANDROID_API'] }}
+        id: android-test
+        continue-on-error: ${{ env.ANDROID_BOOTED != 'true' }}
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
-        with:
+        with: &android-options
           api-level: ${{ env.ANDROID_API }}
           ndk: ${{ env.ANDROID_NDK }}
           arch: ${{ env.ANDROID_ARCH }}
-          target: google_apis
+          target: default
           emulator-boot-timeout: 1200
           script: |
+            echo "ANDROID_BOOTED=true" >> "$GITHUB_ENV"
             # Sync emulator clock with host to avoid timestamp assertion failures
             adb shell cmd alarm set-time $(date +%s000) || adb shell su root date $(date -u +%m%d%H%M%Y.%S)
             scripts/setup-android-sanitizer.sh "$RUN_ANALYZER"
             pip install --upgrade --requirement tests/requirements.txt
             pytest --capture=no --verbose tests
             (cd ndk && ./gradlew :sentry-native-ndk:connectedDebugAndroidTest --stacktrace)
+            (cd ndk && ./gradlew :sentry-native-ndk-outproc:connectedDebugAndroidTest --stacktrace)
+
+      - name: Retry emulator (Android)
+        if: ${{ steps.android-test.outcome == 'failure' && env.ANDROID_BOOTED != 'true' }}
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with: *android-options
 
       - name: Test
         if: ${{ !env['ANDROID_API'] }}
@@ -586,8 +614,11 @@ jobs:
 
       - name: Create source archive
         run: |
+          version=$(sed -nE 's/^#[[:space:]]*define[[:space:]]+SENTRY_SDK_VERSION[[:space:]]+"([^"]+)".*/\1/p' include/sentry.h)
+          test -n "$version"
           rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
-          zip -r sentry-native.zip .
+          zip -r "sentry-native-$version.zip" .
+          cp "sentry-native-$version.zip" sentry-native.zip
 
       - name: Build NDK artifacts
         working-directory: ndk
@@ -599,6 +630,35 @@ jobs:
           name: ${{ github.sha }}
           if-no-files-found: error
           path: |
+            sentry-native-*.zip
             sentry-native.zip
             ndk/lib/build/distributions/*.zip
+            ndk/native/build/distributions/*.zip
             ndk/lib/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/*
+            ndk/native/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/*
+
+  check-aar:
+    name: Check NDK AARs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Setup Java Version
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # pin@v6.4.1
+
+      - name: Build NDK AARs
+        working-directory: ndk
+        run: ./gradlew :sentry-native-ndk:assembleRelease :sentry-native-ndk-outproc:assembleRelease
+
+      - name: Check NDK AARs
+        run: |
+          python3 scripts/check-aar.py ndk/lib/build/outputs/aar/sentry-native-ndk-release.aar
+          python3 scripts/check-aar.py ndk/native/build/outputs/aar/sentry-native-ndk-outproc-release.aar
