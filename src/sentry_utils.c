@@ -31,7 +31,7 @@ is_scheme_valid(const char *scheme_name)
 {
     char c;
     while ((c = *scheme_name++) != 0) {
-        if (!isalpha(c) && c != '+' && c != '-' && c != '.') {
+        if (!isalnum(c) && c != '+' && c != '-' && c != '.') {
             return false;
         }
     }
