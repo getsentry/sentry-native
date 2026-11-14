@@ -1686,8 +1686,8 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     if (options->run && options->run->installation_id) {
         sentry_value_t usr = sentry_value_get_by_key(event, "user");
         if (sentry_value_is_null(usr)) {
-            usr = sentry_value_new_object();
-            sentry_value_set_by_key(event, "user", usr);
+            sentry_value_set_by_key(event, "user", sentry_value_new_object());
+            usr = sentry_value_get_by_key(event, "user");
         }
         if (sentry_value_get_type(usr) == SENTRY_VALUE_TYPE_OBJECT
             && sentry_value_is_null(sentry_value_get_by_key(usr, "id"))) {
