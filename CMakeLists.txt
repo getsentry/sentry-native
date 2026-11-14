@@ -1092,10 +1092,20 @@ if(SENTRY_INTEGRATION_QT)
 		# Find best match, prioritizing Qt 6 if available
 		find_package(Qt NAMES Qt6 Qt5 COMPONENTS Core REQUIRED)
 	endif()
-	find_package(Qt${Qt_VERSION_MAJOR} COMPONENTS Core REQUIRED)
+	find_package(Qt${Qt_VERSION_MAJOR} QUIET COMPONENTS Core REQUIRED
+		OPTIONAL_COMPONENTS Gui Multimedia)
 	message(STATUS "Found Qt: ${Qt${Qt_VERSION_MAJOR}_DIR} "
 		"(found version \"${Qt${Qt_VERSION_MAJOR}_VERSION}\")")
 	target_link_libraries(sentry PRIVATE Qt${Qt_VERSION_MAJOR}::Core)
+	set(SENTRY_QT_COMPONENTS Core)
+	# QVideoFrameInput since 6.8
+	if(TARGET Qt${Qt_VERSION_MAJOR}::Multimedia
+			AND Qt${Qt_VERSION_MAJOR}Multimedia_VERSION VERSION_GREATER_EQUAL 6.8)
+		target_link_libraries(sentry PRIVATE
+			Qt${Qt_VERSION_MAJOR}::Gui Qt${Qt_VERSION_MAJOR}::Multimedia)
+		list(APPEND SENTRY_QT_COMPONENTS Gui Multimedia)
+		message(STATUS "Sentry Qt session replay: enabled")
+	endif()
 endif()
 
 option(SENTRY_INTEGRATION_WER "Build WER (Windows Error Reporting) integration")
@@ -1147,6 +1157,9 @@ if(SENTRY_BUILD_TESTS)
 	add_subdirectory(tests/fixtures/screenshot)
 	if(WIN32 AND NOT XBOX)
 		add_subdirectory(tests/fixtures/appx)
+	endif()
+	if("Multimedia" IN_LIST SENTRY_QT_COMPONENTS)
+		add_subdirectory(tests/fixtures/qt_replay)
 	endif()
 	if(SENTRY_BUILD_BENCHMARKS)
 		set(BENCHMARK_ENABLE_TESTING OFF)

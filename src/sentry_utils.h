@@ -252,8 +252,9 @@ char *sentry__usec_time_to_iso8601(uint64_t time);
 
 /**
  * Parses a ISO8601 formatted string into a microsecond resolution timestamp.
- * This only accepts the format `YYYY-MM-DD'T'hh:mm:ss(.zzzzzz)'Z'`, which is
- * produced by the `sentry__usec_time_to_iso8601` function.
+ * This only accepts the format `YYYY-MM-DD'T'hh:mm:ss(.z+)'Z'`, which includes
+ * the output of the `sentry__usec_time_to_iso8601` function. Fractional seconds
+ * beyond microsecond precision are truncated.
  */
 uint64_t sentry__iso8601_to_usec(const char *iso);
 
