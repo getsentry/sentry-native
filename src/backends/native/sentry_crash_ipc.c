@@ -162,6 +162,7 @@ sentry__crash_ipc_message_decode(
 #    include <fcntl.h>
 #    include <pthread.h>
 #    include <sched.h>
+#    include <stdlib.h>
 #    include <sys/file.h>
 #    include <sys/socket.h>
 #    include <sys/stat.h>
@@ -219,6 +220,28 @@ init_unlock(sentry_crash_ipc_t *ipc)
     if (ipc->init_mutex) {
         sentry__mutex_unlock(ipc->init_mutex);
     }
+}
+
+int
+sentry__crash_ipc_create_shm_file(const char *dir)
+{
+    char path[SENTRY_CRASH_MAX_PATH];
+    int len = snprintf(path, sizeof(path), "%s/.sentry-shm-XXXXXX", dir);
+    if (len < 0 || (size_t)len >= sizeof(path)) {
+        return -1;
+    }
+    int fd = mkstemp(path);
+    if (fd < 0) {
+        return -1;
+    }
+    unlink(path);
+    // a sparse file raises SIGBUS on write when the disk is full
+    if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0
+        || posix_fallocate(fd, 0, SENTRY_CRASH_SHM_SIZE) != 0) {
+        close(fd);
+        return -1;
+    }
+    return fd;
 }
 #    else
 static int

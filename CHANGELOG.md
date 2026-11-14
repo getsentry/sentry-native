@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Native/Android: support API 21+ (previously API 30+) with a file fallback for kernels without memfd. ([#2301](https://github.com/getsentry/sentry-native/pull/2301))
+
 ## 1.0.0-beta.1
 
 **Breaking / Important behavior changes**:

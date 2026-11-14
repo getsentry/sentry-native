@@ -3,8 +3,6 @@ package io.sentry.e2e;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Handler;
-import android.os.Looper;
 import io.sentry.Sentry;
 
 public class CrashReceiver extends BroadcastReceiver {
@@ -19,6 +17,6 @@ public class CrashReceiver extends BroadcastReceiver {
     }
     // keep the process active until the crash
     goAsync();
-    new Handler(Looper.getMainLooper()).postDelayed(MainActivity::triggerNativeCrash, 1000);
+    MainActivity.crashLater();
   }
 }

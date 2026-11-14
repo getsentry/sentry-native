@@ -21,7 +21,7 @@ public final class SentryNdk {
    */
   private static native int initSentryNative(@NotNull final NdkOptions options);
 
-  private static native int nativeCreateCrashShm();
+  private static native int nativeCreateCrashShm(@Nullable String databasePath);
 
   private static native void nativeInitCrashDaemon(
       int shmFd, int notifyFd, int readyFd, int messageFd);
@@ -75,10 +75,18 @@ public final class SentryNdk {
     }
   }
 
-  /** Creates the shared memory of the crash IPC, or returns -1 if that fails. Needs API 30+. */
+  /** Creates the shared memory of the crash IPC, or returns -1 if that fails. Needs memfd. */
   public static int createCrashShm() {
+    return createCrashShm(null);
+  }
+
+  /**
+   * Creates the shared memory of the crash IPC, or returns -1 if that fails. Falls back to a file
+   * in the database directory on kernels without memfd.
+   */
+  public static int createCrashShm(@Nullable String databasePath) {
     loadNativeLibraries();
-    return nativeCreateCrashShm();
+    return nativeCreateCrashShm(databasePath);
   }
 
   public static void initCrashDaemon(int shmFd, int notifyFd, int readyFd, int messageFd) {
