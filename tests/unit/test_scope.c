@@ -4299,15 +4299,17 @@ SENTRY_TEST(scope_global_immutable)
     sentry_scope_t *clone = sentry_scope_clone(scope);
     TEST_ASSERT(!!clone);
     sentry_value_t sdk = sentry__scope_ref_client_sdk(global);
-    sentry_value_t os
-        = scope_value_get_by_key(sentry__scope_load_contexts, global, "os");
+    sentry_value_t os = sentry_value_incref(
+        sentry_value_get_by_key(global->data->contexts, "os"));
     TEST_CHECK(sentry_value_is_frozen(sdk));
     char *sdk_json = sentry_value_to_json(sdk);
     char *os_json = sentry_value_to_json(os);
     TEST_CHECK_INT_EQUAL(sentry_value_set_by_key(
                              sdk, "name", sentry_value_new_string("changed")),
         1);
-    sentry_value_set_by_key(os, "name", sentry_value_new_string("changed"));
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_set_by_key(os, "name", sentry_value_new_string("changed")),
+        1);
     sentry_value_decref(sdk);
     sentry_value_decref(os);
 
