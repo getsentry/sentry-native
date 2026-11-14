@@ -4528,7 +4528,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         // Tombstone merging needs the sentry-java crash service. The
         // standalone daemon is only used in tests and is not supported in
         // apps, so it handles the envelope as on Linux.
-        if (daemon) {
+        if (daemon && android_native_envelope_path) {
             if (!options || !options->run
                 || !sentry__run_write_envelope(options->run, envelope)) {
                 SENTRY_WARN("Failed to dump crash envelope to run folder");
@@ -4537,13 +4537,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
                     "Crash envelope written for Android tombstone merging");
                 sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_DONE);
                 SENTRY_DEBUG("Released crashed process for Android tombstone");
-                if (android_native_envelope_path) {
-                    strncpy(daemon->envelope_path,
-                        android_native_envelope_path->path,
-                        sizeof(daemon->envelope_path) - 1);
-                    daemon->envelope_path[sizeof(daemon->envelope_path) - 1]
-                        = '\0';
-                }
+                strncpy(daemon->envelope_path,
+                    android_native_envelope_path->path,
+                    sizeof(daemon->envelope_path) - 1);
+                daemon->envelope_path[sizeof(daemon->envelope_path) - 1] = '\0';
                 daemon->event = sentry_value_incref(base);
                 sentry_envelope_free(envelope);
                 envelope = NULL;
