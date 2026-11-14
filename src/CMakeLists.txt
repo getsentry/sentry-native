@@ -153,6 +153,7 @@ elseif(SENTRY_TRANSPORT_STDOUT)
 endif()
 
 # backends
+target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_DEFAULT="${SENTRY_BACKEND_DEFAULT}")
 if(SENTRY_BACKEND_CRASHPAD)
 	target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_CRASHPAD)
 	if(MSVC)
@@ -163,17 +164,20 @@ if(SENTRY_BACKEND_CRASHPAD)
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_crashpad.cpp
 	)
-elseif(SENTRY_BACKEND_BREAKPAD)
+endif()
+if(SENTRY_BACKEND_BREAKPAD)
 	target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_BREAKPAD)
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_breakpad.cpp
 	)
-elseif(SENTRY_BACKEND_INPROC)
+endif()
+if(SENTRY_BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_INPROC)
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_inproc.c
 	)
-elseif(SENTRY_BACKEND_NATIVE)
+endif()
+if(SENTRY_BACKEND_NATIVE)
 	target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_NATIVE)
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_native.c
@@ -221,10 +225,9 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Enable C11 for atomics support
 	set_property(TARGET sentry PROPERTY C_STANDARD 11)
-elseif(SENTRY_BACKEND_NONE)
-	sentry_target_sources_cwd(sentry
-		backends/sentry_backend_none.c
-	)
+endif()
+if(SENTRY_BACKEND_CUSTOM)
+	target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_CUSTOM)
 endif()
 
 # unwinder

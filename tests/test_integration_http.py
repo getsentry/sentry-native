@@ -1754,3 +1754,40 @@ def test_capture_acquired_scope(cmake, httpserver, capture, clear):
     assert ("scope.txt" in filenames) == (not clear)
     if not clear:
         assert event["user"]["id"] == "scope-user"
+
+
+@pytest.mark.skipif(not has_native or is_qemu, reason="test needs native backend")
+@pytest.mark.parametrize(
+    "name, backend",
+    [
+        ("native", "native"),
+        ("inproc", "inproc"),
+        ("none", None),
+        ("unknown", "native"),
+    ],
+)
+def test_backend_preload(cmake, httpserver, name, backend):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native;inproc"})
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "backend", name, "crash"],
+        expect_failure=True,
+        env=get_asan_crash_env(env),
+    )
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "backend", name, "no-setup"],
+        env=env,
+    )
+
+    if backend is None:
+        assert len(httpserver.log) == 0
+    else:
+        assert len(httpserver.log) == 1
+        envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+        assert_meta(envelope, integration=backend)

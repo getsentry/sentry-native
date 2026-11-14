@@ -437,13 +437,8 @@ breakpad_backend_except(
 
 extern "C" {
 
-void
-sentry__backend_preload(void)
-{
-}
-
 sentry_backend_t *
-sentry__backend_new(void)
+sentry__backend_breakpad_new(void)
 {
     auto *backend = SENTRY_MAKE(sentry_backend_t);
     if (!backend) {

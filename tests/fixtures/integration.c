@@ -799,6 +799,11 @@ run_threads(thread_func_t func)
 int
 main(int argc, char **argv)
 {
+    const char *backend = get_arg_value(argc, argv, "backend");
+    if (backend) {
+        sentry_backend_preload(backend);
+    }
+
     sentry_options_t *options = sentry_options_new();
 
     if (has_arg(argc, argv, "disable-backend")) {

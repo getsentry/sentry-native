@@ -19,7 +19,7 @@ endif()
 set(BUILD_SHARED_LIBS ON)
 set(SENTRY_BUILD_SHARED_LIBS ON)
 
-if(SENTRY_BACKEND STREQUAL "native")
+if("native" IN_LIST SENTRY_BACKEND)
 	set(SENTRY_TRANSPORT "none" CACHE STRING "" FORCE)
 endif()
 
@@ -28,7 +28,7 @@ add_subdirectory(${SENTRY_NATIVE_SRC} sentry_build)
 
 # Package the daemon executable only for the instrumented tests, which fork/exec
 # it. Apps run the daemon from libsentry.so in the sentry-java crash service.
-if(SENTRY_BACKEND STREQUAL "native" AND ENABLE_TESTS)
+if("native" IN_LIST SENTRY_BACKEND AND ENABLE_TESTS)
 	set_target_properties(sentry-crash PROPERTIES
 		PREFIX "lib"
 		OUTPUT_NAME "sentry-crash"
