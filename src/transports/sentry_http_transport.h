@@ -74,6 +74,13 @@ void sentry__http_transport_set_retry_enabled(
 void sentry__http_transport_set_dump_failed(
     sentry_transport_t *transport, bool enabled);
 
+/**
+ * Returns the ID of the last event that the transport sent, successfully or
+ * not.
+ */
+sentry_uuid_t sentry__http_transport_get_last_event_id(
+    sentry_transport_t *transport);
+
 #ifdef SENTRY_UNITTEST
 void *sentry__http_transport_get_bgworker(sentry_transport_t *transport);
 #endif

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Native: retain crash envelopes until they are sent. ([#2320](https://github.com/getsentry/sentry-native/pull/2320))
+
 ## 1.0.0-beta.1
 
 **Breaking / Important behavior changes**:
