@@ -4178,6 +4178,7 @@ SENTRY_TEST(before_breadcrumb_read_scope)
     sentry_add_breadcrumb(sentry_value_new_breadcrumb(NULL, "read scope"));
     TEST_CHECK_INT_EQUAL(state.started, 0);
     TEST_CHECK(state.finished);
+    TEST_CHECK_INT_EQUAL(state.access.result, 0);
     if (state.started == 0) {
         sentry__thread_join(state.thread);
     }
