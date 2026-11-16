@@ -583,7 +583,7 @@ sentry__set_default_thread_stack_guarantee(void)
             "(stack reserve: %zuKiB, expected factor: %zux, actual: %.2fx)",
             stack_size_kib, thread_id, thread_stack_reserve / 1024,
             (size_t)SENTRY_THREAD_STACK_GUARANTEE_FACTOR,
-            expected_stack_reserve / (double)expected_stack_guarantee);
+            thread_stack_reserve / (double)expected_stack_guarantee);
         return;
     }
 
