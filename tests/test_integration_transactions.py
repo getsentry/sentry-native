@@ -1,4 +1,5 @@
 import os
+import urllib.parse
 import uuid
 from datetime import datetime
 
@@ -463,6 +464,14 @@ def test_iter_trace_propagation_headers(cmake, httpserver, continue_trace):
         "sentry-trace_id",
         "sentry-sampled",
     } == set(baggage)
+    for key, value in baggage.items():
+        expected = trace_header[key.removeprefix("sentry-")]
+        value = urllib.parse.unquote(value)
+        if isinstance(expected, str):
+            assert value == expected
+        else:
+            # baggage stringifies doubles with %g
+            assert float(value) == pytest.approx(expected, rel=1e-5)
 
 
 def test_set_trace_transaction_scoped_event(cmake, httpserver):
