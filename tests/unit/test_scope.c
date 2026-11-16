@@ -834,6 +834,24 @@ SENTRY_TEST(scope_user_id)
     }
 
     sentry_close();
+
+    // empty installation ID -> no user ID
+    SENTRY_TEST_OPTIONS_NEW(options2);
+    sentry_options_set_installation_id(options2, "");
+    sentry_init(options2);
+    sentry_set_user(sentry_value_new_user(NULL, "erin", NULL, NULL));
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t event = sentry_value_new_object();
+        sentry__scope_apply_to_event(scope, options2, event, SENTRY_SCOPE_NONE);
+        sentry_value_t user = sentry_value_get_by_key(event, "user");
+        TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(user, "id")));
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(user, "username")),
+            "erin");
+        sentry_value_decref(event);
+    }
+
+    sentry_close();
 }
 
 SENTRY_TEST(scope_level)

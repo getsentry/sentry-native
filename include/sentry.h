@@ -1971,6 +1971,22 @@ SENTRY_API int sentry_options_get_require_user_consent(
     const sentry_options_t *opts);
 
 /**
+ * Sets the installation ID.
+ *
+ * The installation ID is used as the default `user.id` of events and as the
+ * distinct ID (`did`) of sessions. By default, it is a random ID that is
+ * persisted in `<database>/installation_id` and tied to the public key of the
+ * DSN.
+ *
+ * When set, the given ID is used instead, and the `installation_id` file is
+ * neither read nor created. An empty string disables the installation ID.
+ */
+SENTRY_API void sentry_options_set_installation_id(
+    sentry_options_t *opts, const char *id);
+SENTRY_API void sentry_options_set_installation_id_n(
+    sentry_options_t *opts, const char *id, size_t id_len);
+
+/**
  * Enables or disables client-side symbolication of stack traces.
  *
  * Client-side symbolication is useful for resolving system library frames

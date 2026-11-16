@@ -33,6 +33,7 @@ struct sentry_options_s {
     char *transport_thread_name;
     char *sdk_name;
     char *user_agent;
+    char *installation_id;
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
     sentry_path_t *external_crash_reporter;
