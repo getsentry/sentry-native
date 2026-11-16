@@ -775,7 +775,7 @@ sentry__capture_event(
             // event is being sent concurrently to session initialization, which
             // is an acceptable design trade-off.
             SENTRY_TSAN_IGNORE_READS_BEGIN();
-            bool has_session = options->session;
+            bool has_session = options->session != NULL;
             SENTRY_TSAN_IGNORE_READS_END();
             if (has_session) {
                 sentry_options_t *mut_options = (sentry_options_t *)options;
