@@ -273,6 +273,7 @@ jobs:
       SYSTEM_PYTHON: ${{ matrix.SYSTEM_PYTHON }}
       UTF8_TEST_CWD: ${{ matrix.UTF8_TEST_CWD }}
       SENTRY_TEST_OOM_LIMIT: "4095" # ~4GB, to speed up OOM tests
+      SENTRY_TEST_BUILD_ERROR_LIMIT: "10" # give up when the same build error repeats
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
