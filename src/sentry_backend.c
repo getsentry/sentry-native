@@ -15,13 +15,6 @@ sentry__backend_free(sentry_backend_t *backend)
     sentry_free(backend);
 }
 
-sentry_backend_t *sentry__backend_crashpad_new(void);
-sentry_backend_t *sentry__backend_breakpad_new(void);
-sentry_backend_t *sentry__backend_inproc_new(void);
-void sentry__backend_inproc_preload(void);
-sentry_backend_t *sentry__backend_native_new(void);
-void sentry__backend_native_preload(void);
-
 typedef struct {
     const char *name;
     sentry_backend_t *(*new_func)(void);

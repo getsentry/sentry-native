@@ -30,8 +30,6 @@
 #        include <sys/socket.h>
 #    endif
 
-extern sentry_backend_t *sentry__backend_native_new(void);
-
 static void
 noop_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
 {
