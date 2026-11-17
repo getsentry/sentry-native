@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Qt: record session replays on crash with Qt Multimedia 6.8 or later, enabled with `sentry_options_set_attach_session_replay`. ([#2297](https://github.com/getsentry/sentry-native/pull/2297))
+
 ## 1.0.0-beta.1
 
 **Breaking / Important behavior changes**:

@@ -33,6 +33,14 @@ SENTRY_TEST(iso_time)
 
     usec = sentry__iso8601_to_usec("2020-04-27T11:02:36.05050aZ");
     TEST_CHECK_INT_EQUAL(usec, 0);
+    usec = sentry__iso8601_to_usec("2020-04-27T11:02:36.050Z");
+    TEST_CHECK_INT_EQUAL(usec, 1587985356050000);
+    usec = sentry__iso8601_to_usec("2020-04-27T11:02:36.050505123Z");
+    TEST_CHECK_INT_EQUAL(usec, 1587985356050505);
+    usec = sentry__iso8601_to_usec("2020-04-27T11:02:36.Z");
+    TEST_CHECK_INT_EQUAL(usec, 0);
+    usec = sentry__iso8601_to_usec("2020-04-27T11:02:36Z ");
+    TEST_CHECK_INT_EQUAL(usec, 0);
 
     usec = sentry__usec_time();
     str = sentry__usec_time_to_iso8601(usec);

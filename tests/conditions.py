@@ -60,3 +60,11 @@ has_native = not (is_asan and sys.platform == "darwin") and (
 )
 
 has_sccache = os.environ.get("USE_SCCACHE") and shutil.which("sccache")
+
+# Qt Multimedia, found via PATH like CMake
+_qtpaths = shutil.which("qtpaths6") or shutil.which("qtpaths")
+has_qt = bool(_qtpaths) and os.path.isdir(
+    os.path.join(
+        os.path.dirname(os.path.dirname(_qtpaths)), "lib", "cmake", "Qt6Multimedia"
+    )
+)

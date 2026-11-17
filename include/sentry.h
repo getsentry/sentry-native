@@ -2083,9 +2083,11 @@ SENTRY_API void sentry_options_set_before_screenshot(sentry_options_t *opts,
     sentry_before_screenshot_function_t func, void *user_data);
 
 /**
- * Enables capturing a short retroactive video replay on crash. Currently only
- * supported on Xbox via the OS-managed game recording ring. The replay is
- * attached to the crash envelope as `session-replay.mp4`.
+ * Enables capturing a short retroactive video replay on crash. On Xbox, the
+ * replay is captured from the OS-managed game recording ring and attached to
+ * the crash envelope as `session-replay.mp4`. With the Qt integration built
+ * against Qt Multimedia 6.8 or later, the focused window is recorded and the
+ * replay is sent as a session replay linked to the crash.
  *
  * Set the duration via `sentry_options_set_session_replay_duration`
  * (default 5000 ms). Disabled by default. Must be set before `sentry_init`.
