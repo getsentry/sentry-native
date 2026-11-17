@@ -106,10 +106,7 @@ sentry__indirect_consider(sentry_indirect_accumulator_t *acc,
 
     // Page-align down so the captured region covers the page containing the
     // pointee (and we can dedup multiple pointers landing in the same page).
-    // Capture is roughly centered on the pointer but always starts on a page
-    // boundary so adjacent allocations get covered too.
-    uint64_t centered = addr - (SENTRY_INDIRECT_PER_POINTER_BYTES / 2);
-    uint64_t start = centered & ~((uint64_t)SENTRY_INDIRECT_PAGE_SIZE - 1);
+    uint64_t start = addr & ~((uint64_t)SENTRY_INDIRECT_PAGE_SIZE - 1);
     uint64_t end = start + SENTRY_INDIRECT_PER_POINTER_BYTES;
     // Round end up to page boundary too — small bump but keeps reads aligned.
     end = (end + SENTRY_INDIRECT_PAGE_SIZE - 1)

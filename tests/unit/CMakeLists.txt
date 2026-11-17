@@ -62,6 +62,13 @@ if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_sources(sentry_test_unit PRIVATE test_unwinder.cpp)
 endif()
 
+if(SENTRY_BACKEND_NATIVE AND (LINUX OR ANDROID OR APPLE))
+	target_sources(sentry_test_unit PRIVATE
+		${PROJECT_SOURCE_DIR}/src/backends/native/minidump/sentry_minidump_common.c
+		${PROJECT_SOURCE_DIR}/src/backends/native/minidump/sentry_minidump_indirect.c
+	)
+endif()
+
 # FIXME: cmake 3.13 introduced target_link_options
 target_compile_definitions(sentry_test_unit PRIVATE ${SENTRY_COMPILE_DEFINITIONS})
 

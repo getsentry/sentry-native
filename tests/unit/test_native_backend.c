@@ -1948,3 +1948,66 @@ SENTRY_TEST(crash_ipc_notify_without_daemon)
     sentry__crash_ipc_free(ipc);
 #endif
 }
+
+#if defined(SENTRY_BACKEND_NATIVE)                                             \
+    && (defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)     \
+        || defined(SENTRY_PLATFORM_MACOS))
+#    include "../../src/backends/native/minidump/sentry_minidump_indirect.h"
+#    include <fcntl.h>
+#    include <unistd.h>
+
+static bool
+indirect_is_writable_heap(void *ctx, uint64_t addr)
+{
+    (void)ctx;
+    (void)addr;
+    return true;
+}
+
+static ssize_t
+indirect_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
+{
+    (void)ctx;
+    (void)addr;
+    memset(buf, 0, len);
+    return (ssize_t)len;
+}
+#endif
+
+/**
+ * Test that indirect capture covers the page of the pointee
+ */
+SENTRY_TEST(minidump_indirect_contains_pointee)
+{
+#if defined(SENTRY_BACKEND_NATIVE)                                             \
+    && (defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)     \
+        || defined(SENTRY_PLATFORM_MACOS))
+    sentry_indirect_ops_t ops = {
+        .is_writable_heap = indirect_is_writable_heap,
+        .read_memory = indirect_read_memory,
+        .ctx = NULL,
+    };
+    minidump_writer_base_t writer = { 0 };
+    writer.fd = open("/dev/null", O_WRONLY);
+    writer.current_offset = sizeof(minidump_header_t);
+    TEST_ASSERT(writer.fd >= 0);
+
+    sentry_indirect_accumulator_t *acc = sentry_malloc(sizeof(*acc));
+    TEST_ASSERT(!!acc);
+
+    const uint64_t offsets[] = { 0, 0x100, 0x800, 0xfff };
+    for (size_t i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) {
+        uint64_t addr = 0x10000000 + offsets[i];
+        sentry__indirect_init(acc);
+        sentry__indirect_consider(acc, &writer, addr, &ops);
+        TEST_ASSERT(acc->region_count == 1);
+        TEST_CHECK(acc->regions[0].start <= addr);
+        TEST_CHECK(addr < acc->regions[0].end);
+    }
+
+    sentry_free(acc);
+    close(writer.fd);
+#else
+    SKIP_TEST();
+#endif
+}
