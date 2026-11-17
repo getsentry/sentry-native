@@ -29,7 +29,7 @@ def _setup_http_proxy_test(
     else:
         proxy_process, port = None, None
 
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
     if port is not None:

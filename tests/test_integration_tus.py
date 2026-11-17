@@ -87,7 +87,7 @@ def expect_upload_chunks(
 def test_tus_upload(cmake, httpserver, granularity, build_args):
     tmp_path = cmake(
         ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "none", **build_args},
+        build_args,
     )
     compressed = build_args.get("SENTRY_TRANSPORT_COMPRESSION") == "On"
 
@@ -215,10 +215,7 @@ def test_tus_upload(cmake, httpserver, granularity, build_args):
 
 
 def test_tus_error(cmake, httpserver):
-    tmp_path = cmake(
-        ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "none"},
-    )
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request(
         "/api/123456/upload/",
@@ -265,10 +262,7 @@ def test_tus_error(cmake, httpserver):
 
 
 def test_tus_rate_limit(cmake, httpserver):
-    tmp_path = cmake(
-        ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "none"},
-    )
+    tmp_path = cmake(["sentry_test_integration"])
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
@@ -339,10 +333,7 @@ def test_tus_rate_limit(cmake, httpserver):
 
 @pytest.mark.parametrize("chunked", [True, False], ids=["chunked", "legacy"])
 def test_tus_resume_after_shutdown(cmake, httpserver, chunked):
-    tmp_path = cmake(
-        ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "none"},
-    )
+    tmp_path = cmake(["sentry_test_integration"])
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
@@ -493,10 +484,7 @@ def test_tus_resume_after_shutdown(cmake, httpserver, chunked):
     "status", [409, 503, 204], ids=["conflict", "unavailable", "partial"]
 )
 def test_tus_resume_after_retry(cmake, httpserver, status):
-    tmp_path = cmake(
-        ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "none"},
-    )
+    tmp_path = cmake(["sentry_test_integration"])
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
@@ -655,12 +643,9 @@ def test_tus_resume_after_retry(cmake, httpserver, status):
     ],
 )
 def test_tus_crash_restart(cmake, httpserver, backend):
-    tmp_path = cmake(
-        ["sentry_test_integration"],
-        {"SENTRY_BACKEND": backend},
-    )
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend)
 
     # First run: crash with large attachment (no server expectations needed)
     run_crash(
@@ -783,7 +768,7 @@ def test_tus_crash_native(cmake, httpserver):
     # caches the large attachment, writes the envelope with attachment-ref
     # items, and uploads via TUS itself when the server responds within the
     # crash transport shutdown window.
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
@@ -805,7 +790,7 @@ def test_tus_crash_native(cmake, httpserver):
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native")
 
     with httpserver.wait(timeout=15) as waiting:
         run_crash(
@@ -864,7 +849,7 @@ def test_tus_crash_native(cmake, httpserver):
 
 @pytest.mark.skipif(not has_native or is_qemu, reason="native backend not available")
 def test_tus_crash_native_retry(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_oneshot_request("/api/123456/upload/").respond_with_data(
         "", status=503
     )
@@ -881,7 +866,7 @@ def test_tus_crash_native_retry(cmake, httpserver):
             "shutdown-timeout",
             "10000",
         ],
-        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"),
         wait_for_daemon=True,
     )
 
@@ -898,7 +883,7 @@ def test_tus_crash_native_retry(cmake, httpserver):
 @pytest.mark.parametrize("status", [404, 410])
 @pytest.mark.parametrize("chunked", [True, False], ids=["chunked", "single"])
 def test_tus_recreate_after_head_404(cmake, httpserver, status, chunked):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path / ".sentry-native" / "cache"
     cache_dir.mkdir(parents=True)
     event_id = "b951e5e8-2b70-473f-91f3-667daf78d3de"
@@ -974,7 +959,7 @@ def test_tus_recreate_after_head_404(cmake, httpserver, status, chunked):
     [None, "0", "-1", "invalid", "26214400", "104857601", "18446744073709551616"],
 )
 def test_tus_invalid_offset(cmake, httpserver, offset):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     upload_uri = "/api/123456/upload/invalid-offset/"
     httpserver.expect_oneshot_request(
         "/api/123456/upload/", method="POST"
@@ -1024,7 +1009,7 @@ def test_tus_invalid_offset(cmake, httpserver, offset):
     "has_location", [True, False], ids=["location", "missing-location"]
 )
 def test_tus_resume_completed_upload(cmake, httpserver, has_location):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path / ".sentry-native" / "cache"
     cache_dir.mkdir(parents=True)
     event_id = "b951e5e8-2b70-473f-91f3-667daf78d3de"

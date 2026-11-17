@@ -78,7 +78,7 @@ STATUS_FAIL_FAST_EXCEPTION = 0xC0000602
 
 def test_native_capture_crash(cmake, httpserver):
     """Test basic crash capture with native backend"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -87,7 +87,9 @@ def test_native_capture_crash(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "test-logger", "attach-view-hierarchy", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -113,7 +115,7 @@ def test_native_capture_crash(cmake, httpserver):
     ],
 )
 def test_native_crash_hint_attachments(cmake, httpserver, callback, crash):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -122,7 +124,9 @@ def test_native_crash_hint_attachments(cmake, httpserver, callback, crash):
             tmp_path,
             "sentry_test_integration",
             ["log", "attachment", callback, crash],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -148,9 +152,9 @@ def test_native_crash_hint_attachments(cmake, httpserver, callback, crash):
 
 
 def test_native_on_crashed_last_run(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native")
     args = ["log", "on-crashed-last-run"]
 
     with httpserver.wait(timeout=10) as waiting:
@@ -258,7 +262,7 @@ def test_native_on_crashed_last_run(cmake, httpserver):
 )
 def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
     """Test WER crash capture with native backend"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -267,7 +271,9 @@ def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "initial-scope", "no-setup", crash_arg],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -282,7 +288,7 @@ def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
 def test_native_oom(cmake, httpserver):
     """Test OOM crash capture with native backend"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -291,7 +297,9 @@ def test_native_oom(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "oom"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -322,7 +330,7 @@ def test_native_stack_overflow(cmake, httpserver, stack_size):
     env = dict(os.environ)
     if stack_size:
         env["SENTRY_HANDLER_STACK_SIZE"] = stack_size
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -331,7 +339,7 @@ def test_native_stack_overflow(cmake, httpserver, stack_size):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "stack-overflow"] + SANITIZER_ARGS,
-            env=dict(env, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(env, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"),
         )
     assert waiting.result
 
@@ -343,7 +351,7 @@ def test_native_stack_overflow(cmake, httpserver, stack_size):
 
 def test_native_capture_minidump_generated(cmake, httpserver):
     """Test that minidump file is generated"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -353,7 +361,9 @@ def test_native_capture_minidump_generated(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "test-logger", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -392,7 +402,7 @@ def test_native_capture_minidump_generated(cmake, httpserver):
         tmp_path,
         "sentry_test_integration",
         ["log", "no-setup"],
-        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"),
     )
     assert not list(db_dir.glob("*.run"))
     assert not list(db_dir.glob("*.run*.lock"))
@@ -410,7 +420,7 @@ def test_native_breadcrumbs(cmake, httpserver, crash_mode):
     Asserting on the default `debug crumb` verifies the whole roundtrip, not
     just that an event arrived.
     """
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -421,7 +431,9 @@ def test_native_breadcrumbs(cmake, httpserver, crash_mode):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "crash-mode", crash_mode, "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -439,7 +451,7 @@ def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
     With the default max_breadcrumbs (100), the daemon keeps the newest 100,
     so the count is capped and the most-recent crumb ("100") is retained.
     """
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -455,7 +467,9 @@ def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
                 crash_mode,
                 "crash",
             ],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -470,12 +484,13 @@ def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
 @pytest.mark.parametrize("mode", [0, 1, 2])
 @pytest.mark.parametrize("scoped_trace", [False, True])
 def test_native_scope_updates_without_snapshot(cmake, httpserver, mode, scoped_trace):
-    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(
         os.environ,
         SENTRY_DSN=make_dsn(httpserver),
         SENTRY_TEST_NATIVE_SCOPE_CRASH=str(mode),
+        SENTRY_BACKEND="native",
     )
     if scoped_trace:
         env["SENTRY_TEST_NATIVE_SCOPE_SPAN"] = "1"
@@ -536,7 +551,12 @@ class StallChild:
             ],
             cwd=tmp_path,
             env=crash_env(
-                dict(os.environ, SENTRY_DSN=dsn, SENTRY_TEST_NATIVE_STALL=mode)
+                dict(
+                    os.environ,
+                    SENTRY_DSN=dsn,
+                    SENTRY_TEST_NATIVE_STALL=mode,
+                    SENTRY_BACKEND="native",
+                )
             ),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -587,7 +607,7 @@ def is_gone(proc):
 
 
 def test_native_stall_bounds_updates(cmake, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"])
     with StallChild(tmp_path, "updates", unreachable_dsn) as stall:
         stall.wait_for_step("ready")
         daemon = stall.daemon()
@@ -607,7 +627,7 @@ def test_native_stall_bounds_updates(cmake, unreachable_dsn):
 
 
 def test_native_stall_crash(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     with httpserver.wait(timeout=STALL_STEP_TIMEOUT) as waiting:
         with StallChild(tmp_path, "crash", make_dsn(httpserver)) as stall:
@@ -625,7 +645,7 @@ def test_native_stall_crash(cmake, httpserver):
 
 
 def test_native_stall_recovery(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     with httpserver.wait(timeout=STALL_STEP_TIMEOUT) as waiting:
         with StallChild(tmp_path, "recover", make_dsn(httpserver)) as stall:
@@ -646,7 +666,7 @@ def test_native_stall_recovery(cmake, httpserver):
 
 
 def test_native_stall_killed_daemon(cmake, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"])
     with StallChild(tmp_path, "killed", unreachable_dsn) as stall:
         stall.wait_for_step("ready")
         daemon = stall.daemon()
@@ -661,13 +681,13 @@ def test_native_stall_killed_daemon(cmake, unreachable_dsn):
 
 
 def test_native_byte_attachment_is_confined(cmake, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     cmd = run_command(str(tmp_path / "sentry_test_integration"))
     child = subprocess.Popen(
         [*cmd, "log", "attachment", "sleep"],
         cwd=tmp_path,
-        env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
+        env=dict(os.environ, SENTRY_DSN=unreachable_dsn, SENTRY_BACKEND="native"),
     )
     outside_path = tmp_path / ".sentry-byte-attachment"
     confined_paths = []
@@ -690,7 +710,7 @@ def test_native_byte_attachment_is_confined(cmake, unreachable_dsn):
 
 def test_native_session_tracking(cmake, httpserver):
     """Test that sessions are tracked correctly with crashes"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -701,7 +721,9 @@ def test_native_session_tracking(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "start-session", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -718,7 +740,7 @@ def test_native_session_tracking(cmake, httpserver):
 
 def test_native_signal_handling(cmake, httpserver):
     """Test that different signals are handled correctly"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -728,7 +750,9 @@ def test_native_signal_handling(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -736,7 +760,7 @@ def test_native_signal_handling(cmake, httpserver):
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals only")
 def test_native_sigabrt(cmake, httpserver):
     """Test SIGABRT handling"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -746,14 +770,16 @@ def test_native_sigabrt(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "assert"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
 
 def test_native_abort(cmake, httpserver):
     """Test abort() handling with native backend"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -762,14 +788,16 @@ def test_native_abort(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "abort"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
 
 def test_native_multiple_crashes(cmake, httpserver):
     """Test handling multiple crashes in sequence"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -782,14 +810,16 @@ def test_native_multiple_crashes(cmake, httpserver):
                 tmp_path,
                 "sentry_test_integration",
                 ["log", "stdout", "crash"] + SANITIZER_ARGS,
-                env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+                env=dict(
+                    os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+                ),
             )
     assert waiting.result
 
 
 def test_native_context_capture(cmake, httpserver):
     """Test that scope and context are captured"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -799,14 +829,16 @@ def test_native_context_capture(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "add-stacktrace", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
 
 def test_native_daemon_respawn(cmake, httpserver):
     """Test that daemon respawns if it dies"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -818,7 +850,9 @@ def test_native_daemon_respawn(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -829,7 +863,7 @@ def test_native_daemon_respawn(cmake, httpserver):
 )
 def test_native_multithreaded_crash(cmake, httpserver):
     """Test crash from non-main thread"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -839,7 +873,9 @@ def test_native_multithreaded_crash(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "crash"] + SANITIZER_ARGS,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -850,7 +886,7 @@ def test_native_multithreaded_crash(cmake, httpserver):
 )
 def test_native_noncrashing_thread_unwind(cmake, httpserver):
     """Test that non-crashing threads capture unwindable stacktraces"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -859,7 +895,9 @@ def test_native_noncrashing_thread_unwind(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "crash"] + SANITIZER_ARGS,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -1017,7 +1055,7 @@ def test_native_minidump_streams(cmake, httpserver):
     populated the descriptor correctly; this guards against a regression
     that breaks the cross-stream invariant.
     """
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -1027,7 +1065,9 @@ def test_native_minidump_streams(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -1132,13 +1172,13 @@ def test_native_minidump_streams(cmake, httpserver):
     reason="Requires unsanitized 32-bit Linux with a fixed high-address mapping",
 )
 def test_native_minidump_high_fault_address(cmake):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     result = run(
         tmp_path,
         "sentry_test_integration",
         ["log", "crash-high-address"],
         expect_failure=True,
-        env=dict(os.environ, SENTRY_DSN=""),
+        env=dict(os.environ, SENTRY_DSN="", SENTRY_BACKEND="native"),
     )
     if result.returncode == 77:
         pytest.skip("High-address mapping unavailable")
@@ -1321,12 +1361,16 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
 
 def test_native_uses_existing_run(cmake):
     """The daemon adopts the existing run instead of creating root artifacts."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     cmd = run_command(str(tmp_path / "sentry_test_integration"))
     child = subprocess.Popen(
         [*cmd, "log", "sleep"],
         cwd=tmp_path,
-        env=dict(os.environ, SENTRY_DSN="https://foo@sentry.invalid/42"),
+        env=dict(
+            os.environ,
+            SENTRY_DSN="https://foo@sentry.invalid/42",
+            SENTRY_BACKEND="native",
+        ),
     )
     db_dir = tmp_path / ".sentry-native"
 
@@ -1355,13 +1399,14 @@ def test_native_uses_existing_run(cmake):
 
 def test_native_cleanup(cmake):
     """Test that cleanup works properly"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     # Run and exit cleanly
     run(
         tmp_path,
         "sentry_test_integration",
         ["log", "no-setup"],
+        env=dict(os.environ, SENTRY_BACKEND="native"),
     )
 
     # Database should exist
@@ -1375,14 +1420,14 @@ def test_native_cleanup(cmake):
 
 def test_native_no_dsn_no_crash(cmake):
     """Test that without DSN, crashes don't create files"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     # Run without DSN (use stdout for initialization delay under TSAN)
     run_crash(
         tmp_path,
         "sentry_test_integration",
         ["log", "stdout", "crash"],
-        env=dict(os.environ, SENTRY_DSN=""),
+        env=dict(os.environ, SENTRY_DSN="", SENTRY_BACKEND="native"),
     )
 
     # Should not create database
@@ -1395,13 +1440,10 @@ def test_native_no_dsn_no_crash(cmake):
 
 def test_native_external_crash_reporter(cmake, httpserver):
     """Test external crash reporter invocation with native backend"""
-    tmp_path = cmake(
-        ["sentry_test_integration", "sentry_crash_reporter"],
-        {"SENTRY_BACKEND": "native"},
-    )
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -1445,12 +1487,9 @@ def test_native_external_crash_reporter_consent_revoked(cmake, httpserver):
     sentry_crash_reporter, which uploaded via HTTP. Consent should block that
     the same way it blocks the normal transport path.
     """
-    tmp_path = cmake(
-        ["sentry_test_integration", "sentry_crash_reporter"],
-        {"SENTRY_BACKEND": "native"},
-    )
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     cache_dir = tmp_path / ".sentry-native" / "cache"
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native")
 
     run_crash(
         tmp_path,
@@ -1473,12 +1512,9 @@ def test_native_external_crash_reporter_consent_revoked(cmake, httpserver):
 
 def test_native_external_crash_reporter_consent_revoked_no_cache(cmake, httpserver):
     """With consent revoked and no cache_keep, the daemon discards the crash envelope."""
-    tmp_path = cmake(
-        ["sentry_test_integration", "sentry_crash_reporter"],
-        {"SENTRY_BACKEND": "native"},
-    )
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     cache_dir = tmp_path / ".sentry-native" / "cache"
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native")
 
     run_crash(
         tmp_path,
@@ -1500,12 +1536,9 @@ def test_native_external_crash_reporter_consent_revoked_no_cache(cmake, httpserv
 
 def test_native_external_crash_reporter_consent_flush(cmake, httpserver):
     """Cached crash envelope uploads once consent is given."""
-    tmp_path = cmake(
-        ["sentry_test_integration", "sentry_crash_reporter"],
-        {"SENTRY_BACKEND": "native"},
-    )
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     cache_dir = tmp_path / ".sentry-native" / "cache"
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native")
 
     run_crash(
         tmp_path,
@@ -1546,7 +1579,7 @@ def test_native_external_crash_reporter_consent_flush(cmake, httpserver):
 
 def test_crash_mode_minidump_only(cmake, httpserver):
     """Mode 1: Should produce envelope with minidump attachment only"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     # Crash with mode 1 (minidump only)
@@ -1555,7 +1588,9 @@ def test_crash_mode_minidump_only(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "crash-mode", "minidump", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -1581,7 +1616,7 @@ def test_crash_mode_minidump_only(cmake, httpserver):
 )
 def test_crash_mode_native_only(cmake, httpserver):
     """Mode 2: Should produce envelope with native stacktrace, no minidump"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     # Crash with mode 2 (native only)
@@ -1590,7 +1625,9 @@ def test_crash_mode_native_only(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "crash-mode", "native", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -1640,7 +1677,7 @@ def test_crash_mode_native_only(cmake, httpserver):
 )
 def test_crash_mode_native_with_minidump(cmake, httpserver):
     """Mode 3 (default): Should have both native stacktrace AND minidump"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     # Default mode should be NATIVE_WITH_MINIDUMP
@@ -1649,7 +1686,9 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "crash"],  # No crash-mode arg = use default
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -1694,6 +1733,7 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
         {},  # with PDBs
         {
             # without PDBs (remove CMake's MSVC /debug defaults to disable PDBs)
+            "SENTRY_BACKEND": "native",
             "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "",
             "CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO": "",
         },
@@ -1707,7 +1747,6 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
     ],
 )
 def test_native_pdb(cmake, httpserver, build_args, run_args):
-    build_args.update({"SENTRY_BACKEND": "native"})
     tmp_path = cmake(["sentry_test_integration"], build_args)
 
     has_pdb = build_args.get("CMAKE_SHARED_LINKER_FLAGS_DEBUG") != ""
@@ -1723,7 +1762,9 @@ def test_native_pdb(cmake, httpserver, build_args, run_args):
             tmp_path,
             "sentry_test_integration",
             run_args,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -1760,7 +1801,7 @@ def test_native_pdb(cmake, httpserver, build_args, run_args):
 
 
 def test_native_restart_on_crash(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -1771,7 +1812,9 @@ def test_native_restart_on_crash(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["crash", "restart-on-crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -1786,7 +1829,7 @@ def test_native_restart_on_crash(cmake, httpserver):
 def test_native_replay_envelope(cmake, httpserver):
     """A staged replay referenced by the crash event's `contexts.replay` is
     sent as a correctly structured `replay_video` envelope by the daemon."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     replays, video = stage_replay(tmp_path)
 
@@ -1799,7 +1842,9 @@ def test_native_replay_envelope(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "replay-context", "crash"] + SANITIZER_ARGS,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
             wait_for_daemon=True,
         )
     assert waiting.result
@@ -1819,7 +1864,7 @@ def test_native_replay_envelope(cmake, httpserver):
 def test_native_replay_orphan_not_flushed(cmake, httpserver):
     """A staged replay that the crash event does not reference is neither
     sent nor consumed."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     replays, _ = stage_replay(tmp_path)
 
@@ -1830,7 +1875,9 @@ def test_native_replay_orphan_not_flushed(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["log", "stdout", "crash"] + SANITIZER_ARGS,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
             wait_for_daemon=True,
         )
     assert waiting.result
@@ -1845,7 +1892,6 @@ def test_native_early_init(cmake):
     tmp_path = cmake(
         ["sentry_early_init"],
         {
-            "SENTRY_BACKEND": "native",
             "SENTRY_TRANSPORT": "none",
             "BUILD_SHARED_LIBS": "OFF",
         },
@@ -1855,13 +1901,14 @@ def test_native_early_init(cmake):
         tmp_path,
         "sentry_early_init",
         [],
+        env=dict(os.environ, SENTRY_BACKEND="native"),
     )
     assert result.returncode == 0
 
 
 @pytest.mark.parametrize("crash_arg", ["crash", "abort"])
 def test_native_reinstall(cmake, httpserver, crash_arg):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -1870,7 +1917,9 @@ def test_native_reinstall(cmake, httpserver, crash_arg):
             tmp_path,
             "sentry_test_integration",
             ["log", "attachment", "reinstall", crash_arg, *SANITIZER_ARGS],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -1887,10 +1936,10 @@ def test_native_reinstall(cmake, httpserver, crash_arg):
 def test_native_incomplete_crash(cmake, callback):
     tmp_path = cmake(
         ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
     cmd = run_command(str(tmp_path / "sentry_test_integration"))
-    env = dict(os.environ)
+    env = dict(os.environ, SENTRY_BACKEND="native")
     if is_asan:
         env["ASAN_OPTIONS"] = (
             env.get("ASAN_OPTIONS", "") + ":handle_segv=0:allow_user_segv_handler=1"
@@ -1938,7 +1987,7 @@ def test_native_incomplete_crash(cmake, callback):
 
 @pytest.mark.parametrize("clear", [False, True])
 def test_native_acquired_scope(cmake, httpserver, clear):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     args = ["log", "no-setup", "attachment", "acquire-scope", "crash"]
     if clear:
@@ -1948,7 +1997,9 @@ def test_native_acquired_scope(cmake, httpserver, clear):
             tmp_path,
             "sentry_test_integration",
             args,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -1970,7 +2021,7 @@ def test_native_acquired_scope(cmake, httpserver, clear):
 
 
 def test_native_scope_snapshot(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
@@ -1978,7 +2029,9 @@ def test_native_scope_snapshot(cmake, httpserver):
             tmp_path,
             "sentry_test_integration",
             ["initial-scope", "no-setup", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -1998,14 +2051,14 @@ def test_native_scope_snapshot(cmake, httpserver):
     ],
 )
 def test_native_http_retry(cmake, httpserver, unreachable_dsn, cache_args):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path / ".sentry-native" / "cache"
 
     run_crash(
         tmp_path,
         "sentry_test_integration",
         ["log", "http-retry", "crash", *cache_args, *SANITIZER_ARGS],
-        env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
+        env=dict(os.environ, SENTRY_DSN=unreachable_dsn, SENTRY_BACKEND="native"),
         wait_for_daemon=True,
     )
 
@@ -2025,7 +2078,9 @@ def test_native_http_retry(cmake, httpserver, unreachable_dsn, cache_args):
             tmp_path,
             "sentry_test_integration",
             ["log", "http-retry", "no-setup", *cache_args],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
     assert len(httpserver.log) == 1
@@ -2055,7 +2110,7 @@ def test_native_http_retry(cmake, httpserver, unreachable_dsn, cache_args):
     ],
 )
 def test_native_symbolication(cmake, httpserver, crash_mode, symbolize):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
@@ -2074,7 +2129,9 @@ def test_native_symbolication(cmake, httpserver, crash_mode, symbolize):
                 "crash",
             ]
             + SANITIZER_ARGS,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
         )
     assert waiting.result
 
@@ -2104,13 +2161,14 @@ def test_native_symbolication(cmake, httpserver, crash_mode, symbolize):
 
 @pytest.mark.parametrize("clear_hint", [False, True])
 def test_native_scope_updates_in_crash_callback(cmake, httpserver, clear_hint):
-    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(
         os.environ,
         SENTRY_DSN=make_dsn(httpserver),
         SENTRY_TEST_NATIVE_SCOPE_CRASH="1",
         SENTRY_TEST_NATIVE_SCOPE_CALLBACK="1",
+        SENTRY_BACKEND="native",
     )
     if clear_hint:
         env["SENTRY_TEST_NATIVE_SCOPE_HINT_CLEAR"] = "1"
@@ -2144,13 +2202,17 @@ def test_native_scope_updates_in_crash_callback(cmake, httpserver, clear_hint):
 def test_native_shutdown_during_crash(cmake):
     tmp_path = cmake(
         ["sentry_test_unit", "sentry-crash"],
-        {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
     run(
         tmp_path,
         "sentry_test_unit",
         ["--no-exec", "crash_daemon_shutdown_during_crash"],
-        env=dict(os.environ, SENTRY_TEST_NATIVE_DAEMON=str(tmp_path / "sentry-crash")),
+        env=dict(
+            os.environ,
+            SENTRY_TEST_NATIVE_DAEMON=str(tmp_path / "sentry-crash"),
+            SENTRY_BACKEND="native",
+        ),
     )
 
 
@@ -2158,7 +2220,7 @@ def test_native_proxy_set_empty(cmake, httpserver):
     proxy_process = None  # store the proxy process to terminate it later
     try:
         proxy_process, port = start_proxy("http-proxy")
-        tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+        tmp_path = cmake(["sentry_test_integration"])
         httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
             "OK"
         )
@@ -2168,6 +2230,7 @@ def test_native_proxy_set_empty(cmake, httpserver):
             SENTRY_DSN=make_dsn(httpserver, proxy_host=True),
             http_proxy=f"http://127.0.0.1:{port}",
             https_proxy=f"http://127.0.0.1:{port}",
+            SENTRY_BACKEND="native",
         )
 
         with httpserver.wait(timeout=10) as waiting:
@@ -2193,11 +2256,15 @@ def test_native_proxy_system(cmake, httpserver, proxy_empty):
     proxy_process = None  # store the proxy process to terminate it later
     try:
         proxy_process, port = start_proxy("http-proxy")
-        tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+        tmp_path = cmake(["sentry_test_integration"])
         httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
             "OK"
         )
-        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
+        env = dict(
+            os.environ,
+            SENTRY_DSN=make_dsn(httpserver, proxy_host=True),
+            SENTRY_BACKEND="native",
+        )
 
         with system_proxy(port):
             with httpserver.wait(timeout=10) as waiting:

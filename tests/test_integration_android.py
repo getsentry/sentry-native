@@ -1,3 +1,4 @@
+import os
 import time
 
 import pytest
@@ -47,14 +48,20 @@ def test_native_android(cmake):
 
     tmp_path = cmake(
         ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
 
     adb("shell", f"rm -rf {database_path}", check=True)
     assert find_minidumps(timeout=0) == []
 
     try:
-        run(tmp_path, "sentry_test_integration", ["log", "crash"], expect_failure=True)
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "crash"],
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_BACKEND="native"),
+        )
 
         minidumps = find_minidumps()
         assert minidumps, "native backend should create a minidump on Android"

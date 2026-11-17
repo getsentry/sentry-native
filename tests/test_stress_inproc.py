@@ -68,6 +68,7 @@ def run_stress_test(tmp_path, test_executable, test_name, database_path=None):
         database_path = tmp_path / ".sentry-native"
 
     env = os.environ.copy()
+    env["SENTRY_BACKEND"] = "inproc"
     if sys.platform != "win32":
         env["LD_LIBRARY_PATH"] = str(tmp_path) + ":" + env.get("LD_LIBRARY_PATH", "")
 
@@ -98,7 +99,7 @@ def run_stress_test_android(test_executable, test_name, database_path):
     # and parse the return code from the output (same approach as tests/__init__.py)
     result = adb(
         "shell",
-        f"cd {ANDROID_TMP} && LD_LIBRARY_PATH=. ./{exe_name} {test_name} {remote_db_path} 2>&1; echo ret:$?",
+        f"cd {ANDROID_TMP} && SENTRY_BACKEND=inproc LD_LIBRARY_PATH=. ./{exe_name} {test_name} {remote_db_path} 2>&1; echo ret:$?",
         capture_output=True,
         text=True,
     )
@@ -171,7 +172,7 @@ def assert_crash_marker(database_path):
 def test_inproc_simple_crash(cmake):
     tmp_path = cmake(
         ["sentry"],
-        {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
 
     test_exe = compile_test_program(tmp_path)
@@ -217,7 +218,7 @@ def test_inproc_concurrent_crash(cmake):
     """
     tmp_path = cmake(
         ["sentry"],
-        {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
 
     test_exe = compile_test_program(tmp_path)
@@ -264,7 +265,7 @@ def test_inproc_handler_thread_crash(cmake):
     """
     tmp_path = cmake(
         ["sentry"],
-        {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
 
     test_exe = compile_test_program(tmp_path)
@@ -313,7 +314,7 @@ def test_inproc_handler_abort_crash(cmake):
     """
     tmp_path = cmake(
         ["sentry"],
-        {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
 
     test_exe = compile_test_program(tmp_path)
@@ -407,7 +408,7 @@ def test_inproc_stack_trace(cmake, test_name, expected_functions, expect_no_dupl
     """
     tmp_path = cmake(
         ["sentry"],
-        {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
 
     test_exe = compile_test_program(tmp_path)
@@ -475,7 +476,7 @@ def test_inproc_concurrent_crash_repeated(cmake, iteration):
     """
     tmp_path = cmake(
         ["sentry"],
-        {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
 
     test_exe = compile_test_program(tmp_path)

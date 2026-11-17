@@ -89,7 +89,7 @@ def _minidump_modules(minidump):
 
 
 def test_crashpad_capture(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -97,7 +97,9 @@ def test_crashpad_capture(cmake, httpserver):
         tmp_path,
         "sentry_test_integration",
         ["log", "start-session", "capture-event"],
-        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        env=dict(
+            os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad"
+        ),
     )
 
     # the start update, the event with its session, and the session's end
@@ -105,14 +107,16 @@ def test_crashpad_capture(cmake, httpserver):
 
 
 def test_crashpad_on_crashed_last_run(cmake):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
     args = ["log", "on-crashed-last-run"]
+    env = dict(os.environ, SENTRY_BACKEND="crashpad")
 
     run(
         tmp_path,
         "sentry_test_integration",
         [*args, "initial-scope", "no-setup", "crash"],
         expect_failure=True,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -126,6 +130,7 @@ def test_crashpad_on_crashed_last_run(cmake):
         tmp_path,
         "sentry_test_integration",
         [*args, "no-setup"],
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -147,6 +152,7 @@ def test_crashpad_on_crashed_last_run(cmake):
         tmp_path,
         "sentry_test_integration",
         [*args, "no-setup"],
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -154,7 +160,7 @@ def test_crashpad_on_crashed_last_run(cmake):
 
 
 def test_crashpad_codeview(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
@@ -164,7 +170,9 @@ def test_crashpad_codeview(cmake, httpserver):
             "sentry_test_integration",
             ["log", "crashpad-wait-for-upload", "crash"],
             expect_failure=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad"
+            ),
         )
 
     assert waiting.result
@@ -198,7 +206,7 @@ def test_crashpad_codeview(cmake, httpserver):
 )
 @pytest.mark.with_wer
 def test_crashpad_initial_scope_fastfail(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
@@ -214,7 +222,9 @@ def test_crashpad_initial_scope_fastfail(cmake, httpserver):
                 "fastfail",
             ],
             expect_failure=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad"
+            ),
         )
 
     assert waiting.result
@@ -240,9 +250,13 @@ def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
     else:
         proxy_process, port = None, None
 
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
+    env = dict(
+        os.environ,
+        SENTRY_DSN=make_dsn(httpserver, proxy_host=True),
+        SENTRY_BACKEND="crashpad",
+    )
     if port is not None:
         env["SENTRY_TEST_PROXY_PORT"] = str(port)
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
@@ -428,12 +442,12 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
 
 
 def test_crashpad_reinstall(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
     args = ["log"]
     if sys.platform == "win32":
         args.append("overflow-breadcrumbs")
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
@@ -464,11 +478,11 @@ def test_crashpad_replay_envelope(cmake, httpserver):
     consumed by the first-chance handler at crash time, persisted to the run
     folder as its own `replay_video` envelope, and sent on the next launch,
     while the minidump uploads same-session."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     replays, video = stage_replay(tmp_path)
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -541,9 +555,9 @@ def wait_for_no_werfault(timeout=30.0, poll_interval=0.5):
     ],
 )
 def test_crashpad_wer_crash(cmake, httpserver, run_args):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -626,10 +640,9 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
 )
 @flaky(max_runs=3)
 def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
-    build_args.update({"SENTRY_BACKEND": "crashpad"})
     tmp_path = cmake(["sentry_test_integration"], build_args)
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -718,9 +731,9 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 )
 @flaky(max_runs=3)
 def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     if stack_size:
         env["SENTRY_HANDLER_STACK_SIZE"] = stack_size
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
@@ -769,9 +782,9 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size):
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
 def test_crashpad_oom(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -811,9 +824,9 @@ def test_crashpad_oom(cmake, httpserver):
     [(["discarding-before-send"]), (["discarding-on-crash"])],
 )
 def test_crashpad_non_dumping_crash(cmake, httpserver, run_args):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=5, raise_assertions=False) as waiting:
@@ -855,9 +868,9 @@ def test_crashpad_non_dumping_crash(cmake, httpserver, run_args):
     sys.platform == "linux", reason="linux clears the signal handlers on shutdown"
 )
 def test_crashpad_crash_after_shutdown(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
@@ -884,9 +897,9 @@ def test_crashpad_crash_after_shutdown(cmake, httpserver):
 
 @pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
 def test_crashpad_dump_inflight(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -909,9 +922,9 @@ def test_crashpad_dump_inflight(cmake, httpserver):
 
 @pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
 def test_crashpad_logs_on_crash(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -941,9 +954,9 @@ def test_crashpad_logs_on_crash(cmake, httpserver):
 
 @pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
 def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -978,9 +991,9 @@ def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
 
 
 def test_disable_backend(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
 
     with httpserver.wait(timeout=5, raise_assertions=False) as waiting:
         run(
@@ -1005,13 +1018,13 @@ def test_disable_backend(cmake, httpserver):
     reason="retry mechanism test only runs on macOS in CI",
 )
 def test_crashpad_retry(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     subprocess.run(
         ["sudo", "ifconfig", "lo0", "down"]
     )  # Disables the loopback network interface
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
     # crash but fail to send data
@@ -1042,14 +1055,11 @@ def test_crashpad_retry(cmake, httpserver):
     ],
 )
 def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
-    tmp_path = cmake(
-        ["sentry_test_integration", "sentry_crash_reporter"],
-        {"SENTRY_BACKEND": "crashpad"},
-    )
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     db_path = tmp_path / ".sentry-native"
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -1085,12 +1095,9 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
 
 def test_crashpad_external_crash_reporter_consent_revoked(cmake, httpserver):
     """With consent revoked, Crashpad must not launch the external reporter."""
-    tmp_path = cmake(
-        ["sentry_test_integration", "sentry_crash_reporter"],
-        {"SENTRY_BACKEND": "crashpad"},
-    )
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     db_path = tmp_path / ".sentry-native"
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
 
     run(
         tmp_path,
@@ -1115,12 +1122,9 @@ def test_crashpad_external_crash_reporter_consent_revoked(cmake, httpserver):
 
 def test_crashpad_external_crash_reporter_consent_revoked_no_cache(cmake, httpserver):
     """With consent revoked and no cache_keep, Crashpad must not upload."""
-    tmp_path = cmake(
-        ["sentry_test_integration", "sentry_crash_reporter"],
-        {"SENTRY_BACKEND": "crashpad"},
-    )
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     cache_dir = tmp_path / ".sentry-native" / "cache"
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
 
     run(
         tmp_path,
@@ -1143,12 +1147,9 @@ def test_crashpad_external_crash_reporter_consent_revoked_no_cache(cmake, httpse
 
 def test_crashpad_external_crash_reporter_consent_flush(cmake, httpserver):
     """Pending crash report uploads once consent is given."""
-    tmp_path = cmake(
-        ["sentry_test_integration", "sentry_crash_reporter"],
-        {"SENTRY_BACKEND": "crashpad"},
-    )
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     db_path = tmp_path / ".sentry-native"
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
 
     run(
         tmp_path,
@@ -1216,10 +1217,10 @@ def test_crashpad_external_crash_reporter_wer(cmake, httpserver, run_args):
     ],
 )
 def test_crashpad_cache_keep(cmake, httpserver, cache_args, expect_cache):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
@@ -1272,9 +1273,9 @@ def test_crashpad_cache_consent(cmake, httpserver):
     crashpad's pending queue (no upload, not moved to completed). Once
     consent is given, RequestRetry() wakes the handler and the minidump
     is uploaded."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
     db_path = tmp_path.joinpath(".sentry-native")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
 
     # 1) Crash with consent revoked. No upload should happen.
     run(
@@ -1324,9 +1325,9 @@ def test_crashpad_cache_consent(cmake, httpserver):
 
 
 def test_crashpad_cache_max_size(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
 
     # 5 x 4mb
     for i in range(5):
@@ -1380,9 +1381,9 @@ def test_crashpad_cache_max_size(cmake, httpserver):
 
 
 def test_crashpad_cache_max_age(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
 
     # 4 crashes that get fully cached
     for i in range(4):
@@ -1465,7 +1466,7 @@ def test_crashpad_cache_max_age(cmake, httpserver):
     reason="crashpad doesn't provide SetFirstChanceExceptionHandler on macOS",
 )
 def test_crashpad_restart_on_crash(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
@@ -1477,7 +1478,9 @@ def test_crashpad_restart_on_crash(cmake, httpserver):
             "sentry_test_integration",
             ["crash", "restart-on-crash"],
             expect_failure=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad"
+            ),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -1492,7 +1495,6 @@ def test_crashpad_early_init(cmake):
     tmp_path = cmake(
         ["sentry_early_init"],
         {
-            "SENTRY_BACKEND": "crashpad",
             "SENTRY_TRANSPORT": "none",
             "BUILD_SHARED_LIBS": "OFF",
         },
@@ -1502,6 +1504,7 @@ def test_crashpad_early_init(cmake):
         tmp_path,
         "sentry_early_init",
         [],
+        env=dict(os.environ, SENTRY_BACKEND="crashpad"),
     )
     assert result.returncode == 0
 
@@ -1537,7 +1540,7 @@ def test_crashpad_early_init(cmake):
     ],
 )
 def test_crashpad_breadcrumbs(cmake, httpserver, count, reinstall, crash_arg):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
     args = [
         "log",
         "overflow-breadcrumbs",
@@ -1556,7 +1559,9 @@ def test_crashpad_breadcrumbs(cmake, httpserver, count, reinstall, crash_arg):
             "sentry_test_integration",
             [*args, crash_arg],
             expect_failure=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad"
+            ),
         )
 
     assert waiting.result
@@ -1569,7 +1574,7 @@ def test_crashpad_breadcrumbs(cmake, httpserver, count, reinstall, crash_arg):
 
 @pytest.mark.parametrize("clear", [False, True])
 def test_crashpad_acquired_scope(cmake, httpserver, clear):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     args = [
         "log",
@@ -1587,7 +1592,9 @@ def test_crashpad_acquired_scope(cmake, httpserver, clear):
             "sentry_test_integration",
             args,
             expect_failure=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad"
+            ),
         )
     assert waiting.result
 
@@ -1652,9 +1659,11 @@ def start_until_handler(tmp_path, args, env=None):
     reason="only Windows sends scope updates to the handler over its pipe",
 )
 def test_crashpad_suspended_handler(cmake):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    child, handler = start_until_handler(tmp_path, ["open-transaction"])
+    child, handler = start_until_handler(
+        tmp_path, ["open-transaction"], dict(os.environ, SENTRY_BACKEND="crashpad")
+    )
     handler.suspend()
     try:
         # two scope updates, each given up after 5 seconds
@@ -1671,11 +1680,11 @@ def test_crashpad_suspended_handler(cmake):
     reason="only Windows sends scope updates to the handler over its pipe",
 )
 def test_crashpad_busy_handler_crash(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     child, _ = start_until_handler(tmp_path, ["crash"], env)
     instances = []
     try:

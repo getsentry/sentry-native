@@ -60,11 +60,9 @@ def assert_screenshot_upload(req):
 )
 @pytest.mark.parametrize("backend", ["inproc", "breakpad"])
 def test_capture_screenshot(cmake, httpserver, backend):
-    tmp_path = cmake(
-        ["sentry_screenshot"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
-    )
+    tmp_path = cmake(["sentry_screenshot"], {"SENTRY_TRANSPORT": "none"})
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend)
 
     run(tmp_path, "sentry_screenshot", ["crash"], expect_failure=True, env=env)
 
@@ -76,9 +74,9 @@ def test_capture_screenshot(cmake, httpserver, backend):
     reason="Screenshots are only supported on Windows",
 )
 def test_capture_screenshot_native(cmake, httpserver):
-    tmp_path = cmake(["sentry_screenshot"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_screenshot"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
@@ -104,9 +102,9 @@ def test_capture_screenshot_native(cmake, httpserver):
     ],
 )
 def test_capture_screenshot_crashpad(cmake, httpserver, run_args):
-    tmp_path = cmake(["sentry_screenshot"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_screenshot"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="crashpad")
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -143,11 +141,9 @@ def test_capture_screenshot_crashpad_wer(cmake, httpserver, run_args):
 )
 @pytest.mark.parametrize("backend", ["inproc", "breakpad"])
 def test_before_screenshot(cmake, httpserver, backend):
-    tmp_path = cmake(
-        ["sentry_screenshot"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
-    )
+    tmp_path = cmake(["sentry_screenshot"], {"SENTRY_TRANSPORT": "none"})
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend)
 
     run(
         tmp_path,
@@ -165,9 +161,9 @@ def test_before_screenshot(cmake, httpserver, backend):
     reason="Screenshots are only supported on Windows",
 )
 def test_before_screenshot_native(cmake, httpserver):
-    tmp_path = cmake(["sentry_screenshot"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_screenshot"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native")
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 

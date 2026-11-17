@@ -65,7 +65,7 @@ def test_unit_native(cmake, unittest):
     _skip_if_unsupported(unittest)
     cwd = cmake(
         ["sentry_test_unit", "sentry-crash"],
-        {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
-    env = dict(os.environ)
+    env = dict(os.environ, SENTRY_BACKEND="native")
     run(cwd, "sentry_test_unit", ["--no-summary", unittest], env=env)

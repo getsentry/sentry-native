@@ -44,11 +44,7 @@ def pytest_generate_tests(metafunc):
 # retry known intermittent deadlocks in Breakpad tests (#1502)
 def pytest_collection_modifyitems(items):
     for item in items:
-        params = getattr(getattr(item, "callspec", None), "params", {})
-        if "breakpad" in item.name or any(
-            isinstance(value, dict) and value.get("SENTRY_BACKEND") == "breakpad"
-            for value in params.values()
-        ):
+        if "breakpad" in item.name:
             item.add_marker(pytest.mark.flaky(max_runs=3))
 
 

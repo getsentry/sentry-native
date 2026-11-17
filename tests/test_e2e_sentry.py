@@ -439,7 +439,7 @@ class TestE2ENative:
     @pytest.fixture(autouse=True)
     def setup(self, cmake):
         """Build the test app and set up DSN."""
-        self.tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+        self.tmp_path = cmake(["sentry_test_integration"])
         self.dsn = os.environ["SENTRY_E2E_DSN"]
 
     def print_daemon_logs(self):
@@ -478,7 +478,7 @@ class TestE2ENative:
         Returns:
             The test ID that can be used to find the event in Sentry
         """
-        env = dict(os.environ, SENTRY_DSN=self.dsn)
+        env = dict(os.environ, SENTRY_DSN=self.dsn, SENTRY_BACKEND="native")
 
         # Run with crash - capture output for test ID
         # Enable structured logs and capture a log message before crashing
@@ -743,8 +743,10 @@ class TestE2ENative:
 @pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
 def test_e2e_inproc(cmake):
     """Verify that inproc can send a signal-handler crash event to Sentry."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
-    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+    tmp_path = cmake(["sentry_test_integration"])
+    env = dict(
+        os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"], SENTRY_BACKEND="inproc"
+    )
 
     output = run_crash_e2e(
         tmp_path,
@@ -782,8 +784,10 @@ def test_e2e_inproc(cmake):
 )
 def test_e2e_breakpad(cmake):
     """Verify that breakpad can send a minidump crash event to Sentry."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "breakpad"})
-    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+    tmp_path = cmake(["sentry_test_integration"])
+    env = dict(
+        os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"], SENTRY_BACKEND="breakpad"
+    )
 
     output = run_crash_e2e(
         tmp_path,
@@ -835,8 +839,10 @@ def test_e2e_breakpad(cmake):
 )
 def test_e2e_crashpad(cmake):
     """Verify that crashpad can send a minidump crash event to Sentry."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
-    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+    tmp_path = cmake(["sentry_test_integration"])
+    env = dict(
+        os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"], SENTRY_BACKEND="crashpad"
+    )
 
     output = run_crash_e2e(
         tmp_path,
@@ -883,7 +889,7 @@ def test_e2e_crashpad(cmake):
 def test_e2e_trace_propagation(cmake):
     """Verify that Sentry links the events of an upstream and a downstream app
     when the downstream app continues the trace from the upstream headers."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
 
     # upstream: capture an event and print the propagation headers of its trace
@@ -920,8 +926,10 @@ def test_e2e_trace_propagation(cmake):
 @pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
 def test_e2e_tus(cmake):
     """Verify a large crash attachment reaches Sentry after an interrupted upload."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
-    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+    tmp_path = cmake(["sentry_test_integration"])
+    env = dict(
+        os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"], SENTRY_BACKEND="native"
+    )
 
     # The daemon uploads the crash through a throttled proxy, so its shutdown
     # timeout interrupts the upload and persists the envelope for the restart.
@@ -992,7 +1000,7 @@ def test_e2e_tus_compressed(cmake):
     """Verify a large attachment reaches Sentry in gzip-compressed chunks."""
     tmp_path = cmake(
         ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT_COMPRESSION": "On"},
+        {"SENTRY_TRANSPORT_COMPRESSION": "On"},
     )
     env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
 

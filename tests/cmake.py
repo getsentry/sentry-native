@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from . import adb, exe_name, lib_name
-from .conditions import has_sccache
+from .conditions import has_breakpad, has_crashpad, has_native, has_sccache
 from .build_config import (
     get_android_config,
     get_platform_cmake_args,
@@ -20,6 +20,14 @@ from .build_config import (
 
 # outlives the session fixture for the terminal summary
 build_stats = dict()
+
+# no backend by default, tests select one with the `SENTRY_BACKEND` env var
+DEFAULT_BACKEND = ";".join(
+    ["none", "inproc"]
+    + (["native"] if has_native else [])
+    + (["crashpad"] if has_crashpad else [])
+    + (["breakpad"] if has_breakpad else [])
+)
 
 
 def format_build_stats(verbose=False):
@@ -63,6 +71,8 @@ class CMake:
 
         if options is None:
             options = dict()
+        if source_dir is None:
+            options = {"SENTRY_BACKEND": DEFAULT_BACKEND, **options}
         key = ";".join(f"{k}={v}" for k, v in sorted(options.items()))
         if cflags:
             key += ";" + ";".join(cflags)

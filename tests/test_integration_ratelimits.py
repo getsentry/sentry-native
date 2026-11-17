@@ -7,7 +7,7 @@ pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 
 def test_retry_after(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
@@ -26,7 +26,7 @@ def test_retry_after(cmake, httpserver):
 
 
 def test_rate_limits(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     headers = {"X-Sentry-Rate-Limits": "60::organization"}
@@ -45,7 +45,7 @@ def test_rate_limits(cmake, httpserver):
 
 
 def test_only_429(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 

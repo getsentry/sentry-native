@@ -25,7 +25,7 @@ def find_client_report_envelope(httpserver_log):
 
 
 def test_client_report_none(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -46,7 +46,7 @@ def test_client_report_none(cmake, httpserver):
 
 
 def test_client_report_before_send(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -72,7 +72,7 @@ def test_client_report_before_send(cmake, httpserver):
 
 
 def test_client_report_ratelimit(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     # The first event gets through but triggers a rate limit for the "error"
     # category only. The error items of the remaining 9 events are filtered out
@@ -127,7 +127,7 @@ def test_client_report_ratelimit(cmake, httpserver):
 
 
 def test_client_report_ratelimit_then_send_error(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     # The first request carries the session's start update. The second
     # rate-limits sessions. The third returns 400. The session item is
@@ -170,7 +170,7 @@ def test_client_report_ratelimit_then_send_error(cmake, httpserver):
 
 
 def test_client_report_sample_rate(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(
@@ -200,7 +200,7 @@ def test_client_report_sample_rate(cmake, httpserver):
 
 
 def test_client_report_before_send_log(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -230,7 +230,7 @@ def test_client_report_before_send_log(cmake, httpserver):
 
 
 def test_client_report_before_send_metric(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -260,7 +260,7 @@ def test_client_report_before_send_metric(cmake, httpserver):
 
 
 def test_client_report_before_send_feedback(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -291,7 +291,7 @@ def test_client_report_before_send_feedback(cmake, httpserver):
 
 
 def test_client_report_before_send_transaction(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -323,7 +323,7 @@ def test_client_report_before_send_transaction(cmake, httpserver):
 
 def test_client_report_send_error_preserves_pending(cmake, httpserver):
     """Client report counts attached to a failed envelope are preserved."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     # the session's start update goes through
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -361,7 +361,7 @@ def test_client_report_send_error_preserves_pending(cmake, httpserver):
 
 
 def test_client_report_send_error(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     # the session's start update goes through, the event fails
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -389,7 +389,7 @@ def test_client_report_send_error(cmake, httpserver):
 
 
 def test_client_report_content_too_large(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     # the session's start update goes through, the event fails
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -421,7 +421,7 @@ def test_client_report_content_too_large(cmake, httpserver):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_client_report_with_retry(cmake, httpserver, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     # Run 1: event discarded by before_send (client report recorded).

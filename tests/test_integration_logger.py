@@ -25,7 +25,7 @@ def _run_logger_crash_test(backend, cmake, logger_option):
     """
     tmp_path = cmake(
         ["sentry_test_integration"],
-        {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
 
     # Run the example with the specified logger option - expect it to crash
@@ -42,6 +42,7 @@ def _run_logger_crash_test(backend, cmake, logger_option):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         expect_failure=True,
+        env=dict(os.environ, SENTRY_BACKEND=backend),
     )
 
     # Process should have crashed (non-zero exit code)

@@ -64,7 +64,7 @@ def _assert_shared_version(directory):
 def test_shared_lib(cmake):
     directory = cmake(
         ["sentry"],
-        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
 
     _assert_shared_version(directory)
@@ -74,7 +74,6 @@ def test_static_lib(cmake):
     tmp_path = cmake(
         ["sentry_test_integration"],
         {
-            "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
             "BUILD_SHARED_LIBS": "OFF",
         },
@@ -118,7 +117,6 @@ def test_static_crashpad(cmake):
     cmake(
         ["sentry_test_integration"],
         {
-            "SENTRY_BACKEND": "crashpad",
             "SENTRY_TRANSPORT": "none",
             "BUILD_SHARED_LIBS": "OFF",
         },
@@ -148,7 +146,6 @@ def test_static_breakpad(cmake):
     cmake(
         ["sentry_test_integration"],
         {
-            "SENTRY_BACKEND": "breakpad",
             "SENTRY_TRANSPORT": "none",
             "BUILD_SHARED_LIBS": "OFF",
         },
@@ -160,7 +157,6 @@ def test_static_native(cmake):
     cmake(
         ["sentry_test_integration"],
         {
-            "SENTRY_BACKEND": "native",
             "SENTRY_TRANSPORT": "none",
             "BUILD_SHARED_LIBS": "OFF",
         },
@@ -175,7 +171,6 @@ def test_static_mpack(cmake):
     tmp_path = cmake(
         ["sentry"],
         {
-            "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
             "BUILD_SHARED_LIBS": "OFF",
         },
@@ -212,9 +207,7 @@ def test_pkgconfig(cmake, tmp_path, monkeypatch):
         pytest.skip("pkg-config is not installed")
 
     destdir = tmp_path / "install"
-    directory = cmake(
-        ["sentry"], {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"}
-    )
+    directory = cmake(["sentry"], {"SENTRY_TRANSPORT": "none"})
     subprocess.run(
         ["cmake", "--install", directory],
         env=dict(os.environ, DESTDIR=str(destdir)),
@@ -244,4 +237,5 @@ def test_pkgconfig(cmake, tmp_path, monkeypatch):
         source_dir=Path(__file__).parent / "fixtures" / "pkgconfig",
     )
     env["SENTRY_DATABASE_PATH"] = str(tmp_path / "database")
+    env["SENTRY_BACKEND"] = "native"
     run(consumer, "sentry_test_pkgconfig", [], env=env)

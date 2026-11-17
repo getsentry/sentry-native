@@ -53,8 +53,9 @@ def assert_run_dir_with_envelope(database_path):
     ), f"There is more than one crash envelope ({len(crash_envelopes)}"
 
 
-def run_dotnet(tmp_path, args):
+def run_dotnet(tmp_path, args, backend):
     env = os.environ.copy()
+    env["SENTRY_BACKEND"] = backend
     env["LD_LIBRARY_PATH"] = str(tmp_path) + ":" + env.get("LD_LIBRARY_PATH", "")
     return subprocess.Popen(
         ["dotnet", "run", "-f:net10.0", f"-p:OutDir={tmp_path}/", "--", *args],
@@ -66,16 +67,16 @@ def run_dotnet(tmp_path, args):
     )
 
 
-def run_dotnet_managed_exception(tmp_path):
-    return run_dotnet(tmp_path, ["managed-exception"])
+def run_dotnet_managed_exception(tmp_path, backend):
+    return run_dotnet(tmp_path, ["managed-exception"], backend)
 
 
-def run_dotnet_unhandled_managed_exception(tmp_path):
-    return run_dotnet(tmp_path, ["unhandled-managed-exception"])
+def run_dotnet_unhandled_managed_exception(tmp_path, backend):
+    return run_dotnet(tmp_path, ["unhandled-managed-exception"], backend)
 
 
-def run_dotnet_native_crash(tmp_path):
-    return run_dotnet(tmp_path, ["native-crash"])
+def run_dotnet_native_crash(tmp_path, backend):
+    return run_dotnet(tmp_path, ["native-crash"], backend)
 
 
 @pytest.mark.skipif(
@@ -109,7 +110,7 @@ def test_dotnet_signals(cmake, backend):
         # build native client library and the example for crash dumping
         tmp_path = cmake(
             ["sentry"],
-            {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"},
+            {"SENTRY_TRANSPORT": "none"},
         )
 
         # build the crashing native library
@@ -130,7 +131,7 @@ def test_dotnet_signals(cmake, backend):
         # this runs the dotnet program with the Native SDK and chain-at-start, when managed code raises a signal that CLR convert to an exception.
         # raising a signal that CLR converts to a managed exception, which is then handled by the managed code and
         # not leaked out to the native code so no crash is registered.
-        dotnet_run = run_dotnet_managed_exception(tmp_path)
+        dotnet_run = run_dotnet_managed_exception(tmp_path, backend)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program handles the `NullReferenceException`, so the Native SDK won't register a crash.
@@ -144,7 +145,7 @@ def test_dotnet_signals(cmake, backend):
         assert_empty_run_dir(database_path)
 
         # this runs the dotnet program with the Native SDK and chain-at-start, when managed code raises a signal that CLR convert to an exception.
-        dotnet_run = run_dotnet_unhandled_managed_exception(tmp_path)
+        dotnet_run = run_dotnet_unhandled_managed_exception(tmp_path, backend)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program will fail with a `NullReferenceException`, but the Native SDK won't register a crash.
@@ -158,7 +159,7 @@ def test_dotnet_signals(cmake, backend):
         assert_empty_run_dir(database_path)
 
         # this runs the dotnet program with the Native SDK and chain-at-start, when an actual native crash raises a signal
-        dotnet_run = run_dotnet_native_crash(tmp_path)
+        dotnet_run = run_dotnet_native_crash(tmp_path, backend)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program will fail with a SIGSEGV, that has been processed by the Native SDK which produced a crash envelope
@@ -180,6 +181,7 @@ def run_aot(tmp_path, args=None):
     if args is None:
         args = []
     env = os.environ.copy()
+    env["SENTRY_BACKEND"] = "inproc"
     env["LD_LIBRARY_PATH"] = str(tmp_path) + ":" + env.get("LD_LIBRARY_PATH", "")
     return subprocess.Popen(
         [str(tmp_path / "bin/test_dotnet")] + args,
@@ -222,7 +224,7 @@ def test_aot_signals_inproc(cmake):
         # build native client library with inproc and the example for crash dumping
         tmp_path = cmake(
             ["sentry"],
-            {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+            {"SENTRY_TRANSPORT": "none"},
         )
 
         # build the crashing native library

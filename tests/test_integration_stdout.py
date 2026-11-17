@@ -70,7 +70,6 @@ def test_capture_stdout_attach_stacktrace(cmake):
     tmp_path = cmake(
         ["sentry_test_integration"],
         {
-            "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
         },
     )
@@ -96,7 +95,6 @@ def test_capture_stdout_without_attach_stacktrace(cmake):
     tmp_path = cmake(
         ["sentry_test_integration"],
         {
-            "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
         },
     )
@@ -125,7 +123,6 @@ def test_capture_stdout_attach_stacktrace_keeps_exception(cmake):
     tmp_path = cmake(
         ["sentry_test_integration"],
         {
-            "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
         },
     )
@@ -166,7 +163,6 @@ def test_dynamic_sdk_name_override(cmake):
     tmp_path = cmake(
         ["sentry_test_integration"],
         {
-            "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
         },
     )
@@ -210,7 +206,7 @@ def test_multi_process(cmake):
     # directory, but apparently cmake does not like that either.
     tmp_path = cmake(
         ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
+        {"SENTRY_TRANSPORT": "none"},
     )
 
     cwd = tmp_path.joinpath("unicode ❤️ Юля")
@@ -248,14 +244,15 @@ def test_multi_process(cmake):
 
 def run_stdout_for(backend, cmake, example_args, build_args=None, env=None):
     build_args = dict(build_args or {})
-    build_args.update({"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"})
+    build_args.update({"SENTRY_TRANSPORT": "none"})
+    env = dict(env or os.environ, SENTRY_BACKEND=backend)
 
     tmp_path = cmake(["sentry_test_integration"], build_args)
 
     run(tmp_path, "sentry_test_integration", example_args, expect_failure=True, env=env)
 
     return tmp_path, check_output(
-        tmp_path, "sentry_test_integration", ["stdout", "no-setup"]
+        tmp_path, "sentry_test_integration", ["stdout", "no-setup"], env=env
     )
 
 
@@ -512,7 +509,6 @@ def test_wine_context(cmake):
     tmp_path = cmake(
         ["sentry_test_integration"],
         {
-            "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
         },
     )

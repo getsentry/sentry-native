@@ -168,7 +168,7 @@ def test_sandbox_init_succeeds(cmake):
     This is the core regression test: before the fix, sem_open and shm_open
     would fail with EACCES inside sandbox, causing init to fail.
     """
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     app_dir, exe, daemon, ent = _create_sandbox_app_bundle(tmp_path)
     _codesign_bundle(app_dir, ent)
@@ -178,7 +178,7 @@ def test_sandbox_init_succeeds(cmake):
         app_dir,
         "sentry_test_integration",
         ["log", "no-setup"],
-        env=dict(os.environ),
+        env=dict(os.environ, SENTRY_BACKEND="native"),
         expect_failure=False,
     )
 
@@ -194,7 +194,7 @@ def test_sandbox_crash_capture(cmake, httpserver):
     Full end-to-end: crash inside sandbox -> daemon captures minidump ->
     sends envelope to HTTP server.
     """
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     app_dir, exe, daemon, ent = _create_sandbox_app_bundle(tmp_path)
     _codesign_bundle(app_dir, ent)
@@ -206,7 +206,9 @@ def test_sandbox_crash_capture(cmake, httpserver):
             app_dir,
             "sentry_test_integration",
             ["log", "stdout", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
             expect_failure=True,
         )
 
@@ -217,7 +219,7 @@ def test_sandbox_minidump_generated(cmake, httpserver):
     """
     Verify that a valid minidump is generated inside sandbox.
     """
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     app_dir, exe, daemon, ent = _create_sandbox_app_bundle(tmp_path)
     _codesign_bundle(app_dir, ent)
@@ -229,7 +231,9 @@ def test_sandbox_minidump_generated(cmake, httpserver):
             app_dir,
             "sentry_test_integration",
             ["log", "stdout", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
             expect_failure=True,
         )
 
@@ -262,7 +266,7 @@ def test_sandbox_native_stacktrace(cmake, httpserver):
     Verify native stacktrace mode works in sandbox (no minidump, just
     symbolicated frames).
     """
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     app_dir, exe, daemon, ent = _create_sandbox_app_bundle(tmp_path)
     _codesign_bundle(app_dir, ent)
@@ -274,7 +278,9 @@ def test_sandbox_native_stacktrace(cmake, httpserver):
             app_dir,
             "sentry_test_integration",
             ["log", "stdout", "crash-mode", "native", "crash"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native"
+            ),
             expect_failure=True,
         )
 

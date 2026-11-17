@@ -53,7 +53,7 @@ has_files = not is_android
 has_oom = sys.platform != "linux" and not is_asan and not is_valgrind
 
 # Native backend works on all platforms (lightweight, no external dependencies)
-# It's always available - tests explicitly set SENTRY_BACKEND: native in cmake
+# It's always available - tests explicitly set SENTRY_BACKEND=native at runtime
 # On macOS ASAN, the signal handling conflicts with ASAN's memory interception
 has_native = not (is_asan and sys.platform == "darwin") and (
     not is_android or is_android >= 23

@@ -99,7 +99,6 @@ auth_header = (
     strict=True,
 )
 def test_capture_http(cmake, httpserver, build_args):
-    build_args.update({"SENTRY_BACKEND": "none"})
     tmp_path = cmake(["sentry_test_integration"], build_args)
 
     httpserver.expect_oneshot_request(
@@ -133,7 +132,7 @@ def test_capture_http(cmake, httpserver, build_args):
 
 
 def test_session_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -165,7 +164,7 @@ def test_session_http(cmake, httpserver):
 
 
 def test_set_release_and_environment_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -214,7 +213,7 @@ def test_set_release_and_environment_http(cmake, httpserver):
 
 
 def test_capture_and_session_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -247,7 +246,7 @@ def test_capture_and_session_http(cmake, httpserver):
 
 
 def test_user_feedback_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -270,7 +269,7 @@ def test_user_feedback_http(cmake, httpserver):
 
 
 def test_user_feedback_with_attachments_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -303,19 +302,19 @@ def test_user_feedback_with_attachments_http(cmake, httpserver):
 
 
 @pytest.mark.parametrize(
-    "build_args",
+    "backend",
     [
-        ({"SENTRY_BACKEND": "inproc"}),
+        "inproc",
         pytest.param(
-            {"SENTRY_BACKEND": "breakpad"},
+            "breakpad",
             marks=pytest.mark.skipif(
                 not has_breakpad or is_qemu, reason="test needs breakpad backend"
             ),
         ),
     ],
 )
-def test_external_crash_reporter_http(cmake, httpserver, build_args):
-    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"], build_args)
+def test_external_crash_reporter_http(cmake, httpserver, backend):
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     httpserver.expect_oneshot_request(
@@ -328,7 +327,7 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
     ).respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend)
         run(
             tmp_path,
             "sentry_test_integration",
@@ -363,34 +362,34 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
             ["winepath", "-u", actual_cache_dir], text=True
         ).strip()
     assert actual_cache_dir == str(cache_dir)
-    assert_meta(envelope, integration=build_args.get("SENTRY_BACKEND", ""))
+    assert_meta(envelope, integration=backend)
 
     envelope = Envelope.deserialize(feedback)
     assert_user_feedback(envelope)
 
 
 @pytest.mark.parametrize(
-    "build_args",
+    "backend",
     [
-        ({"SENTRY_BACKEND": "inproc"}),
+        "inproc",
         pytest.param(
-            {"SENTRY_BACKEND": "breakpad"},
+            "breakpad",
             marks=pytest.mark.skipif(
                 not has_breakpad or is_qemu, reason="test needs breakpad backend"
             ),
         ),
     ],
 )
-def test_external_crash_reporter_consent_revoked(cmake, httpserver, build_args):
+def test_external_crash_reporter_consent_revoked(cmake, httpserver, backend):
     """With consent revoked, must not launch the external reporter.
 
     Before the fix, crash-reporter + user-consent-revoke still spawned
     sentry_crash_reporter, which uploaded via HTTP. Consent should block that
     the same way it blocks the normal transport path.
     """
-    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"], build_args)
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend)
 
     run(
         tmp_path,
@@ -413,24 +412,22 @@ def test_external_crash_reporter_consent_revoked(cmake, httpserver, build_args):
 
 
 @pytest.mark.parametrize(
-    "build_args",
+    "backend",
     [
-        ({"SENTRY_BACKEND": "inproc"}),
+        "inproc",
         pytest.param(
-            {"SENTRY_BACKEND": "breakpad"},
+            "breakpad",
             marks=pytest.mark.skipif(
                 not has_breakpad or is_qemu, reason="test needs breakpad backend"
             ),
         ),
     ],
 )
-def test_external_crash_reporter_consent_revoked_no_cache(
-    cmake, httpserver, build_args
-):
+def test_external_crash_reporter_consent_revoked_no_cache(cmake, httpserver, backend):
     """With consent revoked and no cache_keep, the crash envelope is discarded."""
-    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"], build_args)
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend)
 
     run(
         tmp_path,
@@ -451,22 +448,22 @@ def test_external_crash_reporter_consent_revoked_no_cache(
 
 
 @pytest.mark.parametrize(
-    "build_args",
+    "backend",
     [
-        ({"SENTRY_BACKEND": "inproc"}),
+        "inproc",
         pytest.param(
-            {"SENTRY_BACKEND": "breakpad"},
+            "breakpad",
             marks=pytest.mark.skipif(
                 not has_breakpad or is_qemu, reason="test needs breakpad backend"
             ),
         ),
     ],
 )
-def test_external_crash_reporter_consent_flush(cmake, httpserver, build_args):
+def test_external_crash_reporter_consent_flush(cmake, httpserver, backend):
     """Cached crash envelope uploads once consent is given."""
-    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"], build_args)
+    tmp_path = cmake(["sentry_test_integration", "sentry_crash_reporter"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend)
 
     run(
         tmp_path,
@@ -514,7 +511,7 @@ def test_external_crash_reporter_consent_flush(cmake, httpserver, build_args):
     strict=True,
 )
 def test_exception_and_session_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -549,10 +546,7 @@ def test_exception_and_session_http(cmake, httpserver):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_abnormal_session(cmake, httpserver):
-    tmp_path = cmake(
-        ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "none"},
-    )
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -609,14 +603,13 @@ def test_abnormal_session(cmake, httpserver):
     ],
 )
 def test_inproc_crash_http(cmake, httpserver, build_args):
-    build_args.update({"SENTRY_BACKEND": "inproc"})
     tmp_path = cmake(["sentry_test_integration"], build_args)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="inproc")
 
     # flush so the session's start update is not in flight when we crash
     run(
@@ -666,9 +659,9 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
 
 
 def test_inproc_reinstall(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="inproc")
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -693,13 +686,13 @@ def test_inproc_reinstall(cmake, httpserver):
 
 
 def test_inproc_dump_inflight(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="inproc")
 
     run(
         tmp_path,
@@ -723,14 +716,13 @@ def test_inproc_dump_inflight(cmake, httpserver):
     ],
 )
 def test_breakpad_crash_http(cmake, httpserver, build_args):
-    build_args.update({"SENTRY_BACKEND": "breakpad"})
     tmp_path = cmake(["sentry_test_integration"], build_args)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="breakpad")
 
     run(
         tmp_path,
@@ -795,12 +787,12 @@ def test_crash_replay_envelope_http(cmake, httpserver, backend):
     """A staged replay referenced by the crash event's `contexts.replay` is
     consumed at crash time, persisted to the run folder as its own
     `replay_video` envelope, and sent on the next launch."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(["sentry_test_integration"])
 
     replays, video = stage_replay(tmp_path)
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend)
 
     run(
         tmp_path,
@@ -834,9 +826,9 @@ def test_crash_replay_envelope_http(cmake, httpserver, backend):
 
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 def test_breakpad_reinstall(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "breakpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="breakpad")
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -862,13 +854,13 @@ def test_breakpad_reinstall(cmake, httpserver):
 
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 def test_breakpad_dump_inflight(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "breakpad"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="breakpad")
 
     run(
         tmp_path,
@@ -887,7 +879,7 @@ def test_breakpad_dump_inflight(cmake, httpserver):
 
 @flaky(max_runs=3)
 def test_shutdown_timeout(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     # the timings here are:
     # * the process waits 2s for the background thread to shut down, which fails
@@ -940,7 +932,7 @@ def test_shutdown_timeout(cmake, httpserver):
 
 
 def test_capture_minidump(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
@@ -969,7 +961,7 @@ def test_capture_minidump(cmake, httpserver):
 
 
 def test_capture_with_scope(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
@@ -995,7 +987,7 @@ def test_capture_with_scope(cmake, httpserver):
 
 
 def test_before_breadcrumb_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
@@ -1019,7 +1011,7 @@ def test_before_breadcrumb_http(cmake, httpserver):
 
 
 def test_discarding_before_breadcrumb_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
@@ -1045,13 +1037,13 @@ def test_discarding_before_breadcrumb_http(cmake, httpserver):
 @pytest.mark.skipif(not has_native or is_qemu, reason="test needs native backend")
 def test_native_crash_http(cmake, httpserver):
     """Test native backend crash handling with HTTP transport"""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="native")
 
     # Use stdout for initialization delay under TSAN
     # Configure ASAN to not intercept crash signals
@@ -1096,14 +1088,16 @@ def test_native_crash_http(cmake, httpserver):
     ],
 )
 def test_on_crashed_last_run(cmake, backend):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(["sentry_test_integration"])
     args = ["log", "on-crashed-last-run"]
+    env = dict(os.environ, SENTRY_BACKEND=backend)
 
     run(
         tmp_path,
         "sentry_test_integration",
         [*args, "crash"],
         expect_failure=True,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -1119,6 +1113,7 @@ def test_on_crashed_last_run(cmake, backend):
         tmp_path,
         "sentry_test_integration",
         [*args, "no-setup"],
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -1135,6 +1130,7 @@ def test_on_crashed_last_run(cmake, backend):
         tmp_path,
         "sentry_test_integration",
         [*args, "no-setup"],
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -1163,7 +1159,7 @@ def test_on_crashed_last_run(cmake, backend):
 def test_trace_finish_on_crash(cmake, httpserver, backend):
     """The backend's crash handler calls `sentry__trace_finish`, so an
     unfinished transaction on the scope ships alongside the crash."""
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
@@ -1173,7 +1169,7 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend)
 
     with httpserver.wait(timeout=10) as waiting:
         run(
@@ -1251,7 +1247,7 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_on_network_error(cmake, httpserver, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     # unreachable port triggers CURLE_COULDNT_CONNECT
@@ -1259,7 +1255,7 @@ def test_http_retry_on_network_error(cmake, httpserver, unreachable_dsn):
         tmp_path,
         "sentry_test_integration",
         ["log", "http-retry", "capture-event"],
-        env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
+        env=dict(os.environ, SENTRY_DSN=unreachable_dsn, SENTRY_BACKEND="inproc"),
     )
 
     assert cache_dir.exists()
@@ -1276,7 +1272,9 @@ def test_http_retry_on_network_error(cmake, httpserver, unreachable_dsn):
             tmp_path,
             "sentry_test_integration",
             ["log", "http-retry", "no-setup"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="inproc"
+            ),
         )
     assert waiting.result
 
@@ -1291,10 +1289,10 @@ def test_http_retry_on_network_error(cmake, httpserver, unreachable_dsn):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_multiple_attempts(cmake, httpserver, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+    env = dict(os.environ, SENTRY_DSN=unreachable_dsn, SENTRY_BACKEND="inproc")
 
     run(
         tmp_path,
@@ -1340,14 +1338,14 @@ def test_http_retry_multiple_attempts(cmake, httpserver, unreachable_dsn):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_with_cache_keep(cmake, httpserver, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     run(
         tmp_path,
         "sentry_test_integration",
         ["log", "http-retry", "cache-keep", "capture-event"],
-        env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
+        env=dict(os.environ, SENTRY_DSN=unreachable_dsn, SENTRY_BACKEND="inproc"),
     )
 
     assert cache_dir.exists()
@@ -1360,7 +1358,9 @@ def test_http_retry_with_cache_keep(cmake, httpserver, unreachable_dsn):
             tmp_path,
             "sentry_test_integration",
             ["log", "http-retry", "cache-keep", "no-setup"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="inproc"
+            ),
         )
     assert waiting.result
 
@@ -1369,7 +1369,7 @@ def test_http_retry_with_cache_keep(cmake, httpserver, unreachable_dsn):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_cache_keep_max_attempts(cmake, httpserver, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
@@ -1412,9 +1412,9 @@ def test_http_retry_cache_keep_max_attempts(cmake, httpserver, unreachable_dsn):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_http_error_discards_envelope(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="inproc")
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "Internal Server Error", status=500
@@ -1436,9 +1436,9 @@ def test_http_retry_http_error_discards_envelope(cmake, httpserver):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_rate_limit_discards_envelope(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND="inproc")
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "Rate Limited", status=429, headers={"retry-after": "60"}
@@ -1460,7 +1460,7 @@ def test_http_retry_rate_limit_discards_envelope(cmake, httpserver):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_multiple_success(cmake, httpserver, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     db_dir = tmp_path.joinpath(".sentry-native")
     cache_dir = db_dir.joinpath("cache")
 
@@ -1497,7 +1497,7 @@ def test_http_retry_multiple_success(cmake, httpserver, unreachable_dsn):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_multiple_network_error(cmake, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     db_dir = tmp_path.joinpath(".sentry-native")
     cache_dir = db_dir.joinpath("cache")
 
@@ -1530,7 +1530,7 @@ def test_http_retry_multiple_network_error(cmake, unreachable_dsn):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_multiple_rate_limit(cmake, httpserver, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     db_dir = tmp_path.joinpath(".sentry-native")
     cache_dir = db_dir.joinpath("cache")
 
@@ -1566,7 +1566,7 @@ def test_http_retry_multiple_rate_limit(cmake, httpserver, unreachable_dsn):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
@@ -1655,7 +1655,7 @@ def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn)
 )
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_restart_on_crash(cmake, httpserver, backend):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(["sentry_test_integration"])
 
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
@@ -1673,7 +1673,9 @@ def test_restart_on_crash(cmake, httpserver, backend):
             "sentry_test_integration",
             ["crash", "restart-on-crash"],
             expect_failure=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend
+            ),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -1681,7 +1683,9 @@ def test_restart_on_crash(cmake, httpserver, backend):
             tmp_path,
             "sentry_test_integration",
             ["log", "no-setup"],
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(
+                os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_BACKEND=backend
+            ),
         )
 
     assert waiting.result
@@ -1712,20 +1716,21 @@ def test_early_init(cmake, backend):
     tmp_path = cmake(
         ["sentry_early_init"],
         {
-            "SENTRY_BACKEND": backend,
             "SENTRY_TRANSPORT": "none",
             "BUILD_SHARED_LIBS": "OFF",
         },
     )
 
-    result = run(tmp_path, "sentry_early_init", [])
+    result = run(
+        tmp_path, "sentry_early_init", [], env=dict(os.environ, SENTRY_BACKEND=backend)
+    )
     assert result.returncode == 0
 
 
 @pytest.mark.parametrize("capture", ["capture-event", "capture-with-scope"])
 @pytest.mark.parametrize("clear", [False, True])
 def test_capture_acquired_scope(cmake, httpserver, capture, clear):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     args = ["log", "no-setup", "attachment", "acquire-scope", capture]
     if clear:
@@ -1763,11 +1768,11 @@ def test_capture_acquired_scope(cmake, httpserver, capture, clear):
         ("native", "native"),
         ("inproc", "inproc"),
         ("none", None),
-        ("unknown", "native"),
+        ("unknown", None),
     ],
 )
 def test_backend_preload(cmake, httpserver, name, backend):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native;inproc"})
+    tmp_path = cmake(["sentry_test_integration"])
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
