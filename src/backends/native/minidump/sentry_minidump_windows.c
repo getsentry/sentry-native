@@ -119,6 +119,10 @@ image_data_callback(PVOID param, PMINIDUMP_CALLBACK_INPUT input,
         output->CheckCancel = FALSE;
         output->Cancel = FALSE;
         return TRUE;
+    case ReadMemoryFailureCallback:
+        // Omit the unreadable block instead of failing the whole dump.
+        output->Status = S_OK;
+        return TRUE;
     default:
         return FALSE;
     }
