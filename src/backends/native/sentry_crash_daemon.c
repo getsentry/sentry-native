@@ -4228,8 +4228,7 @@ retain_crash_envelope(const sentry_options_t *options,
     sentry_uuid_t last_event_id
         = sentry__http_transport_get_last_event_id(options->transport);
     if (path && run_path) {
-        if (memcmp(last_event_id.bytes, event_id.bytes, sizeof(event_id.bytes))
-                == 0
+        if (sentry__uuid_eq(&last_event_id, &event_id)
             || sentry__path_is_file(run_path)) {
             // Keep it for the callback on the next launch.
             if (!ctx->has_on_crashed_last_run) {
@@ -4715,10 +4714,7 @@ sentry_android_crash_daemon_send(
         // the dump and a failed upload both write the raw envelope path
         if (raw_path && sentry__path_is_file(raw_path)) {
             result = SENTRY_ANDROID_SEND_KEPT;
-        } else if (!sentry_uuid_is_nil(&event_id)
-            && memcmp(
-                   last_event_id.bytes, event_id.bytes, sizeof(event_id.bytes))
-                == 0) {
+        } else if (sentry__uuid_eq(&last_event_id, &event_id)) {
             result = SENTRY_ANDROID_SEND_SENT;
         }
         if (pending) {
