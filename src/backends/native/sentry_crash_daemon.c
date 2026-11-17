@@ -4714,7 +4714,8 @@ sentry_android_crash_daemon_send(
         // the dump and a failed upload both write the raw envelope path
         if (raw_path && sentry__path_is_file(raw_path)) {
             result = SENTRY_ANDROID_SEND_KEPT;
-        } else if (sentry__uuid_eq(&last_event_id, &event_id)) {
+        } else if (!sentry_uuid_is_nil(&event_id)
+            && sentry__uuid_eq(&last_event_id, &event_id)) {
             result = SENTRY_ANDROID_SEND_SENT;
         }
         if (pending) {
