@@ -61,6 +61,7 @@ class CMake:
     def __init__(self, factory):
         self.runs = dict()
         self.factory = factory
+        self.pushed = None
 
     def compile(self, targets, options=None, cflags=None, source_dir=None):
         # We build in tmp for all of our tests. Disable the warning MSVC generates to not clutter the build logs.
@@ -93,6 +94,10 @@ class CMake:
             if new_targets:
                 cmake_build(cwd, new_targets, options)
                 built_targets.update(new_targets)
+            elif os.environ.get("ANDROID_API") and cwd != self.pushed:
+                # copy the cached output back to the android image
+                adb("push", "./", "/data/local/tmp", cwd=cwd, check=True)
+        self.pushed = cwd
 
         stats = build_stats.setdefault(
             key, {"seconds": 0, "targets": set(), "tests": set()}
