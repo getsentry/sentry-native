@@ -1319,6 +1319,45 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
     )
 
 
+@pytest.mark.skipif(
+    is_wine,
+    reason="Wine does not capture indirectly referenced minidump memory",
+)
+def test_native_smart_mode_captures_rodata(cmake, httpserver):
+    """SMART mode captures string literals referenced from the stack."""
+    # Static build so the hardened-runtime process can load itself without
+    # tripping the dyld "different team IDs" check on ad-hoc-signed dylibs.
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {"SENTRY_BACKEND": "native", "BUILD_SHARED_LIBS": "OFF"},
+    )
+
+    if sys.platform == "darwin":
+        _codesign_for_task_for_pid(
+            str(tmp_path / "sentry_test_integration"),
+            str(tmp_path / "sentry-crash"),
+        )
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=15) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "stdout", "crash-rodata"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    db_dir = tmp_path / ".sentry-native"
+    assert wait_for_file(db_dir / "*.run/__sentry-crash.dmp")
+    minidump_files = list(db_dir.glob("*.run/__sentry-crash.dmp"))
+    assert len(minidump_files) > 0
+
+    dump = _parse_minidump(minidump_files[0])
+    assert b"sentry-rodata-marker" in dump["data"]
+
+
 def test_native_uses_existing_run(cmake):
     """The daemon adopts the existing run instead of creating root artifacts."""
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})

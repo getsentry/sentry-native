@@ -45,14 +45,16 @@ typedef struct {
  */
 typedef struct sentry_indirect_ops_s {
     /**
-     * Returns true iff `addr` falls inside a readable, writable, non-executable
-     * mapping that is NOT a thread stack, vDSO, or other kernel-private region
-     * — i.e. the kind of mapping a heap pointer would target.
+     * Returns true iff `addr` falls inside a mapping worth capturing: a
+     * readable, writable, non-executable mapping that is NOT a thread stack,
+     * vDSO, or other kernel-private region (i.e. the kind of mapping a heap
+     * pointer would target), or read-only data such as .rodata where the
+     * platform supports it.
      *
      * Called O(words-on-stack) times per dump, so should be O(log n) over the
      * cached mappings table (binary search) rather than a linear scan.
      */
-    bool (*is_writable_heap)(void *ctx, uint64_t addr);
+    bool (*is_capturable)(void *ctx, uint64_t addr);
 
     /**
      * Read up to `len` bytes from the *target* (crashed) process at virtual
@@ -80,14 +82,14 @@ typedef struct {
 void sentry__indirect_init(sentry_indirect_accumulator_t *acc);
 
 /**
- * Consider one address as a candidate heap pointer. If `addr` resolves into
- * a writable-heap mapping (per ops->is_writable_heap), is not already covered
+ * Consider one address as a candidate pointer. If `addr` resolves into a
+ * capturable mapping (per ops->is_capturable), is not already covered
  * by a previously-captured region, and the global byte budget hasn't been
  * exhausted, this captures SENTRY_INDIRECT_PER_POINTER_BYTES around `addr`,
  * page-aligned, and writes them to the dump file via `writer`.
  *
  * Safe to call with junk values — non-pointer addresses are filtered cheaply
- * via the writable-heap check.
+ * via the is_capturable check.
  */
 void sentry__indirect_consider(sentry_indirect_accumulator_t *acc,
     minidump_writer_base_t *writer, uint64_t addr,

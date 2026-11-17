@@ -1992,13 +1992,13 @@ should_include_region(const memory_mapping_t *mapping,
 //
 // Mirrors Windows' MiniDumpWithIndirectlyReferencedMemory: walks every
 // captured thread's stack words and the crashing thread's GPRs and, for
-// each value that lands inside a writable heap mapping, captures a small
-// page-aligned chunk so debuggers can chase pointers held in struct
-// locals at crash time.
+// each value that lands inside a writable heap mapping or read-only
+// file-backed data such as .rodata, captures a small page-aligned chunk
+// so debuggers can chase pointers held in struct locals at crash time.
 //
 // The algorithm + accumulator + dedup live in sentry_minidump_indirect.c.
 // This block is the Linux platform shim: it provides the two callbacks
-// (is_writable_heap, read_memory) and drives the walker for each thread.
+// (is_capturable, read_memory) and drives the walker for each thread.
 
 /**
  * Find the mapping containing addr via binary search over writer->mappings,
@@ -2025,21 +2025,25 @@ find_mapping_for_addr(const minidump_writer_t *writer, uint64_t addr)
 }
 
 static bool
-linux_indirect_is_writable_heap(void *ctx, uint64_t addr)
+linux_indirect_is_capturable(void *ctx, uint64_t addr)
 {
     const minidump_writer_t *writer = (const minidump_writer_t *)ctx;
     const memory_mapping_t *m = find_mapping_for_addr(writer, addr);
     if (!m) {
         return false;
     }
-    // Must be readable+writable, not executable. This admits [heap] and
-    // anonymous rw-p mappings (typical heap allocators); rejects code
-    // pages, rwx JIT pages (rare and risky), and read-only data segments.
-    if (m->permissions[0] != 'r' || m->permissions[1] != 'w') {
+    // Must be readable, not executable. This admits [heap], anonymous rw-p
+    // mappings (typical heap allocators), and file-backed r--p mappings such
+    // as .rodata. It rejects code pages, which return addresses on the stack
+    // would otherwise pull in, and rwx JIT pages (rare and risky).
+    if (m->permissions[0] != 'r') {
         return false;
     }
     if (m->permissions[2] == 'x') {
         return false;
+    }
+    if (m->permissions[1] != 'w') {
+        return m->name[0] == '/';
     }
     // Reject kernel-private/special regions: [stack...], [vdso], [vvar],
     // [vsyscall]. Stacks are already in MemoryListStream via thread_stacks
@@ -2164,7 +2168,7 @@ capture_indirect_memory(
     minidump_writer_t *writer, sentry_indirect_accumulator_t *acc)
 {
     sentry_indirect_ops_t ops = {
-        .is_writable_heap = linux_indirect_is_writable_heap,
+        .is_capturable = linux_indirect_is_capturable,
         .read_memory = linux_indirect_read_memory,
         .ctx = writer,
     };

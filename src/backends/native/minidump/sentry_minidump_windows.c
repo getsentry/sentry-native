@@ -4,6 +4,7 @@
 
 #    include <dbghelp.h>
 #    include <stdio.h>
+#    include <string.h>
 #    include <windows.h>
 
 #    include "sentry.h"
@@ -18,6 +19,110 @@
 #    if defined(_MSC_VER) && !defined(SENTRY_PLATFORM_XBOX)
 #        pragma comment(lib, "dbghelp.lib")
 #    endif
+
+#    define IMAGE_DATA_PAGE_SIZE 4096
+#    define IMAGE_DATA_MAX_PAGES 256
+
+/**
+ * Pages of loaded images (.rdata, .data) that thread stacks point to.
+ * MiniDumpWithIndirectlyReferencedMemory skips memory inside images, so these
+ * are added through the MemoryCallback of MiniDumpWriteDump instead.
+ */
+typedef struct {
+    HANDLE process;
+    MEMORY_BASIC_INFORMATION region;
+    uint64_t pages[IMAGE_DATA_MAX_PAGES];
+    size_t count;
+    size_t next;
+} image_data_t;
+
+static bool
+is_image_data(const MEMORY_BASIC_INFORMATION *region)
+{
+    if (region->State != MEM_COMMIT || region->Type != MEM_IMAGE
+        || (region->Protect & PAGE_GUARD) != 0) {
+        return false;
+    }
+    DWORD protect = region->Protect & 0xFF;
+    return protect == PAGE_READONLY || protect == PAGE_READWRITE
+        || protect == PAGE_WRITECOPY;
+}
+
+static void
+consider_image_data(image_data_t *data, uintptr_t addr)
+{
+    if (data->count >= IMAGE_DATA_MAX_PAGES || addr < 0x10000) {
+        return;
+    }
+    uint64_t page = addr & ~(uint64_t)(IMAGE_DATA_PAGE_SIZE - 1);
+    for (size_t i = 0; i < data->count; i++) {
+        if (data->pages[i] == page) {
+            return;
+        }
+    }
+    // Stack words often point into the same region, so reuse the last query.
+    uintptr_t base = (uintptr_t)data->region.BaseAddress;
+    if (addr < base || addr - base >= data->region.RegionSize) {
+        if (!VirtualQueryEx(data->process, (LPCVOID)addr, &data->region,
+                sizeof(data->region))) {
+            memset(&data->region, 0, sizeof(data->region));
+            return;
+        }
+    }
+    if (is_image_data(&data->region)) {
+        data->pages[data->count++] = page;
+    }
+}
+
+static void
+scan_stack(image_data_t *data, ULONG64 start, ULONG64 end)
+{
+    ULONG64 lo = start < end ? start : end;
+    ULONG64 hi = start < end ? end : start;
+    SIZE_T size = (SIZE_T)(hi - lo);
+    void *buf = size ? sentry_malloc(size) : NULL;
+    if (!buf) {
+        return;
+    }
+    SIZE_T nread = 0;
+    ReadProcessMemory(data->process, (LPCVOID)(uintptr_t)lo, buf, size, &nread);
+    const uintptr_t *words = (const uintptr_t *)buf;
+    for (size_t i = 0; i < nread / sizeof(uintptr_t); i++) {
+        consider_image_data(data, words[i]);
+    }
+    sentry_free(buf);
+}
+
+static BOOL CALLBACK
+image_data_callback(PVOID param, PMINIDUMP_CALLBACK_INPUT input,
+    PMINIDUMP_CALLBACK_OUTPUT output)
+{
+    image_data_t *data = (image_data_t *)param;
+    switch (input->CallbackType) {
+    case IncludeModuleCallback:
+    case ModuleCallback:
+    case IncludeThreadCallback:
+        return TRUE;
+    case ThreadCallback:
+    case ThreadExCallback:
+        // MINIDUMP_THREAD_EX_CALLBACK starts with the same fields.
+        scan_stack(data, input->Thread.StackBase, input->Thread.StackEnd);
+        return TRUE;
+    case MemoryCallback:
+        if (data->next >= data->count) {
+            return FALSE;
+        }
+        output->MemoryBase = data->pages[data->next++];
+        output->MemorySize = IMAGE_DATA_PAGE_SIZE;
+        return TRUE;
+    case CancelCallback:
+        output->CheckCancel = FALSE;
+        output->Cancel = FALSE;
+        return TRUE;
+    default:
+        return FALSE;
+    }
+}
 
 /**
  * Windows minidump writer
@@ -46,6 +151,11 @@ sentry__write_minidump(
     }
     sentry_free(woutput_path);
 
+    image_data_t image_data = { 0 };
+    MINIDUMP_CALLBACK_INFORMATION image_data_info
+        = { image_data_callback, &image_data };
+    PMINIDUMP_CALLBACK_INFORMATION callback = NULL;
+
     MINIDUMP_TYPE dump_type;
     if (ctx->minidump_flags >= 0) {
         dump_type = (MINIDUMP_TYPE)ctx->minidump_flags;
@@ -66,6 +176,7 @@ sentry__write_minidump(
             // for crash triage; callers that want it can opt in via
             // sentry_options_set_minidump_flags() or MODE_FULL.
             dump_type = MiniDumpWithIndirectlyReferencedMemory;
+            callback = &image_data_info;
             break;
 
         case SENTRY_MINIDUMP_MODE_FULL:
@@ -98,6 +209,7 @@ sentry__write_minidump(
         }
         return -1;
     }
+    image_data.process = process_handle;
 
     // Prepare exception information using original pointers from crashed
     // process
@@ -125,7 +237,7 @@ sentry__write_minidump(
 
     // Write minidump using Windows API
     BOOL success = MiniDumpWriteDump(process_handle, ctx->crashed_pid,
-        file_handle, dump_type, &exception_info, NULL, NULL);
+        file_handle, dump_type, &exception_info, NULL, callback);
 
     DWORD error = GetLastError();
 

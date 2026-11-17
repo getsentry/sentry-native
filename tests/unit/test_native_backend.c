@@ -1957,7 +1957,7 @@ SENTRY_TEST(crash_ipc_notify_without_daemon)
 #    include <unistd.h>
 
 static bool
-indirect_is_writable_heap(void *ctx, uint64_t addr)
+indirect_is_capturable(void *ctx, uint64_t addr)
 {
     (void)ctx;
     (void)addr;
@@ -1983,7 +1983,7 @@ SENTRY_TEST(minidump_indirect_contains_pointee)
     && (defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)     \
         || defined(SENTRY_PLATFORM_MACOS))
     sentry_indirect_ops_t ops = {
-        .is_writable_heap = indirect_is_writable_heap,
+        .is_capturable = indirect_is_capturable,
         .read_memory = indirect_read_memory,
         .ctx = NULL,
     };

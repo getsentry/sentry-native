@@ -50,6 +50,11 @@ typedef struct {
     vm_prot_t protection;
 } memory_region_t;
 
+typedef struct {
+    uint64_t start;
+    uint64_t end;
+} rodata_range_t;
+
 /**
  * Minidump writer context for macOS
  * Note: fd and current_offset must be first to match minidump_writer_base_t
@@ -83,6 +88,12 @@ typedef struct {
     minidump_memory_descriptor_t thread_stacks[SENTRY_CRASH_MAX_THREADS];
     uint64_t thread_stack_tids[SENTRY_CRASH_MAX_THREADS];
     size_t thread_stack_count;
+
+    // __TEXT,__cstring and __TEXT,__const of modules outside the shared
+    // region. They share r-x pages with code, so the SMART-mode walker
+    // matches them by address instead of by protection.
+    rodata_range_t *rodata;
+    size_t rodata_count;
 } minidump_writer_t;
 
 // Use common minidump functions (cast writer to base type)
@@ -1397,25 +1408,131 @@ find_region_for_addr(const minidump_writer_t *writer, uint64_t addr)
 }
 
 static bool
-macos_indirect_is_writable_heap(void *ctx, uint64_t addr)
+is_shared_region(uint64_t addr)
+{
+    return addr >= SHARED_REGION_BASE
+        && addr < SHARED_REGION_BASE + SHARED_REGION_SIZE;
+}
+
+static void
+add_rodata_sections(minidump_writer_t *writer, uint64_t base,
+    const struct segment_command_64 *seg, size_t capacity)
+{
+    if (strncmp(seg->segname, SEG_TEXT, sizeof(seg->segname)) != 0
+        || seg->nsects
+            > (seg->cmdsize - sizeof(*seg)) / sizeof(struct section_64)) {
+        return;
+    }
+    uint64_t slide = base - seg->vmaddr;
+    const struct section_64 *sects = (const struct section_64 *)(seg + 1);
+    const size_t len = sizeof(sects->sectname);
+    for (uint32_t i = 0; i < seg->nsects && writer->rodata_count < capacity;
+        i++) {
+        if (strncmp(sects[i].sectname, "__cstring", len) == 0
+            || strncmp(sects[i].sectname, "__const", len) == 0) {
+            rodata_range_t *range = &writer->rodata[writer->rodata_count++];
+            range->start = sects[i].addr + slide;
+            range->end = range->start + sects[i].size;
+        }
+    }
+}
+
+/**
+ * Collect the __TEXT,__cstring and __TEXT,__const sections of modules outside
+ * the shared region from their Mach-O load commands.
+ */
+static void
+collect_rodata_ranges(minidump_writer_t *writer)
+{
+    uint32_t mod_count = writer->crash_ctx->module_count;
+    if (mod_count > SENTRY_CRASH_MAX_MODULES) {
+        mod_count = SENTRY_CRASH_MAX_MODULES;
+    }
+    size_t capacity = (size_t)mod_count * 2;
+    writer->rodata = sentry_malloc(sizeof(rodata_range_t) * capacity);
+    if (!writer->rodata) {
+        return;
+    }
+
+    for (uint32_t i = 0; i < mod_count; i++) {
+        const sentry_module_info_t *module = &writer->crash_ctx->modules[i];
+        uint64_t base = module->base_address;
+        if (is_shared_region(base)) {
+            continue;
+        }
+        struct mach_header_64 mh;
+        if (read_task_memory(writer->task, base, &mh, sizeof(mh))
+                != KERN_SUCCESS
+            || mh.magic != MH_MAGIC_64 || mh.sizeofcmds == 0
+            || sizeof(mh) + mh.sizeofcmds > module->size) {
+            continue;
+        }
+        uint8_t *cmds = sentry_malloc(mh.sizeofcmds);
+        if (!cmds) {
+            continue;
+        }
+        if (read_task_memory(
+                writer->task, base + sizeof(mh), cmds, mh.sizeofcmds)
+            != KERN_SUCCESS) {
+            sentry_free(cmds);
+            continue;
+        }
+
+        uint32_t pos = 0;
+        for (uint32_t c = 0; c < mh.ncmds; c++) {
+            if (pos + sizeof(struct load_command) > mh.sizeofcmds) {
+                break;
+            }
+            const struct load_command *lc
+                = (const struct load_command *)(cmds + pos);
+            if (lc->cmdsize < sizeof(struct load_command)
+                || lc->cmdsize > mh.sizeofcmds - pos) {
+                break;
+            }
+            if (lc->cmd == LC_SEGMENT_64
+                && lc->cmdsize >= sizeof(struct segment_command_64)) {
+                add_rodata_sections(writer, base,
+                    (const struct segment_command_64 *)lc, capacity);
+            }
+            pos += lc->cmdsize;
+        }
+        sentry_free(cmds);
+    }
+}
+
+static bool
+is_module_rodata(const minidump_writer_t *writer, uint64_t addr)
+{
+    for (size_t i = 0; i < writer->rodata_count; i++) {
+        if (addr >= writer->rodata[i].start && addr < writer->rodata[i].end) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
+macos_indirect_is_capturable(void *ctx, uint64_t addr)
 {
     const minidump_writer_t *writer = (const minidump_writer_t *)ctx;
     const memory_region_t *r = find_region_for_addr(writer, addr);
     if (!r) {
         return false;
     }
-    // Must be readable+writable, not executable. macOS regions don't carry
-    // names, so we can't reject thread stacks here cheaply — but the
-    // accumulator's overlap-check against thread stacks already in the
-    // memory list keeps duplicate captures bounded.
+    // Must be readable. macOS regions don't carry names, so we can't reject
+    // thread stacks here cheaply — but the accumulator's overlap-check
+    // against thread stacks already in the memory list keeps duplicate
+    // captures bounded.
     if ((r->protection & VM_PROT_READ) == 0) {
         return false;
     }
-    if ((r->protection & VM_PROT_WRITE) == 0) {
-        return false;
-    }
+    // __TEXT,__cstring and __TEXT,__const share r-x pages with code.
     if ((r->protection & VM_PROT_EXECUTE) != 0) {
-        return false;
+        return is_module_rodata(writer, addr);
+    }
+    // Read-only data such as __DATA_CONST, outside the dyld shared cache.
+    if ((r->protection & VM_PROT_WRITE) == 0) {
+        return !is_shared_region(addr);
     }
     return true;
 }
@@ -1497,11 +1614,12 @@ capture_indirect_memory_macos(
     minidump_writer_t *writer, sentry_indirect_accumulator_t *acc)
 {
     sentry_indirect_ops_t ops = {
-        .is_writable_heap = macos_indirect_is_writable_heap,
+        .is_capturable = macos_indirect_is_capturable,
         .read_memory = macos_indirect_read_memory,
         .ctx = writer,
     };
     minidump_writer_base_t *base = (minidump_writer_base_t *)writer;
+    collect_rodata_ranges(writer);
 
     for (size_t i = 0; i < writer->thread_stack_count; i++) {
         const minidump_memory_descriptor_t *desc = &writer->thread_stacks[i];
@@ -1529,6 +1647,10 @@ capture_indirect_memory_macos(
             break;
         }
     }
+
+    sentry_free(writer->rodata);
+    writer->rodata = NULL;
+    writer->rodata_count = 0;
 }
 
 /**

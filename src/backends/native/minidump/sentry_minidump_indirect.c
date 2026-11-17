@@ -89,7 +89,7 @@ sentry__indirect_consider(sentry_indirect_accumulator_t *acc,
         return;
     }
 
-    // Cheap rejects before paying for is_writable_heap.
+    // Cheap rejects before paying for is_capturable.
     // - 0/low values: NULLs and small ints
     // - very high bits set: kernel addresses (canonical AArch64/x86_64 user
     //   space tops out below this)
@@ -100,7 +100,7 @@ sentry__indirect_consider(sentry_indirect_accumulator_t *acc,
         return;
     }
 
-    if (!ops->is_writable_heap(ops->ctx, addr)) {
+    if (!ops->is_capturable(ops->ctx, addr)) {
         return;
     }
 
