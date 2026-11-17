@@ -673,6 +673,56 @@ SENTRY_TEST(retry_consent)
     sentry_close();
 }
 
+static int
+record_url_send(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    sentry_value_append(
+        *(sentry_value_t *)client, sentry_value_new_string(req->url));
+    resp->status_code = 200;
+    return true;
+}
+
+SENTRY_TEST(retry_keeps_dsn)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, false);
+    sentry_init(options);
+
+    const sentry_path_t *cache_path = options->run->cache_path;
+    sentry__path_remove_all(cache_path);
+    sentry__path_create_dir_all(cache_path);
+
+    sentry_envelope_t *envelope = sentry__envelope_new(options);
+    TEST_ASSERT(!!envelope);
+    sentry__envelope_set_header(envelope, "dsn",
+        sentry_value_new_string("https://bar@sentry.invalid/43"));
+    sentry__envelope_add_event(envelope, sentry_value_new_event(), options);
+    TEST_CHECK(sentry__run_write_cache(options->run, envelope, 0));
+    sentry_envelope_free(envelope);
+    sentry_close();
+
+    // the next run sends the retry with another options DSN
+    sentry_value_t urls = sentry_value_new_list();
+    sentry_transport_t *transport
+        = sentry__http_transport_new(&urls, record_url_send);
+    TEST_ASSERT(!!transport);
+    SENTRY_TEST_OPTIONS_NEW(retry_options);
+    sentry_options_set_dsn(retry_options, "https://baz@sentry.invalid/44");
+    sentry_options_set_http_retry(retry_options, true);
+    sentry_options_set_transport(retry_options, transport);
+    sentry_init(retry_options);
+    sentry_transport_retry(transport);
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(urls), 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_index(urls, 0)),
+        "https://sentry.invalid:443/api/43/envelope/");
+    sentry_value_decref(urls);
+}
+
 SENTRY_TEST(transport_dump_failed)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

@@ -947,3 +947,36 @@ SENTRY_TEST(hint_attachments)
     }
     sentry_close();
 }
+
+SENTRY_TEST(hint_dsn)
+{
+    TEST_CHECK(sentry_hint_set_dsn(NULL, "https://foo@sentry.invalid/42") != 0);
+
+    sentry_hint_t *hint = sentry_hint_new();
+    TEST_CHECK(hint->dsn == NULL);
+
+    char dsn[] = "https://foo@sentry.invalid/42";
+    TEST_CHECK_INT_EQUAL(sentry_hint_set_dsn(hint, dsn), 0);
+    dsn[0] = 'x';
+    TEST_CHECK_STRING_EQUAL(hint->dsn, "https://foo@sentry.invalid/42");
+
+    TEST_CHECK_INT_EQUAL(
+        sentry_hint_set_dsn_n(hint, "https://bar@sentry.invalid/435", 29), 0);
+    TEST_CHECK_STRING_EQUAL(hint->dsn, "https://bar@sentry.invalid/43");
+
+    const char nul[] = "https://baz\0@sentry.invalid/44";
+    TEST_CHECK(sentry_hint_set_dsn_n(hint, nul, sizeof(nul) - 1) != 0);
+    TEST_CHECK(sentry_hint_set_dsn(hint, "") != 0);
+    TEST_CHECK_STRING_EQUAL(hint->dsn, "https://bar@sentry.invalid/43");
+
+    TEST_CHECK(!sentry__hint_is_modified(hint));
+    sentry_hint_attach_bytes(hint, "hint", 4, "hint.txt");
+    sentry_hint_clear_attachments(hint);
+    TEST_CHECK_STRING_EQUAL(hint->dsn, "https://bar@sentry.invalid/43");
+
+    TEST_CHECK_INT_EQUAL(sentry_hint_set_dsn(hint, NULL), 0);
+    TEST_CHECK(hint->dsn == NULL);
+
+    TEST_CHECK_INT_EQUAL(sentry_hint_set_dsn(hint, dsn), 0);
+    sentry__hint_free(hint);
+}

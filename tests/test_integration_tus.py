@@ -42,6 +42,11 @@ chunk_headers = {
 }
 
 
+def upload_url(httpserver, uri):
+    # `127.0.0.1` like `make_dsn`, because `localhost` tries `::1` first on Windows
+    return httpserver.url_for(uri).replace("localhost", "127.0.0.1")
+
+
 def expect_upload_chunks(
     httpserver,
     upload_uri,
@@ -93,9 +98,9 @@ def test_tus_upload(cmake, httpserver, granularity, build_args):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_url(httpserver, upload_uri) + "?" + upload_qs
     final_qs = "upload_length=104857600&upload_signature=xyz"
-    final_location = httpserver.url_for(upload_uri) + "?" + final_qs
+    final_location = upload_url(httpserver, upload_uri) + "?" + final_qs
 
     size = upload_size
     headers = {"Location": location}
@@ -272,7 +277,7 @@ def test_tus_rate_limit(cmake, httpserver):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_url(httpserver, upload_uri) + "?" + upload_qs
 
     httpserver.expect_oneshot_request(
         "/api/123456/upload/",
@@ -348,9 +353,9 @@ def test_tus_resume_after_shutdown(cmake, httpserver, chunked):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_url(httpserver, upload_uri) + "?" + upload_qs
     final_qs = "upload_length=104857600&upload_signature=xyz"
-    final_location = httpserver.url_for(upload_uri) + "?" + final_qs
+    final_location = upload_url(httpserver, upload_uri) + "?" + final_qs
     upload_offset = chunk_size if chunked else upload_size // 2
 
     httpserver.expect_oneshot_request(
@@ -502,9 +507,9 @@ def test_tus_resume_after_retry(cmake, httpserver, status):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_url(httpserver, upload_uri) + "?" + upload_qs
     final_qs = "upload_length=104857600&upload_signature=xyz"
-    final_location = httpserver.url_for(upload_uri) + "?" + final_qs
+    final_location = upload_url(httpserver, upload_uri) + "?" + final_qs
     upload_offset = 5 * 1024 * 1024
 
     httpserver.expect_oneshot_request(
@@ -693,9 +698,9 @@ def test_tus_crash_restart(cmake, httpserver, backend):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_url(httpserver, upload_uri) + "?" + upload_qs
     final_qs = "upload_length=104857600&upload_signature=xyz"
-    final_location = httpserver.url_for(upload_uri) + "?" + final_qs
+    final_location = upload_url(httpserver, upload_uri) + "?" + final_qs
 
     # Second run: restart picks up crash and uploads via TUS
     httpserver.expect_oneshot_request(
@@ -787,9 +792,9 @@ def test_tus_crash_native(cmake, httpserver):
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+    location = upload_url(httpserver, upload_uri) + "?" + upload_qs
     final_qs = "upload_length=104857600&upload_signature=xyz"
-    final_location = httpserver.url_for(upload_uri) + "?" + final_qs
+    final_location = upload_url(httpserver, upload_uri) + "?" + final_qs
 
     httpserver.expect_oneshot_request(
         "/api/123456/upload/",
@@ -910,8 +915,8 @@ def test_tus_recreate_after_head_404(cmake, httpserver, status, chunked):
 
     upload_uri = "/api/123456/upload/recreated/"
     upload_qs = "length=104857600&signature=new"
-    location = httpserver.url_for(upload_uri) + "?" + upload_qs
-    final_location = httpserver.url_for(upload_uri) + "?upload_signature=final"
+    location = upload_url(httpserver, upload_uri) + "?" + upload_qs
+    final_location = upload_url(httpserver, upload_uri) + "?upload_signature=final"
     payload = {
         "path": filename,
         "location": "/api/123456/upload/expired/",
@@ -1038,7 +1043,7 @@ def test_tus_resume_completed_upload(cmake, httpserver, has_location):
     upload_qs = "length=104857600&signature=xyz"
     location = upload_uri + "?" + upload_qs
     final_qs = "upload_length=104857600&upload_signature=xyz"
-    final_location = httpserver.url_for(upload_uri) + "?" + final_qs
+    final_location = upload_url(httpserver, upload_uri) + "?" + final_qs
     payload = {
         "path": filename,
         "location": location,

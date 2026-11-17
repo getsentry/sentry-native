@@ -1,3 +1,4 @@
+import contextlib
 import gzip
 import subprocess
 import os
@@ -10,6 +11,8 @@ import pytest
 import pprint
 import textwrap
 import socket
+import struct
+import threading
 
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -77,6 +80,54 @@ def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
             url.fragment,
         )
     )
+
+
+@contextlib.contextmanager
+def reject_connections(port=0):
+    """Instantly rejects connections to `port` on localhost, yielding the port.
+
+    On Windows, connecting to a closed port (e.g. 127.0.0.1:19999) causes
+    WinHTTP to wait ~2s before failing. This instead runs a TCP server that
+    accepts and immediately RSTs the connection, giving the SDK an instant
+    connection failure.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("127.0.0.1", port))
+    sock.listen(5)
+    sock.settimeout(0.1)
+    stop = threading.Event()
+
+    def reject_loop():
+        while not stop.is_set():
+            try:
+                conn, _ = sock.accept()
+            except OSError:
+                continue
+            conn.setsockopt(
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+            )
+            conn.close()
+
+    thread = threading.Thread(target=reject_loop, daemon=True)
+    thread.start()
+    try:
+        yield sock.getsockname()[1]
+    finally:
+        stop.set()
+        thread.join()
+        sock.close()
+
+
+@contextlib.contextmanager
+def unreachable(httpserver):
+    """Stops `httpserver` and resets connections to its port meanwhile."""
+    httpserver.stop()
+    try:
+        with reject_connections(httpserver.port):
+            yield
+    finally:
+        httpserver.start()
 
 
 def _check_sentry_native_resolves_to_localhost():

@@ -92,12 +92,14 @@ sentry_value_t sentry__prepare_event(const sentry_options_t *options,
  * More specifically, it will do the following things:
  * - add the event to a new envelope,
  * - add any attachments to the envelope as well
+ * - override the `dsn` header with `dsn`, if any
  *
  * The function will ensure the event has a UUID and write it into the
  * `event_id` out-parameter.
  */
 sentry_envelope_t *sentry__enclose_event(const sentry_options_t *options,
-    sentry_value_t event, sentry_uuid_t *event_id, sentry_value_t attachments);
+    sentry_value_t event, sentry_uuid_t *event_id, sentry_value_t attachments,
+    const char *dsn);
 
 /**
  * Sends a sentry event, regardless of its type.

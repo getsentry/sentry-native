@@ -351,25 +351,50 @@ sentry__envelope_from_path(const sentry_path_t *path)
     return envelope;
 }
 
+// parses only the header line of raw envelopes
+static sentry_value_t
+envelope_get_header(const sentry_envelope_t *envelope, const char *key)
+{
+    if (!envelope->is_raw) {
+        return sentry_value_incref(
+            sentry_value_get_by_key(envelope->contents.items.headers, key));
+    }
+    const char *payload = envelope->contents.raw.payload;
+    size_t payload_len = envelope->contents.raw.payload_len;
+    const char *newline = memchr(payload, '\n', payload_len);
+    size_t header_len = newline ? (size_t)(newline - payload) : payload_len;
+    sentry_value_t header = sentry_value_from_json(payload, header_len);
+    sentry_value_t value
+        = sentry_value_incref(sentry_value_get_by_key(header, key));
+    sentry_value_decref(header);
+    return value;
+}
+
 sentry_uuid_t
 sentry__envelope_get_event_id(const sentry_envelope_t *envelope)
 {
     if (!envelope) {
         return sentry_uuid_nil();
     }
-    if (envelope->is_raw) {
-        const char *payload = envelope->contents.raw.payload;
-        size_t payload_len = envelope->contents.raw.payload_len;
-        const char *newline = memchr(payload, '\n', payload_len);
-        size_t header_len = newline ? (size_t)(newline - payload) : payload_len;
-        sentry_value_t header = sentry_value_from_json(payload, header_len);
-        sentry_uuid_t event_id = sentry_uuid_from_string(sentry_value_as_string(
-            sentry_value_get_by_key(header, "event_id")));
-        sentry_value_decref(header);
-        return event_id;
+    sentry_value_t value = envelope_get_header(envelope, "event_id");
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string(sentry_value_as_string(value));
+    sentry_value_decref(value);
+    return event_id;
+}
+
+char *
+sentry__envelope_get_dsn(const sentry_envelope_t *envelope)
+{
+    if (!envelope) {
+        return NULL;
     }
-    return sentry_uuid_from_string(sentry_value_as_string(
-        sentry_value_get_by_key(envelope->contents.items.headers, "event_id")));
+    sentry_value_t value = envelope_get_header(envelope, "dsn");
+    char *dsn = sentry_value_is_null(value)
+        ? NULL
+        : sentry__string_clone(sentry_value_as_string(value));
+    sentry_value_decref(value);
+    return dsn;
 }
 
 void

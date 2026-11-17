@@ -636,3 +636,31 @@ SENTRY_TEST(feedback_before_send_can_attach_without_hint)
 
     TEST_CHECK_INT_EQUAL(testdata.called, 1);
 }
+
+SENTRY_TEST(feedback_with_hint_dsn)
+{
+    sentry_feedback_testdata_t testdata;
+    setup_feedback_test(&testdata);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    sentry_hint_t *hint = sentry_hint_new();
+    TEST_CHECK_INT_EQUAL(
+        sentry_hint_set_dsn(hint, "https://bar@sentry.invalid/43"), 0);
+    sentry_hint_attach_bytes(hint, "hint content", 12, "hint.txt");
+    sentry_capture_feedback_with_hint(feedback, hint);
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    TEST_CHECK(strstr(serialized, "\"dsn\":\"https://bar@sentry.invalid/43\"")
+        != NULL);
+    TEST_CHECK(strstr(serialized, "\"filename\":\"hint.txt\"") != NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}

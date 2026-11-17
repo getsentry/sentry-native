@@ -420,6 +420,51 @@ SENTRY_TEST(raw_envelope_event_id)
     sentry_close();
 }
 
+SENTRY_TEST(raw_envelope_dsn)
+{
+    TEST_CHECK(sentry__envelope_get_dsn(NULL) == NULL);
+
+    sentry_envelope_t *envelope = create_test_envelope();
+    char *dsn = sentry__envelope_get_dsn(envelope);
+    TEST_CHECK_STRING_EQUAL(dsn, "https://foo@sentry.invalid/42");
+    sentry_free(dsn);
+
+    sentry__envelope_set_header(envelope, "dsn",
+        sentry_value_new_string("https://bar@sentry.invalid/43"));
+    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_envelope";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK_INT_EQUAL(
+        sentry_envelope_write_to_file(envelope, test_file_str), 0);
+    sentry_envelope_free(envelope);
+
+    sentry_envelope_t *raw_envelope
+        = sentry__envelope_from_path(test_file_path);
+    TEST_ASSERT(!!raw_envelope);
+    dsn = sentry__envelope_get_dsn(raw_envelope);
+    TEST_CHECK_STRING_EQUAL(dsn, "https://bar@sentry.invalid/43");
+    sentry_free(dsn);
+    TEST_CHECK(sentry__envelope_materialize(raw_envelope));
+    dsn = sentry__envelope_get_dsn(raw_envelope);
+    TEST_CHECK_STRING_EQUAL(dsn, "https://bar@sentry.invalid/43");
+    sentry_free(dsn);
+    sentry_envelope_free(raw_envelope);
+
+    // missing dsn
+    const char header_no_dsn[]
+        = "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n{}";
+    TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
+                             header_no_dsn, sizeof(header_no_dsn) - 1),
+        0);
+    raw_envelope = sentry__envelope_from_path(test_file_path);
+    TEST_ASSERT(!!raw_envelope);
+    TEST_CHECK(sentry__envelope_get_dsn(raw_envelope) == NULL);
+    sentry_envelope_free(raw_envelope);
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+    sentry_close();
+}
+
 SENTRY_TEST(read_envelope_from_file)
 {
     const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_envelope";

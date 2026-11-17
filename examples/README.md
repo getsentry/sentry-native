@@ -3,7 +3,7 @@
 Either set `SENTRY_DSN` environment variable when running examples, or
 uncomment `sentry_options_set_dsn` and replace the placeholder DSN.
 
-- [`crash.c`](crash.c): Captures a crash event.
+- [`crash.c`](crash.c): Captures a crash event, sent to `SENTRY_CRASH_DSN` if set.
 - [`enrich.c`](enrich.c): Enriches an event with data such as a user, tags, and contexts.
 - [`feedback.c`](feedback.c): Captures an event and sends feedback for it.
 - [`logs.c`](logs.c): Sends structured logs with attributes.

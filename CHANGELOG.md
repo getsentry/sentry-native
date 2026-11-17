@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add `sentry_hint_set_dsn` to send an event, feedback, or crash to another DSN, for example from `on_crash`. The HTTP transport now sends envelopes to the DSN in their header, so cached envelopes keep the DSN they were captured with. The crashpad backend does not support it for crash reports. ([#2299](https://github.com/getsentry/sentry-native/pull/2299))
+
 ## 1.0.0-beta.1
 
 **Breaking / Important behavior changes**:
