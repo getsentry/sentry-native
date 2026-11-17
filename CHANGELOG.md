@@ -16,6 +16,7 @@
 **Thank you**:
 
 - [Aureliolo](https://github.com/Aureliolo)
+- [HlustikP](https://github.com/HlustikP)
 
 ## 0.17.6
 
