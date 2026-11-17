@@ -75,6 +75,7 @@ sentry_options_new(void)
     opts->attach_session_replay = false;
     opts->session_replay_duration = 5000;
     opts->crashpad_wait_for_upload = false;
+    opts->backend = sentry__backend_new();
     // On macOS, breakpad suspends all other threads of the process before
     // writing the minidump and invokes our backend callback from inside
     // WriteMinidumpWithException() while those threads are still suspended.
@@ -84,7 +85,8 @@ sentry_options_new(void)
     // in via `sentry_options_set_logger_enabled_when_crashed(opts, 1)`.
 #if defined(SENTRY_BACKEND_BREAKPAD) && defined(SENTRY_PLATFORM_DARWIN)        \
     && !defined(SENTRY_PLATFORM_IOS)
-    opts->enable_logging_when_crashed = false;
+    opts->enable_logging_when_crashed
+        = !opts->backend || !sentry__string_eq(opts->backend->name, "breakpad");
 #else
     opts->enable_logging_when_crashed = true;
 #endif
@@ -103,13 +105,14 @@ sentry_options_new(void)
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
     // files.
-#if defined(SENTRY_BACKEND_NATIVE) || defined(SENTRY_PLATFORM_ANDROID)         \
-    || defined(SENTRY_PLATFORM_AIX) || defined(SENTRY_PLATFORM_PS)
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_AIX)           \
+    || defined(SENTRY_PLATFORM_PS)
         true;
+#elif defined(SENTRY_BACKEND_NATIVE)
+        opts->backend && sentry__string_eq(opts->backend->name, "native");
 #else
         false;
 #endif
-    opts->backend = sentry__backend_new();
     opts->transport = sentry_transport_new_default();
     opts->refcount = 1;
     opts->shutdown_timeout = UINT64_MAX;
