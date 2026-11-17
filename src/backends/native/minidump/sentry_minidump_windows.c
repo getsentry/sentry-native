@@ -24,7 +24,8 @@
 #    define IMAGE_DATA_MAX_PAGES 256
 
 /**
- * Pages of loaded images (.rdata, .data) that thread stacks point to.
+ * Pages of loaded images (.rdata, .data) that thread stacks and registers
+ * point to.
  * MiniDumpWithIndirectlyReferencedMemory skips memory inside images, so these
  * are added through the MemoryCallback of MiniDumpWriteDump instead.
  */
@@ -93,6 +94,29 @@ scan_stack(image_data_t *data, ULONG64 start, ULONG64 end)
     sentry_free(buf);
 }
 
+static void
+scan_context(image_data_t *data, const CONTEXT *context)
+{
+#    if defined(_M_AMD64)
+    const DWORD64 regs[] = { context->Rax, context->Rbx, context->Rcx,
+        context->Rdx, context->Rsi, context->Rdi, context->Rbp, context->R8,
+        context->R9, context->R10, context->R11, context->R12, context->R13,
+        context->R14, context->R15 };
+    const size_t count = sizeof(regs) / sizeof(regs[0]);
+#    elif defined(_M_IX86)
+    const DWORD regs[] = { context->Eax, context->Ebx, context->Ecx,
+        context->Edx, context->Esi, context->Edi, context->Ebp };
+    const size_t count = sizeof(regs) / sizeof(regs[0]);
+#    elif defined(_M_ARM64)
+    // X0-X28, Fp and Lr
+    const DWORD64 *regs = context->X;
+    const size_t count = sizeof(context->X) / sizeof(context->X[0]);
+#    endif
+    for (size_t i = 0; i < count; i++) {
+        consider_image_data(data, (uintptr_t)regs[i]);
+    }
+}
+
 static BOOL CALLBACK
 image_data_callback(PVOID param, PMINIDUMP_CALLBACK_INPUT input,
     PMINIDUMP_CALLBACK_OUTPUT output)
@@ -107,6 +131,7 @@ image_data_callback(PVOID param, PMINIDUMP_CALLBACK_INPUT input,
     case ThreadExCallback:
         // MINIDUMP_THREAD_EX_CALLBACK starts with the same fields.
         scan_stack(data, input->Thread.StackBase, input->Thread.StackEnd);
+        scan_context(data, &input->Thread.Context);
         return TRUE;
     case MemoryCallback:
         if (data->next >= data->count) {
@@ -214,6 +239,10 @@ sentry__write_minidump(
         return -1;
     }
     image_data.process = process_handle;
+    if (callback) {
+        // Scan the crashing thread's registers at the time of the exception.
+        scan_context(&image_data, &ctx->platform.context);
+    }
 
     // Prepare exception information using original pointers from crashed
     // process
