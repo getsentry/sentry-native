@@ -4350,7 +4350,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     // The crashing process dumps its pending logs, sessions, and transactions
     // before notifying the daemon. Queue those before writing the crash
     // envelope so an attachment-ref prewrite is not captured a second time.
-    if (run_folder && options && options->transport && options->run) {
+    if (run_folder && options->transport && options->run) {
         sentry__process_run_envelopes(options, run_folder);
     } else {
         SENTRY_DEBUG("No run folder or transport for additional envelopes");
@@ -4553,7 +4553,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
 
 #if defined(SENTRY_PLATFORM_ANDROID)
     sentry_path_t *android_native_envelope_path
-        = make_run_envelope_path(options ? options->run : NULL, envelope);
+        = make_run_envelope_path(options->run, envelope);
 #endif
 
     SENTRY_DEBUG("Envelope loaded, capturing");
@@ -4565,7 +4565,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         // standalone daemon is only used in tests and is not supported in
         // apps, so it handles the envelope as on Linux.
         if (daemon && android_native_envelope_path) {
-            if (!options || !options->run
+            if (!options->run
                 || !sentry__run_write_envelope(options->run, envelope)) {
                 SENTRY_WARN("Failed to dump crash envelope to run folder");
             } else {
@@ -4584,7 +4584,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         }
 #endif
         if (envelope) {
-            if (options && options->transport && options->run) {
+            if (options->transport && options->run) {
                 SENTRY_DEBUG("Capturing crash envelope");
                 if (!sentry__run_should_skip_upload(options->run)) {
                     *event_id = sentry__envelope_get_event_id(envelope);
@@ -4621,7 +4621,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
 
 cleanup:
     // flush replay only after the crash itself was captured
-    if (crash_captured && options && options->transport
+    if (crash_captured && options->transport
         && sentry__session_replay_has_pending(options)) {
         sentry__session_replay_flush_pending(options, options->transport, base);
     }
