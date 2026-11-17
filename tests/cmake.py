@@ -306,7 +306,7 @@ def cmake_build(cwd, targets, options):
         if any(build_errors[e] >= build_error_limit for e in errors):
             reason = f"cmake build failed {build_error_limit} times with the same error"
             print(f"::error::{reason}", flush=True)
-            pytest.exit(reason)
+            pytest.exit(reason, returncode=pytest.ExitCode.TESTS_FAILED)
         raise pytest.fail.Exception("cmake build failed") from None
 
     # check if the DLL and EXE artifacts contain version-information
