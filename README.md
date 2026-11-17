@@ -88,9 +88,10 @@ not fully tested, so breakage may occur:
 
 The SDK supports different features on the target platform:
 
-- **HTTP Transport** is currently only supported on Windows and platforms that
-  have the `curl` library available. On other platforms, library users need to
-  implement their own transport, based on the `function transport` API.
+- **HTTP Transport** is currently only supported on Windows, Apple platforms, and
+  platforms that have the `curl` library available. On other platforms, library
+  users need to implement their own transport, based on the `function transport`
+  API.
 - **Crashpad Backend** is currently only supported on Linux, Windows, and macOS.
 - **Client-side stackwalking** is currently only supported on Linux, Windows, and macOS.
 
@@ -102,7 +103,7 @@ per platform, and can also be configured for cross-compilation.
 System-wide installation of the resulting Sentry library is also possible via
 CMake.
 
-The prerequisites for building differ by platform and backend. You will always need `CMake` to build the code. Additionally, when using the `crashpad` backend, `zlib` is required. On Linux and macOS, `libcurl` is a prerequisite. For more details, check out  the [contribution guide](./CONTRIBUTING.md).
+The prerequisites for building differ by platform and backend. You will always need `CMake` to build the code. Additionally, when using the `crashpad` backend, `zlib` is required. On Linux, `libcurl` is a prerequisite. For more details, check out  the [contribution guide](./CONTRIBUTING.md).
 
 Building the Breakpad and Crashpad backends requires a `C++17` compatible compiler.
 
@@ -251,6 +252,8 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
     that the development version of the package is available.
   - **winhttp**: This uses the `winhttp` system library, is only supported on
     Windows and is the default there.
+  - **apple**: This uses the `NSURLSession` system API, is only supported on
+    Apple platforms and is the default there.
   - **none**: Do not build any HTTP transport. This should be used if users
     want to handle uploads themselves
   - **custom**: Provide an external
@@ -362,9 +365,10 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 | Feature    | Windows | macOS | Linux | Android | iOS  |
 |------------|---------|-------|-------|---------|------|
 | Transports |         |       |       |         |      |
-| - curl     |         | ☑     | ☑     | (✓)**   |      |
+| - curl     |         | ✓     | ☑     | (✓)**   |      |
 | - winhttp  | ☑       |       |       |         |      |
-| - none     | ✓       | ✓     | ✓     | ☑       | ☑    |
+| - apple    |         | ☑     |       |         | ☑    |
+| - none     | ✓       | ✓     | ✓     | ☑       | ✓    |
 |            |         |       |       |         |      |
 | Backends   |         |       |       |         |      |
 | - crashpad | ✓       | ✓     | ✓     |         |      |

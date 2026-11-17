@@ -150,6 +150,10 @@ elseif(SENTRY_TRANSPORT_STDOUT)
 	sentry_target_sources_cwd(sentry
 		transports/sentry_transport_stdout.c
 	)
+elseif(SENTRY_TRANSPORT_APPLE)
+	sentry_target_sources_cwd(sentry
+		transports/sentry_http_transport_apple.m
+	)
 endif()
 
 # backends

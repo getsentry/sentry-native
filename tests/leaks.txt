@@ -25,3 +25,9 @@ leak:os_map_*_init
 # Triggered during lazy class initialization in CoreFoundation/CFNumber.
 # Upstream: https://github.com/google/sanitizers/issues/1781
 leak:_fetchInitializingClassList
+
+# NSURLSession's process-wide Network framework state
+# https://github.com/getsentry/sentry-native/pull/2302#issuecomment-6845432275
+leak:nw_context_activate
+leak:nw_context_get_globals_for_path
+leak:nw_association_activate
