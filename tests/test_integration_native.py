@@ -994,6 +994,15 @@ def _parse_minidump(path):
     }
 
 
+def _assert_no_overlapping_regions(dump):
+    # Breakpad's processor rejects a memory list with overlapping regions.
+    regions = sorted(dump["memory_regions"])
+    for (start, size), (next_start, _) in zip(regions, regions[1:]):
+        assert (
+            start + size <= next_start
+        ), f"memory region {start:#x}+{size:#x} overlaps {next_start:#x}"
+
+
 def test_native_minidump_streams(cmake, httpserver):
     """
     Test that minidump contains required streams *and* that each
@@ -1317,6 +1326,7 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
         f"scan didn't fire (typically because task_for_pid failed on "
         f"macOS without cs.debugger / get-task-allow entitlements)."
     )
+    _assert_no_overlapping_regions(dump)
 
 
 @pytest.mark.skipif(
@@ -1356,6 +1366,7 @@ def test_native_smart_mode_captures_rodata(cmake, httpserver):
 
     dump = _parse_minidump(minidump_files[0])
     assert b"sentry-rodata-marker" in dump["data"]
+    _assert_no_overlapping_regions(dump)
 
 
 def test_native_uses_existing_run(cmake):

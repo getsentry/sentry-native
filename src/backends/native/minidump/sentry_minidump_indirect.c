@@ -14,6 +14,8 @@ sentry__indirect_init(sentry_indirect_accumulator_t *acc)
 {
     acc->region_count = 0;
     acc->total_bytes = 0;
+    acc->dumped = NULL;
+    acc->dumped_count = 0;
 }
 
 /**
@@ -54,6 +56,23 @@ overlaps_existing(
         return false;
     }
     return acc->regions[i].start < end;
+}
+
+/**
+ * Returns true if [start, end) overlaps memory the dump already holds.
+ */
+static bool
+overlaps_dumped(
+    const sentry_indirect_accumulator_t *acc, uint64_t start, uint64_t end)
+{
+    for (size_t i = 0; i < acc->dumped_count; i++) {
+        const minidump_memory_descriptor_t *d = &acc->dumped[i];
+        if (d->start_address < end
+            && start < d->start_address + d->memory.size) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
@@ -124,7 +143,8 @@ sentry__indirect_consider(sentry_indirect_accumulator_t *acc,
         want = (size_t)(end - start);
     }
 
-    if (overlaps_existing(acc, start, end)) {
+    if (overlaps_existing(acc, start, end)
+        || overlaps_dumped(acc, start, end)) {
         return;
     }
 

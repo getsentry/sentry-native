@@ -2011,3 +2011,46 @@ SENTRY_TEST(minidump_indirect_contains_pointee)
     SKIP_TEST();
 #endif
 }
+
+/**
+ * Test that indirect capture skips memory the dump already holds
+ */
+SENTRY_TEST(minidump_indirect_skips_dumped)
+{
+#if defined(SENTRY_BACKEND_NATIVE)                                             \
+    && (defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)     \
+        || defined(SENTRY_PLATFORM_MACOS))
+    sentry_indirect_ops_t ops = {
+        .is_capturable = indirect_is_capturable,
+        .read_memory = indirect_read_memory,
+        .ctx = NULL,
+    };
+    minidump_writer_base_t writer = { 0 };
+    writer.fd = open("/dev/null", O_WRONLY);
+    writer.current_offset = sizeof(minidump_header_t);
+    TEST_ASSERT(writer.fd >= 0);
+
+    sentry_indirect_accumulator_t *acc = sentry_malloc(sizeof(*acc));
+    TEST_ASSERT(!!acc);
+
+    // a thread stack that starts mid-page
+    minidump_memory_descriptor_t stack = { 0 };
+    stack.start_address = 0x10000800;
+    stack.memory.size = 0x1000;
+    sentry__indirect_init(acc);
+    acc->dumped = &stack;
+    acc->dumped_count = 1;
+
+    sentry__indirect_consider(acc, &writer, 0x10000100, &ops);
+    sentry__indirect_consider(acc, &writer, 0x10001100, &ops);
+    TEST_CHECK(acc->region_count == 0);
+
+    sentry__indirect_consider(acc, &writer, 0x10002100, &ops);
+    TEST_CHECK(acc->region_count == 1);
+
+    sentry_free(acc);
+    close(writer.fd);
+#else
+    SKIP_TEST();
+#endif
+}

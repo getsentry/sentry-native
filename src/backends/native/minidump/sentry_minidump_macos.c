@@ -1781,18 +1781,6 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             return rv;
         }
 
-        // SMART mode: scan registers + stack words for pointers into
-        // writable heap regions and capture a chunk around each. Has to
-        // run before the memory_list allocation below so we know the
-        // final region count.
-        sentry_indirect_accumulator_t indirect_acc;
-        sentry__indirect_init(&indirect_acc);
-        if (mode == SENTRY_MINIDUMP_MODE_SMART) {
-            capture_indirect_memory_macos(writer, &indirect_acc);
-            SENTRY_DEBUGF("indirect memory: captured %zu regions, %zu bytes",
-                indirect_acc.region_count, indirect_acc.total_bytes);
-        }
-
         // Count regions to include
         size_t region_count = 0;
         for (size_t i = 0; i < writer->region_count; i++) {
@@ -1803,7 +1791,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         }
 
         size_t total_count = region_count + writer->thread_stack_count
-            + indirect_acc.region_count;
+            + SENTRY_INDIRECT_MAX_REGIONS;
 
         size_t list_size = sizeof(uint32_t)
             + (total_count * sizeof(minidump_memory_descriptor_t));
@@ -1811,8 +1799,6 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         if (!memory_list) {
             goto empty_list;
         }
-
-        memory_list->count = total_count;
 
         size_t mem_idx = 0;
 
@@ -1822,15 +1808,6 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         // and walk the FP chain.
         for (size_t s = 0; s < writer->thread_stack_count; s++) {
             memory_list->ranges[mem_idx++] = writer->thread_stacks[s];
-        }
-
-        // Append indirectly-referenced regions. Already deduped + capped
-        // by the walker.
-        for (size_t s = 0; s < indirect_acc.region_count; s++) {
-            minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
-            mem->start_address = indirect_acc.regions[s].start;
-            mem->memory.rva = indirect_acc.regions[s].rva;
-            mem->memory.size = indirect_acc.regions[s].size;
         }
 
         for (size_t i = 0; i < writer->region_count && mem_idx < total_count;
@@ -1893,6 +1870,33 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
             sentry_free(region_buffer);
         }
+
+        // SMART mode: scan registers + stack words for pointers into
+        // writable heap regions and capture a chunk around each. Runs
+        // after the regions above are in the list so that it skips memory
+        // the dump already holds.
+        sentry_indirect_accumulator_t indirect_acc;
+        sentry__indirect_init(&indirect_acc);
+        indirect_acc.dumped = memory_list->ranges;
+        indirect_acc.dumped_count = mem_idx;
+        if (mode == SENTRY_MINIDUMP_MODE_SMART) {
+            capture_indirect_memory_macos(writer, &indirect_acc);
+            SENTRY_DEBUGF("indirect memory: captured %zu regions, %zu bytes",
+                indirect_acc.region_count, indirect_acc.total_bytes);
+        }
+
+        // Append indirectly-referenced regions. Already deduped + capped
+        // by the walker.
+        for (size_t s = 0; s < indirect_acc.region_count; s++) {
+            minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
+            mem->start_address = indirect_acc.regions[s].start;
+            mem->memory.rva = indirect_acc.regions[s].rva;
+            mem->memory.size = indirect_acc.regions[s].size;
+        }
+
+        memory_list->count = mem_idx;
+        list_size = sizeof(uint32_t)
+            + (mem_idx * sizeof(minidump_memory_descriptor_t));
 
         dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
         dir->rva = write_data(writer, memory_list, list_size);

@@ -77,6 +77,10 @@ typedef struct {
     sentry_indirect_region_t regions[SENTRY_INDIRECT_MAX_REGIONS];
     size_t region_count;
     size_t total_bytes;
+    // Memory the dump already holds, such as thread stacks and module
+    // headers. Pages that overlap it are not captured again.
+    const minidump_memory_descriptor_t *dumped;
+    size_t dumped_count;
 } sentry_indirect_accumulator_t;
 
 void sentry__indirect_init(sentry_indirect_accumulator_t *acc);
@@ -84,8 +88,9 @@ void sentry__indirect_init(sentry_indirect_accumulator_t *acc);
 /**
  * Consider one address as a candidate pointer. If `addr` resolves into a
  * capturable mapping (per ops->is_capturable), is not already covered
- * by a previously-captured region, and the global byte budget hasn't been
- * exhausted, this captures SENTRY_INDIRECT_PER_POINTER_BYTES around `addr`,
+ * by a previously-captured region or by acc->dumped, and the global byte
+ * budget hasn't been exhausted, this captures
+ * SENTRY_INDIRECT_PER_POINTER_BYTES around `addr`,
  * page-aligned, and writes them to the dump file via `writer`.
  *
  * Safe to call with junk values — non-pointer addresses are filtered cheaply

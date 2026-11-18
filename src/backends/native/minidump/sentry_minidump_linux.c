@@ -2308,19 +2308,6 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     uint64_t crash_addr
         = (uint64_t)(uintptr_t)writer->crash_ctx->platform.siginfo.si_addr;
 
-    // SMART mode: scan registers + stack words for pointers into writable
-    // heap mappings and capture a chunk around each. Has to run BEFORE the
-    // memory_list allocation below so we know the final region count. The
-    // bytes are written into the dump file as we go; we only collect the
-    // descriptors here and merge them into the unified list at the end.
-    sentry_indirect_accumulator_t indirect_acc;
-    sentry__indirect_init(&indirect_acc);
-    if (writer->crash_ctx->minidump_mode == SENTRY_MINIDUMP_MODE_SMART) {
-        capture_indirect_memory(writer, &indirect_acc);
-        SENTRY_DEBUGF("indirect memory: captured %zu regions, %zu bytes",
-            indirect_acc.region_count, indirect_acc.total_bytes);
-    }
-
     // Count regions to include based on mode
     size_t region_count = 0;
     for (size_t i = 0; i < writer->mapping_count; i++) {
@@ -2334,8 +2321,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // (written by the thread-list writer) so we just emit descriptors
     // pointing at the same RVA. This is what lets LLDB resolve memory at
     // stack addresses and walk the FP chain.
-    size_t total_count
-        = region_count + writer->thread_stack_count + indirect_acc.region_count;
+    size_t total_count = region_count + writer->thread_stack_count
+        + SENTRY_INDIRECT_MAX_REGIONS;
 
     // Allocate memory list
     size_t list_size = sizeof(uint32_t)
@@ -2345,22 +2332,11 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         return -1;
     }
 
-    memory_list->count = total_count;
-
     size_t mem_idx = 0;
     // Replay thread stacks first so they appear in deterministic order. Each
     // descriptor was already validated (size>0, rva!=0) by record_thread_stack.
     for (size_t s = 0; s < writer->thread_stack_count; s++) {
         memory_list->ranges[mem_idx++] = writer->thread_stacks[s];
-    }
-
-    // Append indirectly-referenced regions (heap chunks pointed to by
-    // registers/stack contents). Already deduped + capped by the walker.
-    for (size_t s = 0; s < indirect_acc.region_count; s++) {
-        minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
-        mem->start_address = indirect_acc.regions[s].start;
-        mem->memory.rva = indirect_acc.regions[s].rva;
-        mem->memory.size = indirect_acc.regions[s].size;
     }
 
     // Write memory regions
@@ -2422,6 +2398,32 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         sentry_free(region_buffer);
     }
+
+    // SMART mode: scan registers + stack words for pointers into writable
+    // heap mappings and capture a chunk around each. Runs after the regions
+    // above are in the list so that it skips memory the dump already holds.
+    sentry_indirect_accumulator_t indirect_acc;
+    sentry__indirect_init(&indirect_acc);
+    indirect_acc.dumped = memory_list->ranges;
+    indirect_acc.dumped_count = mem_idx;
+    if (writer->crash_ctx->minidump_mode == SENTRY_MINIDUMP_MODE_SMART) {
+        capture_indirect_memory(writer, &indirect_acc);
+        SENTRY_DEBUGF("indirect memory: captured %zu regions, %zu bytes",
+            indirect_acc.region_count, indirect_acc.total_bytes);
+    }
+
+    // Append indirectly-referenced regions (heap chunks pointed to by
+    // registers/stack contents). Already deduped + capped by the walker.
+    for (size_t s = 0; s < indirect_acc.region_count; s++) {
+        minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
+        mem->start_address = indirect_acc.regions[s].start;
+        mem->memory.rva = indirect_acc.regions[s].rva;
+        mem->memory.size = indirect_acc.regions[s].size;
+    }
+
+    memory_list->count = mem_idx;
+    list_size
+        = sizeof(uint32_t) + (mem_idx * sizeof(minidump_memory_descriptor_t));
 
     dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
     dir->rva = write_data(writer, memory_list, list_size);
