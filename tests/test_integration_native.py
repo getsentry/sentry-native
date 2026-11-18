@@ -1381,6 +1381,16 @@ def test_native_smart_mode_captures_rodata(cmake, httpserver, task_port):
     assert b"sentry-rodata-marker" in dump["data"]
     _assert_no_overlapping_regions(dump)
 
+    # The pointer to the string lives on the stack, which consumers read
+    # through the memory list.
+    thread = next(
+        t for t in dump["threads"] if t["thread_id"] == dump["crashing_thread_id"]
+    )
+    assert any(
+        start <= thread["stack_start"] < start + size
+        for start, size in dump["memory_regions"]
+    )
+
 
 def test_native_uses_existing_run(cmake):
     """The daemon adopts the existing run instead of creating root artifacts."""

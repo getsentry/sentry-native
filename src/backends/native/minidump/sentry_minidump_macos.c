@@ -2097,7 +2097,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     }
 
     size_t list_size = sizeof(uint32_t)
-        + ((mod_count + SENTRY_INDIRECT_MAX_REGIONS)
+        + ((writer->thread_stack_count + mod_count
+               + SENTRY_INDIRECT_MAX_REGIONS)
             * sizeof(minidump_memory_descriptor_t));
     minidump_memory_list_t *memory_list = sentry_malloc(list_size);
     if (!memory_list) {
@@ -2105,10 +2106,19 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     }
     memset(memory_list, 0, list_size);
 
-    write_module_headers_from_capture(writer, memory_list->ranges, mod_count);
+    // Replay thread stacks like the full path, so that consumers can read
+    // stack variables by address.
+    size_t mem_idx = 0;
+    for (size_t s = 0; s < writer->thread_stack_count; s++) {
+        memory_list->ranges[mem_idx++] = writer->thread_stacks[s];
+    }
+
+    write_module_headers_from_capture(
+        writer, &memory_list->ranges[mem_idx], mod_count);
+    mem_idx += mod_count;
 
     memory_list->count = (uint32_t)append_indirect_memory(
-        writer, memory_list->ranges, mod_count);
+        writer, memory_list->ranges, mem_idx);
     list_size = sizeof(uint32_t)
         + (memory_list->count * sizeof(minidump_memory_descriptor_t));
 
