@@ -575,8 +575,6 @@ SENTRY_TEST(installation_id)
     sentry_path_t *id_path = sentry__path_join_str(db_path, "installation_id");
     TEST_CHECK_INT_EQUAL(
         sentry__path_write_buffer(id_path, persisted, strlen(persisted)), 0);
-    sentry__path_free(id_path);
-    sentry__path_free(db_path);
 
     SENTRY_TEST_OPTIONS_NEW(opts4);
     sentry_options_set_dsn(opts4, "http://keyc@127.0.0.1/42");
@@ -587,6 +585,34 @@ SENTRY_TEST(installation_id)
     }
     sentry_close();
 
+    // custom ID -> used as-is, not persisted
+    sentry__path_remove(id_path);
+    SENTRY_TEST_OPTIONS_NEW(opts5);
+    sentry_options_set_installation_id(opts5, "custom-id");
+    sentry_init(opts5);
+    SENTRY_WITH_OPTIONS (options) {
+        TEST_ASSERT(!!options->run->installation_id);
+        TEST_CHECK_STRING_EQUAL(options->run->installation_id, "custom-id");
+    }
+    sentry_close();
+    TEST_CHECK(!sentry__path_is_file(id_path));
+
+    // empty ID -> no installation ID or session did, not persisted
+    SENTRY_TEST_OPTIONS_NEW(opts6);
+    sentry_options_set_release(opts6, "my_release");
+    sentry_options_set_installation_id(opts6, "");
+    sentry_init(opts6);
+    sentry_start_session();
+    SENTRY_WITH_OPTIONS (options) {
+        TEST_CHECK(!options->run->installation_id);
+        TEST_ASSERT(!!options->session);
+        TEST_CHECK(sentry_value_is_null(options->session->distinct_id));
+    }
+    sentry_close();
+    TEST_CHECK(!sentry__path_is_file(id_path));
+
+    sentry__path_free(id_path);
+    sentry__path_free(db_path);
     sentry_free(id_a);
 }
 

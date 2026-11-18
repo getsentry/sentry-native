@@ -44,6 +44,9 @@ void sentry__run_load_user_consent(
  *
  * An ID that has to be created comes from the first integration providing
  * `installation_id_func`, or is a random UUIDv4 if none does.
+ *
+ * An ID set in the options is used as-is, or none if empty, without touching
+ * the file.
  */
 void sentry__run_load_installation_id(
     sentry_run_t *run, const sentry_options_t *options);

@@ -5,6 +5,7 @@
 **Features**:
 
 - Session replay: add user input events (such as mouse clicks and touches) provided in the replay sidecar to the replay recording. ([#2288](https://github.com/getsentry/sentry-native/pull/2288))
+- Add `sentry_options_set_installation_id` to override or disable the persisted installation ID, which is used as the default user ID of events and the distinct ID of sessions. ([#2312](https://github.com/getsentry/sentry-native/pull/2312))
 
 **Fixes**:
 

@@ -189,6 +189,7 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->ca_certs);
     sentry_free(opts->org_id);
     sentry_free(opts->transport_thread_name);
+    sentry_free(opts->installation_id);
     sentry__path_free(opts->database_path);
     sentry__path_free(opts->handler_path);
     sentry__path_free(opts->external_crash_reporter);
@@ -610,6 +611,21 @@ int
 sentry_options_get_require_user_consent(const sentry_options_t *opts)
 {
     return opts->require_user_consent;
+}
+
+void
+sentry_options_set_installation_id(sentry_options_t *opts, const char *id)
+{
+    sentry_free(opts->installation_id);
+    opts->installation_id = sentry__string_clone(id);
+}
+
+void
+sentry_options_set_installation_id_n(
+    sentry_options_t *opts, const char *id, size_t id_len)
+{
+    sentry_free(opts->installation_id);
+    opts->installation_id = sentry__string_clone_n(id, id_len);
 }
 
 void

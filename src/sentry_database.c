@@ -177,6 +177,13 @@ void
 sentry__run_load_installation_id(
     sentry_run_t *run, const sentry_options_t *options)
 {
+    if (options->installation_id) {
+        run->installation_id = *options->installation_id
+            ? sentry__string_clone(options->installation_id)
+            : NULL;
+        return;
+    }
+
     sentry_path_t *id_path
         = sentry__path_join_str(options->database_path, "installation_id");
     if (!id_path) {
