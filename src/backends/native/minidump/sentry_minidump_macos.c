@@ -1553,16 +1553,30 @@ read_file_load_commands(const sentry_module_info_t *module,
     }
     uint8_t *cmds = NULL;
     struct fat_header fat;
-    if (pread(fd, &fat, sizeof(fat), 0) == (ssize_t)sizeof(fat)
-        && OSSwapBigToHostInt32(fat.magic) == FAT_MAGIC) {
+    uint32_t magic = 0;
+    if (pread(fd, &fat, sizeof(fat), 0) == (ssize_t)sizeof(fat)) {
+        magic = OSSwapBigToHostInt32(fat.magic);
+    }
+    if (magic == FAT_MAGIC || magic == FAT_MAGIC_64) {
         uint32_t count = OSSwapBigToHostInt32(fat.nfat_arch);
         for (uint32_t i = 0; i < count && !cmds; i++) {
-            struct fat_arch arch;
-            off_t pos = (off_t)sizeof(fat) + (off_t)i * (off_t)sizeof(arch);
-            if (pread(fd, &arch, sizeof(arch), pos) != (ssize_t)sizeof(arch)) {
-                break;
+            if (magic == FAT_MAGIC_64) {
+                struct fat_arch_64 arch;
+                off_t pos = (off_t)sizeof(fat) + (off_t)i * (off_t)sizeof(arch);
+                if (pread(fd, &arch, sizeof(arch), pos)
+                    != (ssize_t)sizeof(arch)) {
+                    break;
+                }
+                *slice_offset = OSSwapBigToHostInt64(arch.offset);
+            } else {
+                struct fat_arch arch;
+                off_t pos = (off_t)sizeof(fat) + (off_t)i * (off_t)sizeof(arch);
+                if (pread(fd, &arch, sizeof(arch), pos)
+                    != (ssize_t)sizeof(arch)) {
+                    break;
+                }
+                *slice_offset = OSSwapBigToHostInt32(arch.offset);
             }
-            *slice_offset = OSSwapBigToHostInt32(arch.offset);
             cmds = read_slice_load_commands(fd, *slice_offset, module, mh);
         }
     } else {
