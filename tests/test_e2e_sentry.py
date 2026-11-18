@@ -936,7 +936,7 @@ def test_e2e_tus(cmake):
                 "http-proxy",
                 "large-attachment",
                 "shutdown-timeout",
-                "10000",
+                "5000",
                 "crash",
             ],
             env=dict(env, SENTRY_TEST_PROXY_PORT=str(port)),
