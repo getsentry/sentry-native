@@ -4208,13 +4208,49 @@ ensure_device_arch(sentry_value_t event)
 }
 #endif
 
+/**
+ * Removes the crash envelope once the transport has sent or dumped the crash,
+ * or renames it for a later send.
+ */
+static void
+retain_crash_envelope(const sentry_options_t *options,
+    const sentry_crash_context_t *ctx, sentry_uuid_t event_id)
+{
+    if (sentry_uuid_is_nil(&event_id) || !options->run) {
+        return;
+    }
+    char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    sentry_path_t *run_path = filename
+        ? sentry__path_join_str(options->run->run_path, filename)
+        : NULL;
+    sentry_free(filename);
+    sentry_path_t *path = sentry__path_from_str(ctx->envelope_path);
+    sentry_uuid_t last_event_id
+        = sentry__http_transport_get_last_event_id(options->transport);
+    if (path && run_path) {
+        if (sentry__uuid_eq(&last_event_id, &event_id)
+            || sentry__path_is_file(run_path)) {
+            // Keep it for the callback on the next launch.
+            if (!ctx->has_on_crashed_last_run) {
+                sentry__path_remove(path);
+            }
+        } else if (sentry__path_rename(path, run_path) == 0
+            && ctx->has_on_crashed_last_run) {
+            sentry__run_write_crash_marker(options->run, &event_id);
+        }
+    }
+    sentry__path_free(path);
+    sentry__path_free(run_path);
+}
+
 bool
 sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
-    sentry_crash_daemon_t *daemon)
+    sentry_crash_daemon_t *daemon, sentry_uuid_t *event_id)
 {
     (void)daemon;
     SENTRY_DEBUG("Processing crash - START");
     bool crash_captured = false;
+    *event_id = sentry_uuid_nil();
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
@@ -4314,7 +4350,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     // The crashing process dumps its pending logs, sessions, and transactions
     // before notifying the daemon. Queue those before writing the crash
     // envelope so an attachment-ref prewrite is not captured a second time.
-    if (run_folder && options && options->transport && options->run) {
+    if (run_folder && options->transport && options->run) {
         sentry__process_run_envelopes(options, run_folder);
     } else {
         SENTRY_DEBUG("No run folder or transport for additional envelopes");
@@ -4517,7 +4553,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
 
 #if defined(SENTRY_PLATFORM_ANDROID)
     sentry_path_t *android_native_envelope_path
-        = make_run_envelope_path(options ? options->run : NULL, envelope);
+        = make_run_envelope_path(options->run, envelope);
 #endif
 
     SENTRY_DEBUG("Envelope loaded, capturing");
@@ -4529,7 +4565,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         // standalone daemon is only used in tests and is not supported in
         // apps, so it handles the envelope as on Linux.
         if (daemon && android_native_envelope_path) {
-            if (!options || !options->run
+            if (!options->run
                 || !sentry__run_write_envelope(options->run, envelope)) {
                 SENTRY_WARN("Failed to dump crash envelope to run folder");
             } else {
@@ -4548,8 +4584,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         }
 #endif
         if (envelope) {
-            if (options && options->transport && options->run) {
+            if (options->transport && options->run) {
                 SENTRY_DEBUG("Capturing crash envelope");
+                if (!sentry__run_should_skip_upload(options->run)) {
+                    *event_id = sentry__envelope_get_event_id(envelope);
+                }
                 sentry__capture_envelope(options->transport, envelope, options);
                 crash_captured = true;
                 SENTRY_DEBUG("Crash envelope captured (queued)");
@@ -4567,7 +4606,8 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
 #endif
 
     // Keep the original crash envelope for the callback on the next launch.
-    if (!ctx->has_on_crashed_last_run) {
+    // A crash sent via transport keeps it until the send has finished.
+    if (!ctx->has_on_crashed_last_run && sentry_uuid_is_nil(event_id)) {
 #if defined(SENTRY_PLATFORM_UNIX)
         unlink(envelope_path);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -4581,7 +4621,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
 
 cleanup:
     // flush replay only after the crash itself was captured
-    if (crash_captured && options && options->transport
+    if (crash_captured && options->transport
         && sentry__session_replay_has_pending(options)) {
         sentry__session_replay_flush_pending(options, options->transport, base);
     }
@@ -4626,6 +4666,7 @@ sentry_android_crash_daemon_send(
         // keep a failed upload in the run folder for the next launch
         sentry__http_transport_set_dump_failed(
             daemon->options->transport, true);
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
         // keep a copy for the next launch until the send has finished
         sentry_path_t *raw_path = sentry__path_from_str(daemon->envelope_path);
@@ -4640,6 +4681,7 @@ sentry_android_crash_daemon_send(
             sentry__path_free(merged_path);
         }
         bool pending = raw_path && pending_path
+            && !sentry__run_should_skip_upload(daemon->options->run)
             && sentry__path_rename(raw_path, pending_path) == 0;
         if (raw_path && !pending) {
             sentry__path_remove(raw_path);
@@ -4667,10 +4709,13 @@ sentry_android_crash_daemon_send(
             daemon->options->transport, false);
         sentry__http_transport_set_dump_failed(
             daemon->options->transport, false);
+        sentry_uuid_t last_event_id = sentry__http_transport_get_last_event_id(
+            daemon->options->transport);
         // the dump and a failed upload both write the raw envelope path
         if (raw_path && sentry__path_is_file(raw_path)) {
             result = SENTRY_ANDROID_SEND_KEPT;
-        } else if (rv == 0) {
+        } else if (!sentry_uuid_is_nil(&event_id)
+            && sentry__uuid_eq(&last_event_id, &event_id)) {
             result = SENTRY_ANDROID_SEND_SENT;
         }
         if (pending) {
@@ -5118,6 +5163,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     // Daemon main loop
     bool crash_processed = false;
+    sentry_uuid_t crash_event_id = sentry_uuid_nil();
     uint64_t crash_deadline = 0;
     while (true) {
         // Wait for crash notification (with timeout to check parent health)
@@ -5137,9 +5183,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         if (state == SENTRY_CRASH_STATE_CRASHED) {
             SENTRY_DEBUG("Crash notification received, processing");
 #if defined(SENTRY_PLATFORM_ANDROID)
-            bool crash_captured = sentry__process_crash(options, ipc, daemon);
+            bool crash_captured
+                = sentry__process_crash(options, ipc, daemon, &crash_event_id);
 #else
-            bool crash_captured = sentry__process_crash(options, ipc, NULL);
+            bool crash_captured
+                = sentry__process_crash(options, ipc, NULL, &crash_event_id);
 #endif
             crash_processed = true;
 
@@ -5239,6 +5287,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
                 // on. Don't cache it for retry as well if it fails before exit.
                 sentry__http_transport_set_retry_enabled(
                     options->transport, false);
+                retain_crash_envelope(options, ipc->shmem, crash_event_id);
             }
         }
     }

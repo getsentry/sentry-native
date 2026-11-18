@@ -48,9 +48,11 @@ int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
  * @param options Sentry options (DSN, transport, etc.)
  * @param ipc Crash IPC with crash context in shared memory
  * @param daemon Android service-hosted daemon to defer the upload to, or NULL
+ * @param event_id Receives the ID of the crash sent via transport, or nil
  * @return true if the crash envelope was captured for upload or reporting
  */
 bool sentry__process_crash(const struct sentry_options_s *options,
-    sentry_crash_ipc_t *ipc, sentry_crash_daemon_t *daemon);
+    sentry_crash_ipc_t *ipc, sentry_crash_daemon_t *daemon,
+    sentry_uuid_t *event_id);
 
 #endif
