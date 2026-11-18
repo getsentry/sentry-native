@@ -1333,7 +1333,20 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
     is_wine,
     reason="Wine does not capture indirectly referenced minidump memory",
 )
-def test_native_smart_mode_captures_rodata(cmake, httpserver):
+@pytest.mark.parametrize(
+    "task_port",
+    [
+        True,
+        pytest.param(
+            False,
+            marks=pytest.mark.skipif(
+                sys.platform != "darwin",
+                reason="Only macOS writes minidumps without a task port",
+            ),
+        ),
+    ],
+)
+def test_native_smart_mode_captures_rodata(cmake, httpserver, task_port):
     """SMART mode captures string literals referenced from the stack."""
     # Static build so the hardened-runtime process can load itself without
     # tripping the dyld "different team IDs" check on ad-hoc-signed dylibs.
@@ -1342,7 +1355,7 @@ def test_native_smart_mode_captures_rodata(cmake, httpserver):
         {"SENTRY_BACKEND": "native", "BUILD_SHARED_LIBS": "OFF"},
     )
 
-    if sys.platform == "darwin":
+    if sys.platform == "darwin" and task_port:
         _codesign_for_task_for_pid(
             str(tmp_path / "sentry_test_integration"),
             str(tmp_path / "sentry-crash"),
