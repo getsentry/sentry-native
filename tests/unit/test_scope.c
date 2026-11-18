@@ -120,6 +120,7 @@ SENTRY_TEST(scope_write_exclusive)
     sentry_scope_end_write(scope);
     TEST_CHECK(sentry__waitable_flag_wait(&state.finished, 1000));
     sentry__thread_join(thread);
+    sentry__thread_free(&thread);
     TEST_CHECK_INT_EQUAL(state.result, 0);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(state.environment), "new");
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(state.tag), "new");
@@ -143,6 +144,7 @@ SENTRY_TEST(scope_write_exclusive)
     sentry_scope_end_write(parent);
     TEST_CHECK(sentry__waitable_flag_wait(&apply.finished, 1000));
     sentry__thread_join(thread);
+    sentry__thread_free(&thread);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(apply.environment), "new");
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(apply.tag), "new");
     sentry_value_decref(apply.environment);
