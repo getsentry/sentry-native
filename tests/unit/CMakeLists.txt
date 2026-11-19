@@ -62,6 +62,18 @@ if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_sources(sentry_test_unit PRIVATE test_unwinder.cpp)
 endif()
 
+if(NOT WIN32)
+	target_sources(sentry_test_unit PRIVATE test_app_hang_cxx.cpp)
+endif()
+
+if(APPLE)
+	# A module outside the dyld shared cache, so that dlclose() unmaps it.
+	add_library(sentry_test_app_hang_module MODULE app_hang_module.c)
+	add_dependencies(sentry_test_unit sentry_test_app_hang_module)
+	target_compile_definitions(sentry_test_unit PRIVATE
+		SENTRY_TEST_APP_HANG_MODULE="$<TARGET_FILE:sentry_test_app_hang_module>")
+endif()
+
 # FIXME: cmake 3.13 introduced target_link_options
 target_compile_definitions(sentry_test_unit PRIVATE ${SENTRY_COMPILE_DEFINITIONS})
 

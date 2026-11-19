@@ -1,3 +1,4 @@
+XX(app_hang_all_threads_during_exceptions)
 XX(app_hang_all_threads_during_module_loading)
 XX(app_hang_all_threads_limits_thread_count)
 XX(app_hang_all_threads_signal_blocked)

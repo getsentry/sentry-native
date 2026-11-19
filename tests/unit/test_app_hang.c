@@ -528,7 +528,11 @@ module_loader(void *arg)
             FreeLibrary(module);
         }
 #else
+#    if defined(SENTRY_TEST_APP_HANG_MODULE)
+        void *handle = dlopen(SENTRY_TEST_APP_HANG_MODULE, RTLD_NOW);
+#    else
         void *handle = dlopen("libz.so.1", RTLD_NOW);
+#    endif
         if (handle) {
             dlclose(handle);
         }
@@ -585,6 +589,64 @@ SENTRY_TEST(app_hang_all_threads_during_module_loading)
     sentry__atomic_store(&g_stress_keep_loading, 0);
     for (size_t i = 0; i < 2; i++) {
         sentry__thread_join(loaders[i]);
+    }
+    sentry_close();
+
+    TEST_CHECK(sentry__atomic_fetch(&g_stress_events) == STRESS_CAPTURES);
+    TEST_CHECK(sentry__atomic_fetch(&g_stress_threadless_events) == 0);
+#endif
+}
+
+#if !defined(SENTRY_PLATFORM_WINDOWS)
+void sentry__test_throw_catch_loop(volatile long *keep_running);
+void sentry__test_malloc_loop(volatile long *keep_running);
+
+SENTRY_THREAD_FN
+exception_thrower(void *arg)
+{
+    (void)arg;
+    sentry__test_throw_catch_loop(&g_stress_keep_loading);
+    return 0;
+}
+
+SENTRY_THREAD_FN
+allocator(void *arg)
+{
+    (void)arg;
+    sentry__test_malloc_loop(&g_stress_keep_loading);
+    return 0;
+}
+#endif
+
+SENTRY_TEST(app_hang_all_threads_during_exceptions)
+{
+#if !SENTRY_HAS_THREAD_STACKWALK || defined(SENTRY_PLATFORM_WINDOWS)
+    SKIP_TEST();
+#else
+    g_stress_events = 0;
+    g_stress_threadless_events = 0;
+    sentry__atomic_store(&g_stress_keep_loading, 1);
+    sentry__app_hang_latch_reset();
+    sentry__app_hang_monitor_set_stackwalk_fn(NULL);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send(options, stress_before_send, NULL);
+    sentry_options_set_enable_app_hang_tracking(options, 1);
+    sentry_options_set_app_hang_timeout(options, 50);
+    sentry_options_set_app_hang_attach_all_threads(options, 1);
+    sentry_init(options);
+
+    sentry_threadid_t workers[2];
+    sentry__thread_spawn(&workers[0], exception_thrower, NULL);
+    sentry__thread_spawn(&workers[1], allocator, NULL);
+    sentry_threadid_t hung;
+    sentry__thread_spawn(&hung, repeatedly_hung, NULL);
+    sentry__thread_join(hung);
+
+    sentry__atomic_store(&g_stress_keep_loading, 0);
+    for (size_t i = 0; i < 2; i++) {
+        sentry__thread_join(workers[i]);
     }
     sentry_close();
 
