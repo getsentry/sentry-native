@@ -11,8 +11,10 @@
 #    include <string.h>
 
 size_t
-sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
+sentry__thread_stackwalk(
+    uint64_t target_tid, void **ips, size_t max, uint64_t timeout_ms)
 {
+    (void)timeout_ms;
     task_t task = mach_task_self();
     thread_act_array_t threads = NULL;
     mach_msg_type_number_t count = 0;

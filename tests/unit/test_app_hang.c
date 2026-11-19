@@ -6,7 +6,7 @@
 
 // The module loading test needs a module that really loads and unloads, and
 // on Windows the lock-free unwinder.
-#if SENTRY_THREAD_STACKWALK_RTL_UNWIND
+#if SENTRY_HAS_THREAD_LIST && defined(SENTRY_PLATFORM_WINDOWS)
 #    include <windows.h>
 #    define SENTRY_TEST_MODULE_LOADING 1
 #elif defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
@@ -374,7 +374,7 @@ all_threads_before_send(sentry_value_t event, sentry_hint_t *hint, void *data)
 
 SENTRY_TEST(app_hang_with_all_threads)
 {
-#if !SENTRY_HAS_THREAD_STACKWALK
+#if !SENTRY_HAS_THREAD_LIST
     SKIP_TEST();
 #endif
     memset(&g_all_threads, 0, sizeof(g_all_threads));
@@ -408,7 +408,7 @@ SENTRY_TEST(app_hang_with_all_threads)
     TEST_CHECK(g_all_threads.others_with_frames >= 1);
 }
 
-#if SENTRY_HAS_THREAD_STACKWALK && SENTRY_TEST_MODULE_LOADING
+#if SENTRY_HAS_THREAD_LIST && SENTRY_TEST_MODULE_LOADING
 #    define STRESS_CAPTURES 50
 
 static volatile long g_stress_events;
@@ -464,7 +464,7 @@ repeatedly_hung(void *arg)
 // wait for that lock, or the watchdog and the suspended thread hang forever.
 SENTRY_TEST(app_hang_all_threads_during_module_loading)
 {
-#if !SENTRY_HAS_THREAD_STACKWALK || !SENTRY_TEST_MODULE_LOADING
+#if !SENTRY_HAS_THREAD_LIST || !SENTRY_TEST_MODULE_LOADING
     SKIP_TEST();
 #else
     g_stress_events = 0;

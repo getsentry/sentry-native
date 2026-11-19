@@ -10,7 +10,7 @@
 #    include <string.h>
 #    include <windows.h>
 
-#    if !defined(SENTRY_PLATFORM_XBOX)
+#    if SENTRY_HAS_THREAD_LIST
 #        include <tlhelp32.h>
 #    endif
 
@@ -132,8 +132,10 @@ unwind_dbghelp(CONTEXT *ctx, void **ips, size_t max)
 #    endif
 
 size_t
-sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
+sentry__thread_stackwalk(
+    uint64_t target_tid, void **ips, size_t max, uint64_t timeout_ms)
 {
+    (void)timeout_ms;
     HANDLE h = OpenThread(
         THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION,
         FALSE, (DWORD)target_tid);
@@ -167,16 +169,7 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
     return n;
 }
 
-#    if defined(SENTRY_PLATFORM_XBOX)
-// ToolHelp32 is not part of the gaming partition.
-size_t
-sentry__thread_list(sentry_thread_info_t *out, size_t max)
-{
-    (void)out;
-    (void)max;
-    return 0;
-}
-#    else
+#    if SENTRY_HAS_THREAD_LIST
 /**
  * Retrieve the thread name via GetThreadDescription (Windows 10 1607+).
  */

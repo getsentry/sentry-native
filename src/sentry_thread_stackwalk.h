@@ -24,13 +24,29 @@
 #    define SENTRY_THREAD_STACKWALK_RTL_UNWIND 0
 #endif
 
+// Listing and walking all threads. On Windows this needs the lock-free
+// unwinder, because a walk with dbghelp can deadlock on any suspended thread.
+// Xbox has no API to list the threads of a process.
+#if SENTRY_HAS_THREAD_STACKWALK                                                \
+    && (!defined(SENTRY_PLATFORM_WINDOWS)                                      \
+        || (SENTRY_THREAD_STACKWALK_RTL_UNWIND                                 \
+            && !defined(SENTRY_PLATFORM_XBOX)))
+#    define SENTRY_HAS_THREAD_LIST 1
+#else
+#    define SENTRY_HAS_THREAD_LIST 0
+#endif
+
 #if SENTRY_HAS_THREAD_STACKWALK
 // Captures the call stack of another thread by suspending it, walking its
 // stack, and writing the instruction pointers into `ips_out` (IPs only; no
 // symbolication while suspended). Returns the number of frames captured.
-size_t sentry__thread_stackwalk(
-    uint64_t target_tid, void **ips_out, size_t max_frames);
+// `timeout_ms` limits the wait for a thread that does not respond (Linux and
+// Android only).
+size_t sentry__thread_stackwalk(uint64_t target_tid, void **ips_out,
+    size_t max_frames, uint64_t timeout_ms);
+#endif
 
+#if SENTRY_HAS_THREAD_LIST
 #    define SENTRY_THREAD_NAME_MAX 64
 
 typedef struct {

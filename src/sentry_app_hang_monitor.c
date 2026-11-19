@@ -65,14 +65,15 @@ static uint64_t g_timeout_ms = 0;
 static bool g_attach_all_threads = false;
 
 static size_t
-stackwalk_thread(uint64_t tid, void **ips, size_t max)
+stackwalk_thread(uint64_t tid, void **ips, size_t max, uint64_t timeout_ms)
 {
     // A test installs an override.
     return g_stackwalk_override != NULL
         ? g_stackwalk_override(tid, ips, max)
-        : sentry__thread_stackwalk(tid, ips, max);
+        : sentry__thread_stackwalk(tid, ips, max, timeout_ms);
 }
 
+#    if SENTRY_HAS_THREAD_LIST
 static const char *
 thread_name(const sentry_thread_info_t *threads, size_t count, uint64_t tid)
 {
@@ -125,8 +126,13 @@ add_all_threads(sentry_value_t event, uint64_t hung_tid)
         }
         sentry_value_t thread = sentry_value_new_thread(
             tid, threads[i].name[0] ? threads[i].name : NULL);
-        if (sentry__monotonic_time() < deadline) {
-            size_t n = stackwalk_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES);
+        const uint64_t now = sentry__monotonic_time();
+        if (now < deadline) {
+            const uint64_t remaining = deadline - now;
+            size_t n = stackwalk_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES,
+                remaining < SENTRY_APP_HANG_OTHER_THREAD_TIMEOUT_MS
+                    ? remaining
+                    : SENTRY_APP_HANG_OTHER_THREAD_TIMEOUT_MS);
             if (n > 0) {
                 sentry_value_set_stacktrace(thread, ips, n);
                 walked++;
@@ -138,20 +144,24 @@ add_all_threads(sentry_value_t event, uint64_t hung_tid)
         count, (unsigned long long)(sentry__monotonic_time() - start));
     sentry_free(threads);
 }
+#    endif
 
 static bool
 app_hang_capture(uint64_t hang_time_ms, uint64_t tid)
 {
     void *ips[SENTRY_APP_HANG_MAX_FRAMES];
-    size_t n = stackwalk_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES);
+    size_t n = stackwalk_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES,
+        SENTRY_APP_HANG_HUNG_THREAD_TIMEOUT_MS);
     if (n == 0) {
         SENTRY_DEBUG("app-hang: no frames sampled, skipping event");
         return false;
     }
     sentry_value_t event = sentry__app_hang_make_event(ips, n, hang_time_ms);
+#    if SENTRY_HAS_THREAD_LIST
     if (g_attach_all_threads) {
         add_all_threads(event, tid);
     }
+#    endif
     sentry__capture_event(event, NULL, NULL);
     return true;
 }
@@ -206,6 +216,13 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
 
     g_timeout_ms = options->app_hang_timeout;
     g_attach_all_threads = options->app_hang_attach_all_threads;
+#    if !SENTRY_HAS_THREAD_LIST
+    if (g_attach_all_threads) {
+        SENTRY_WARN("app-hang: attaching all threads is not supported on this "
+                    "platform");
+        g_attach_all_threads = false;
+    }
+#    endif
     sentry__cond_init(&g_wait_cond);
     // Arm before spawning: the worker uses is_active() as its run condition, so
     // it must already be true when the new thread first evaluates the loop.

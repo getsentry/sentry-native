@@ -174,10 +174,47 @@ ensure_installed(void)
     return true;
 }
 
-size_t
-sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
+static struct timespec
+deadline_after(uint64_t timeout_ms)
 {
-    if (!ensure_installed()) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += (time_t)(timeout_ms / 1000);
+    ts.tv_nsec += (long)(timeout_ms % 1000) * 1000000L;
+    if (ts.tv_nsec >= 1000000000L) {
+        ts.tv_sec += 1;
+        ts.tv_nsec -= 1000000000L;
+    }
+    return ts;
+}
+
+// A thread that blocks the sampling signal never runs the handler: waiting
+// for it would only use up the timeout and leave a signal queued on it.
+static bool
+is_signal_blocked(uint64_t tid)
+{
+    char status_path[64];
+    snprintf(status_path, sizeof(status_path), "/proc/self/task/%llu/status",
+        (unsigned long long)tid);
+    FILE *status_file = fopen(status_path, "r");
+    if (!status_file) {
+        return false;
+    }
+    char line[128];
+    unsigned long long blocked = 0;
+    bool found = false;
+    while (!found && fgets(line, sizeof(line), status_file)) {
+        found = sscanf(line, "SigBlk: %llx", &blocked) == 1;
+    }
+    fclose(status_file);
+    return found && (blocked & (1ULL << (SENTRY_APP_HANG_SIGNAL - 1)));
+}
+
+size_t
+sentry__thread_stackwalk(
+    uint64_t target_tid, void **ips, size_t max, uint64_t timeout_ms)
+{
+    if (!ensure_installed() || is_signal_blocked(target_tid)) {
         return 0;
     }
     // A signal from a previously timed-out sample may still be queued. Drain
@@ -214,9 +251,7 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
     }
 
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += 1;
+    struct timespec ts = deadline_after(timeout_ms);
     if (sem_timedwait(&g_uctx_ready, &ts) != 0) {
         g_abort_park = 1;
         sem_post(&g_unwind_done); // release a handler that parks late
@@ -229,16 +264,12 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
     size_t n = sentry_unwind_stack_from_ucontext(&s, ips, max);
     __atomic_store_n(&g_count, (sig_atomic_t)n, __ATOMIC_RELAXED);
     sem_post(&g_unwind_done); // release the parked handler
-    struct timespec ts2;
-    clock_gettime(CLOCK_REALTIME, &ts2);
-    ts2.tv_sec += 1;
+    struct timespec ts2 = deadline_after(timeout_ms);
     while (sem_timedwait(&g_done, &ts2) != 0 && errno == EINTR) { }
     __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
     return n; // ips already filled by sentry_unwind_stack_from_ucontext
 #    else
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += 1; // 1s budget for the handler to run
+    struct timespec ts = deadline_after(timeout_ms);
     while (sem_timedwait(&g_done, &ts) != 0) {
         if (errno == EINTR) {
             continue;

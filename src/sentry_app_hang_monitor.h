@@ -29,6 +29,12 @@ struct sentry_options_s;
 #define SENTRY_APP_HANG_MAX_THREADS 256
 #define SENTRY_APP_HANG_ALL_THREADS_BUDGET_MS 1000
 
+// How long a stackwalk waits for a thread that does not respond (Linux and
+// Android). Other threads get a short wait, so that one stuck thread cannot use
+// up the budget.
+#define SENTRY_APP_HANG_HUNG_THREAD_TIMEOUT_MS 1000
+#define SENTRY_APP_HANG_OTHER_THREAD_TIMEOUT_MS 100
+
 int sentry__app_hang_monitor_start(const struct sentry_options_s *options);
 void sentry__app_hang_monitor_stop(void);
 
