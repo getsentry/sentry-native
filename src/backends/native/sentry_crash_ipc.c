@@ -1836,10 +1836,9 @@ daemon_ready(sentry_crash_ipc_t *ipc)
 {
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     if (sentry__atomic_fetch(&ipc->awaiting_ready)) {
+        // no read, so that concurrent callers all see the signal
         struct pollfd pfd = { ipc->ready_fd, POLLIN, 0 };
-        uint64_t val;
-        if (poll(&pfd, 1, 0) != 1 || !(pfd.revents & POLLIN)
-            || read(ipc->ready_fd, &val, sizeof(val)) != sizeof(val)) {
+        if (poll(&pfd, 1, 0) != 1 || !(pfd.revents & POLLIN)) {
             return false;
         }
         sentry__atomic_store(&ipc->awaiting_ready, 0);
