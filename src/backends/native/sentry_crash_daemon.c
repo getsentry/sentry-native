@@ -3956,6 +3956,8 @@ write_envelope_with_minidump(const sentry_options_t *options,
     sentry_value_t attachments)
 {
     sentry_value_t event = sentry__value_clone(base);
+    // The minidump holds the exception. Drop the one built for `on_crash`.
+    sentry_value_remove_by_key(event, "exception");
 #if defined(SENTRY_PLATFORM_WINDOWS)
     apply_wer_context(event, ctx);
 #endif

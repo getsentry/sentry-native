@@ -1570,6 +1570,11 @@ def test_crash_mode_minidump_only(cmake, httpserver):
     )
     assert has_minidump, "Minidump mode should include minidump"
 
+    # The minidump holds the exception
+    event = envelope.get_event()
+    assert event is not None
+    assert "exception" not in event
+
 
 @pytest.mark.xfail(
     bool(os.environ.get("TEST_MINGW")),
