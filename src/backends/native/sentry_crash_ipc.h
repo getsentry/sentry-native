@@ -122,6 +122,8 @@ typedef struct {
     volatile long stalled;
     // set until a daemon that attaches later signals ready
     volatile long awaiting_ready;
+    // a daemon that attaches later does so through the app's main thread
+    bool attach_on_main_thread;
     uint64_t sequence;
     // frame with an unsent tail, owned by the writer guard
     char *torn_frame;

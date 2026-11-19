@@ -170,6 +170,10 @@ sentry__crash_ipc_message_decode(
 #    include <sys/syscall.h>
 #    include <unistd.h>
 
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include <android/api-level.h>
+#    endif
+
 #    ifndef MFD_CLOEXEC
 #        define MFD_CLOEXEC 0x0001U
 #    endif
@@ -466,6 +470,8 @@ sentry__crash_ipc_init_app_with_fds(int shm_fd, int notify_fd, int ready_fd,
     ipc->init_mutex = init_mutex;
     // the crash service attaches after the app has started
     ipc->awaiting_ready = 1;
+    // below API 29, the app receives the service connection on its main thread
+    ipc->attach_on_main_thread = android_get_device_api_level() < 29;
 
     return init_app(ipc, shm_fd, notify_fd, ready_fd, message_fd);
 }
@@ -1933,6 +1939,13 @@ sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
     if (!ipc) {
         return false;
     }
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // a crashed main thread can't attach the daemon
+    if (ipc->attach_on_main_thread && syscall(SYS_gettid) == getpid()
+        && !daemon_ready(ipc)) {
+        return false;
+    }
+#endif
     if (sentry__atomic_fetch(&ipc->shmem->state)
         == SENTRY_CRASH_STATE_CRASHING) {
         return notify_fallback(ipc);
