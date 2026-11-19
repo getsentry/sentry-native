@@ -37,9 +37,10 @@
 
 typedef struct {
     sem_t done; // handler -> watchdog: the sample is complete
-    volatile sig_atomic_t active; // 1 until a handler claims the sample
+    // The thread whose handler may claim the sample, or 0 when the sample is
+    // claimed or abandoned.
+    volatile pid_t waiting_tid;
     volatile sig_atomic_t running; // handlers that run in this slot
-    volatile pid_t target;
     size_t want;
     size_t count;
     void *ips[SENTRY_APP_HANG_MAX_FRAMES];
@@ -83,11 +84,12 @@ handler(int sig, siginfo_t *info, void *ucontext)
     }
     __atomic_fetch_add(&slot->running, 1, __ATOMIC_ACQ_REL);
     // A late signal can arrive after the slot was reused for another thread,
-    // or a second time on the same thread. Only the first handler on the
-    // target thread claims the sample.
-    if ((pid_t)syscall(SYS_gettid)
-            != __atomic_load_n(&slot->target, __ATOMIC_ACQUIRE)
-        || !__atomic_exchange_n(&slot->active, 0, __ATOMIC_ACQ_REL)) {
+    // or a second time on the same thread. One compare-and-swap checks the
+    // thread and claims the sample, so only the first handler on the target
+    // thread gets it.
+    pid_t expected = (pid_t)syscall(SYS_gettid);
+    if (!__atomic_compare_exchange_n(&slot->waiting_tid, &expected, 0, false,
+            __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
         __atomic_fetch_sub(&slot->running, 1, __ATOMIC_RELEASE);
         errno = saved_errno;
         return;
@@ -304,11 +306,9 @@ sentry__thread_stackwalk(
     slot->want
         = max < SENTRY_APP_HANG_MAX_FRAMES ? max : SENTRY_APP_HANG_MAX_FRAMES;
     slot->count = 0;
-    // Release: publishes the slot fields above to the handler, which reads
-    // `target` with acquire before it claims the sample. `active` is set last,
-    // so a late handler for the slot's previous thread cannot claim it.
-    __atomic_store_n(&slot->target, (pid_t)target_tid, __ATOMIC_RELEASE);
-    __atomic_store_n(&slot->active, 1, __ATOMIC_RELEASE);
+    // Release: publishes the slot fields above to the handler that claims the
+    // sample.
+    __atomic_store_n(&slot->waiting_tid, (pid_t)target_tid, __ATOMIC_RELEASE);
 
     siginfo_t info;
     memset(&info, 0, sizeof(info));
@@ -321,7 +321,7 @@ sentry__thread_stackwalk(
             SENTRY_APP_HANG_SIGNAL, &info)
         != 0) {
         const int error = errno;
-        __atomic_store_n(&slot->active, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&slot->waiting_tid, 0, __ATOMIC_RELEASE);
         SENTRY_DEBUGF("app-hang: rt_tgsigqueueinfo(%d) failed: %s",
             (int)target_tid, strerror(error));
         return 0;
@@ -331,7 +331,7 @@ sentry__thread_stackwalk(
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
     if (!wait_for(&slot->uctx_ready, &deadline)) {
         // Abandon the slot. A handler that parks later is released at once.
-        __atomic_store_n(&slot->active, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&slot->waiting_tid, 0, __ATOMIC_RELEASE);
         slot->abort_park = 1;
         sem_post(&slot->unwind_done);
         return 0;
@@ -346,7 +346,7 @@ sentry__thread_stackwalk(
 #    else
     if (!wait_for(&slot->done, &deadline)) {
         // Abandon the slot: a late handler writes only into it.
-        __atomic_store_n(&slot->active, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&slot->waiting_tid, 0, __ATOMIC_RELEASE);
         return 0;
     }
     size_t n = slot->count < max ? slot->count : max;
