@@ -86,7 +86,7 @@ handler(int sig, siginfo_t *info, void *ucontext)
     // or a second time on the same thread. Only the first handler on the
     // target thread claims the sample.
     if ((pid_t)syscall(SYS_gettid)
-            != __atomic_load_n(&slot->target, __ATOMIC_RELAXED)
+            != __atomic_load_n(&slot->target, __ATOMIC_ACQUIRE)
         || !__atomic_exchange_n(&slot->active, 0, __ATOMIC_ACQ_REL)) {
         __atomic_fetch_sub(&slot->running, 1, __ATOMIC_RELEASE);
         errno = saved_errno;
@@ -304,9 +304,10 @@ sentry__thread_stackwalk(
     slot->want
         = max < SENTRY_APP_HANG_MAX_FRAMES ? max : SENTRY_APP_HANG_MAX_FRAMES;
     slot->count = 0;
-    __atomic_store_n(&slot->target, (pid_t)target_tid, __ATOMIC_RELAXED);
-    // Release: publishes the slot fields above to the handler, which claims
-    // the sample with an acquire exchange on `active`.
+    // Release: publishes the slot fields above to the handler, which reads
+    // `target` with acquire before it claims the sample. `active` is set last,
+    // so a late handler for the slot's previous thread cannot claim it.
+    __atomic_store_n(&slot->target, (pid_t)target_tid, __ATOMIC_RELEASE);
     __atomic_store_n(&slot->active, 1, __ATOMIC_RELEASE);
 
     siginfo_t info;
