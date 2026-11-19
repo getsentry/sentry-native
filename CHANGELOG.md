@@ -5,11 +5,11 @@
 **Features**:
 
 - Session replay: add user input events (such as mouse clicks and touches) provided in the replay sidecar to the replay recording. ([#2288](https://github.com/getsentry/sentry-native/pull/2288))
-- Add `sentry_options_set_app_hang_attach_all_threads` to attach the stack traces of all threads to app-hang events. ([#TBD](https://github.com/getsentry/sentry-native/pull/TBD))
+- Add `sentry_options_set_app_hang_attach_all_threads` to attach the stack traces of all threads to app-hang events. ([#2327](https://github.com/getsentry/sentry-native/pull/2327))
 
 **Fixes**:
 
-- Windows x64: App-hang detection no longer uses dbghelp or the loader's function table lock to unwind a suspended thread, so it cannot deadlock when that thread holds one of these locks. ([#TBD](https://github.com/getsentry/sentry-native/pull/TBD))
+- Windows x64: App-hang detection no longer uses dbghelp or the loader's function table lock to unwind a suspended thread, so it cannot deadlock when that thread holds one of these locks. ([#2327](https://github.com/getsentry/sentry-native/pull/2327))
 - Crashpad/Windows: Breadcrumb and scope IPC updates time out after 5 seconds instead of blocking forever on a stalled handler. ([#2280](https://github.com/getsentry/sentry-native/pull/2280), [crashpad#178](https://github.com/getsentry/crashpad/pull/178))
 - Crashpad/Linux: fix a handler crash after launching an external crash reporter. ([#2287](https://github.com/getsentry/sentry-native/pull/2287), [crashpad#179](https://github.com/getsentry/crashpad/pull/179))
 - Native/Linux: fix incorrect fault addresses in minidumps on 32-bit systems when the address has its highest bit set, and remove pointer-width compiler warnings. ([#2305](https://github.com/getsentry/sentry-native/pull/2305))
