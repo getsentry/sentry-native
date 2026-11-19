@@ -30,9 +30,9 @@
 
 #    define SENTRY_APP_HANG_SIGNAL (SIGRTMIN + 4)
 
-// Each sample uses its own slot, and the signal carries the slot's address. A
-// handler that runs after its sample timed out writes only to its own slot,
-// which nobody reads anymore. A slot is reused only when no handler runs in it.
+// Each sample uses its own slot. A handler that runs after its sample timed
+// out writes only to its own slot, which nobody reads anymore. A slot is reused
+// only when no handler runs in it.
 #    define SENTRY_APP_HANG_SAMPLE_SLOTS 8
 
 typedef struct {
@@ -55,17 +55,22 @@ typedef struct {
 static sample_slot_t g_slots[SENTRY_APP_HANG_SAMPLE_SLOTS];
 static size_t g_next_slot = 0;
 
-// Accepts only signals that this file sent: they carry a slot address.
+// Claims the slot that waits for the calling thread. One compare-and-swap
+// checks the thread and claims the sample, so a late or repeated signal
+// cannot claim a sample that belongs to another thread or was already taken.
 static sample_slot_t *
-slot_from_signal(const siginfo_t *info)
+claim_slot(void)
 {
-    if (!info || info->si_code != SI_QUEUE) {
-        return NULL;
-    }
+    const pid_t tid = (pid_t)syscall(SYS_gettid);
     for (size_t i = 0; i < SENTRY_APP_HANG_SAMPLE_SLOTS; i++) {
-        if (info->si_value.sival_ptr == &g_slots[i]) {
-            return &g_slots[i];
+        sample_slot_t *slot = &g_slots[i];
+        __atomic_fetch_add(&slot->running, 1, __ATOMIC_ACQ_REL);
+        pid_t expected = tid;
+        if (__atomic_compare_exchange_n(&slot->waiting_tid, &expected, 0, false,
+                __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
+            return slot;
         }
+        __atomic_fetch_sub(&slot->running, 1, __ATOMIC_RELEASE);
     }
     return NULL;
 }
@@ -74,25 +79,14 @@ static void
 handler(int sig, siginfo_t *info, void *ucontext)
 {
     (void)sig;
+    (void)info;
     // The handler interrupts arbitrary code on the target thread; preserve its
     // errno so the calls below (sem_*, unw_*) don't leak a value back to it.
     const int saved_errno = errno;
-    sample_slot_t *slot = slot_from_signal(info);
+    sample_slot_t *slot = claim_slot();
     if (!slot) {
         errno = saved_errno;
-        return;
-    }
-    __atomic_fetch_add(&slot->running, 1, __ATOMIC_ACQ_REL);
-    // A late signal can arrive after the slot was reused for another thread,
-    // or a second time on the same thread. One compare-and-swap checks the
-    // thread and claims the sample, so only the first handler on the target
-    // thread gets it.
-    pid_t expected = (pid_t)syscall(SYS_gettid);
-    if (!__atomic_compare_exchange_n(&slot->waiting_tid, &expected, 0, false,
-            __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
-        __atomic_fetch_sub(&slot->running, 1, __ATOMIC_RELEASE);
-        errno = saved_errno;
-        return;
+        return; // stray/late delivery; ignore
     }
     size_t n = 0;
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWIND)
@@ -225,10 +219,12 @@ deadline_after(uint64_t timeout_ms)
     return ts;
 }
 
-// A thread that blocks the sampling signal never runs the handler: waiting
-// for it would only use up the timeout and leave a signal queued on it.
+// A signal from an earlier sample is still pending on a thread that blocks the
+// signal or does not run. Waiting for it again would only use up the timeout
+// and queue one more signal. `SigBlk` cannot be used instead: tools such as
+// valgrind block all signals of every thread in the kernel.
 static bool
-is_signal_blocked(uint64_t tid)
+is_signal_pending(uint64_t tid)
 {
     // Reads with open/read and a stack buffer: this runs before every sample,
     // and stdio would allocate.
@@ -246,13 +242,13 @@ is_signal_blocked(uint64_t tid)
         return false;
     }
     status[len] = '\0';
-    const char *sig_blk = strstr(status, "SigBlk:");
-    if (!sig_blk) {
+    const char *sig_pnd = strstr(status, "SigPnd:");
+    if (!sig_pnd) {
         return false;
     }
-    unsigned long long blocked
-        = strtoull(sig_blk + sizeof("SigBlk:") - 1, NULL, 16);
-    return blocked & (1ULL << (SENTRY_APP_HANG_SIGNAL - 1));
+    unsigned long long pending
+        = strtoull(sig_pnd + sizeof("SigPnd:") - 1, NULL, 16);
+    return pending & (1ULL << (SENTRY_APP_HANG_SIGNAL - 1));
 }
 
 // Returns a slot that no handler runs in, after clearing what a timed-out
@@ -294,7 +290,7 @@ size_t
 sentry__thread_stackwalk(
     uint64_t target_tid, void **ips, size_t max, uint64_t timeout_ms)
 {
-    if (!ensure_installed() || is_signal_blocked(target_tid)) {
+    if (!ensure_installed() || is_signal_pending(target_tid)) {
         return 0;
     }
     sample_slot_t *slot = acquire_slot();
@@ -310,20 +306,12 @@ sentry__thread_stackwalk(
     // sample.
     __atomic_store_n(&slot->waiting_tid, (pid_t)target_tid, __ATOMIC_RELEASE);
 
-    siginfo_t info;
-    memset(&info, 0, sizeof(info));
-    info.si_signo = SENTRY_APP_HANG_SIGNAL;
-    info.si_code = SI_QUEUE;
-    info.si_pid = getpid();
-    info.si_uid = getuid();
-    info.si_value.sival_ptr = slot;
-    if (syscall(SYS_rt_tgsigqueueinfo, getpid(), (pid_t)target_tid,
-            SENTRY_APP_HANG_SIGNAL, &info)
+    if (syscall(SYS_tgkill, getpid(), (pid_t)target_tid, SENTRY_APP_HANG_SIGNAL)
         != 0) {
         const int error = errno;
         __atomic_store_n(&slot->waiting_tid, 0, __ATOMIC_RELEASE);
-        SENTRY_DEBUGF("app-hang: rt_tgsigqueueinfo(%d) failed: %s",
-            (int)target_tid, strerror(error));
+        SENTRY_DEBUGF("app-hang: tgkill(%d) failed: %s", (int)target_tid,
+            strerror(error));
         return 0;
     }
 
