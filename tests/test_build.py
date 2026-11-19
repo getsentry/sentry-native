@@ -37,9 +37,10 @@ def _assert_shared_version(directory):
         output = subprocess.check_output(
             ["otool", "-L", directory / real_name], text=True
         )
-        assert abi_name in output
-        assert f"compatibility version {major}.0.0" in output
-        assert f"current version {SENTRY_VERSION_BASE}" in output
+        assert (
+            f"{abi_name} (compatibility version {major}.0.0, "
+            f"current version {SENTRY_VERSION_BASE})"
+        ) in output
     elif sys.platform == "win32":
         dll = directory / lib_name("sentry")
         with dll.open("rb") as binary:
