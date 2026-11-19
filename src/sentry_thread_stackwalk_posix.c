@@ -38,6 +38,10 @@ static volatile sig_atomic_t g_want = 0;
 // sample that timed out runs the handler on another thread: it must not touch
 // the state of the current sample.
 static volatile pid_t g_target = 0;
+// Handlers that are running. A handler can still be running after its sample
+// timed out, and it writes the shared sample state, so a new sample waits for
+// it to finish.
+static volatile sig_atomic_t g_running_handlers = 0;
 
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
 static sem_t g_uctx_ready; // handler -> watchdog: parked, uctx valid
@@ -55,9 +59,11 @@ handler(int sig, siginfo_t *info, void *ucontext)
     // The handler interrupts arbitrary code on the target thread; preserve its
     // errno so the calls below (sem_*, unw_*) don't leak a value back to it.
     const int saved_errno = errno;
+    __atomic_fetch_add(&g_running_handlers, 1, __ATOMIC_ACQ_REL);
     if (!__atomic_load_n(&g_active, __ATOMIC_ACQUIRE)
         || (pid_t)syscall(SYS_gettid)
             != __atomic_load_n(&g_target, __ATOMIC_RELAXED)) {
+        __atomic_fetch_sub(&g_running_handlers, 1, __ATOMIC_RELEASE);
         errno = saved_errno;
         return; // stray/late delivery; ignore
     }
@@ -106,6 +112,7 @@ handler(int sig, siginfo_t *info, void *ucontext)
     __atomic_store_n(&g_count, (sig_atomic_t)n, __ATOMIC_RELAXED);
     __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
     sem_post(&g_done);
+    __atomic_fetch_sub(&g_running_handlers, 1, __ATOMIC_RELEASE);
     errno = saved_errno;
 }
 
@@ -210,11 +217,26 @@ is_signal_blocked(uint64_t tid)
     return found && (blocked & (1ULL << (SENTRY_APP_HANG_SIGNAL - 1)));
 }
 
+static bool
+wait_for_running_handlers(uint64_t timeout_ms)
+{
+    const struct timespec poll = { 0, 1000000L };
+    for (uint64_t waited = 0;
+        __atomic_load_n(&g_running_handlers, __ATOMIC_ACQUIRE) != 0; waited++) {
+        if (waited >= timeout_ms) {
+            return false;
+        }
+        nanosleep(&poll, NULL);
+    }
+    return true;
+}
+
 size_t
 sentry__thread_stackwalk(
     uint64_t target_tid, void **ips, size_t max, uint64_t timeout_ms)
 {
-    if (!ensure_installed() || is_signal_blocked(target_tid)) {
+    if (!ensure_installed() || is_signal_blocked(target_tid)
+        || !wait_for_running_handlers(timeout_ms)) {
         return 0;
     }
     // A signal from a previously timed-out sample may still be queued. Drain
