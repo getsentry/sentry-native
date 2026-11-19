@@ -12,6 +12,7 @@
 - Crashpad/Linux: fix a handler crash after launching an external crash reporter. ([#2287](https://github.com/getsentry/sentry-native/pull/2287), [crashpad#179](https://github.com/getsentry/crashpad/pull/179))
 - Native/Linux: fix incorrect fault addresses in minidumps on 32-bit systems when the address has its highest bit set, and remove pointer-width compiler warnings. ([#2305](https://github.com/getsentry/sentry-native/pull/2305))
 - Windows: The thread stack guarantee warning now reports the actual stack reserve factor instead of repeating the expected one. ([#2313](https://github.com/getsentry/sentry-native/pull/2313))
+- Crashpad: fix a handler crash (debug) and memory leak (release) when a crash-report upload fails partway. ([crashpad#180](https://github.com/getsentry/crashpad/pull/180))
 
 **Thank you**:
 
