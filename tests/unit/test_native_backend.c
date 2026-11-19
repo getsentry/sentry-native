@@ -52,7 +52,9 @@ count_sent_envelopes(sentry_envelope_t *envelope, void *state)
 
 #if defined(SENTRY_PLATFORM_LINUX)
 #    include <fcntl.h>
+#    include <linux/sockios.h>
 #    include <stdlib.h>
+#    include <sys/ioctl.h>
 #    include <sys/stat.h>
 #    include <sys/wait.h>
 #    include <unistd.h>
@@ -1896,6 +1898,15 @@ SENTRY_TEST(crash_daemon_shutdown_during_crash)
     }
     TEST_CHECK(sentry__crash_ipc_wait_for_ready(
         ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS));
+    // wait until the daemon has read SHUTDOWN
+    int queued = -1;
+    for (int i = 0; i < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS / 10; i++) {
+        if (ioctl(ipc->message_fd[0], SIOCOUTQ, &queued) != 0 || queued == 0) {
+            break;
+        }
+        sleep_ms(10);
+    }
+    TEST_CHECK_INT_EQUAL(queued, 0);
     sleep_ms(100);
     TEST_CHECK_INT_EQUAL(waitpid(child, NULL, WNOHANG), 0);
 
