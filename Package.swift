@@ -14,6 +14,7 @@ let package = Package(
       name: "SentryNative",
       dependencies: ["SentryUnwind"],
       path: ".",
+      exclude: ["external"],
       sources: [
         "src/sentry_alloc.c",
         "src/sentry_app_hang_latch.c",
@@ -99,6 +100,7 @@ let package = Package(
     .target(
       name: "SentryUnwind",
       path: ".",
+      exclude: ["external"],
       // Wrappers select target architecture in the C preprocessor, not the manifest host.
       // Exclude src/unwind, which implements the runtime's C++ exception ABI.
       sources: [
