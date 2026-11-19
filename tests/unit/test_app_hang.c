@@ -4,10 +4,15 @@
 #include "sentry_testsupport.h"
 #include "sentry_thread_stackwalk.h"
 
+// The module loading test needs a module that really loads and unloads.
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include <windows.h>
-#else
+#    define SENTRY_TEST_MODULE_LOADING 1
+#elif defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
 #    include <dlfcn.h>
+#    define SENTRY_TEST_MODULE_LOADING 1
+#else
+#    define SENTRY_TEST_MODULE_LOADING 0
 #endif
 
 SENTRY_TEST(app_hang_should_capture)
@@ -402,7 +407,8 @@ SENTRY_TEST(app_hang_with_all_threads)
     TEST_CHECK(g_all_threads.others_with_frames >= 1);
 }
 
-#define STRESS_CAPTURES 50
+#if SENTRY_HAS_THREAD_STACKWALK && SENTRY_TEST_MODULE_LOADING
+#    define STRESS_CAPTURES 50
 
 static volatile long g_stress_events;
 static volatile long g_stress_keep_loading;
@@ -422,17 +428,17 @@ module_loader(void *arg)
 {
     (void)arg;
     while (sentry__atomic_fetch(&g_stress_keep_loading)) {
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#    if defined(SENTRY_PLATFORM_WINDOWS)
         HMODULE module = LoadLibraryA("winmm.dll");
         if (module) {
             FreeLibrary(module);
         }
-#else
+#    else
         void *handle = dlopen("libz.so.1", RTLD_NOW);
         if (handle) {
             dlclose(handle);
         }
-#endif
+#    endif
     }
     return 0;
 }
@@ -451,13 +457,15 @@ repeatedly_hung(void *arg)
     return 0;
 }
 
+#endif
+
 // A thread can be suspended while it holds the loader lock. The walk must not
 // wait for that lock, or the watchdog and the suspended thread hang forever.
 SENTRY_TEST(app_hang_all_threads_during_module_loading)
 {
-#if !SENTRY_HAS_THREAD_STACKWALK
+#if !SENTRY_HAS_THREAD_STACKWALK || !SENTRY_TEST_MODULE_LOADING
     SKIP_TEST();
-#endif
+#else
     g_stress_events = 0;
     sentry__atomic_store(&g_stress_keep_loading, 1);
     sentry__app_hang_latch_reset();
@@ -481,4 +489,5 @@ SENTRY_TEST(app_hang_all_threads_during_module_loading)
     sentry_close();
 
     TEST_CHECK(sentry__atomic_fetch(&g_stress_events) == STRESS_CAPTURES);
+#endif
 }
