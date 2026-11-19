@@ -4,6 +4,11 @@
 #include "sentry_testsupport.h"
 #include "sentry_thread_stackwalk.h"
 
+#if defined(SENTRY_PLATFORM_LINUX)
+#    include <stdlib.h>
+#    include <string.h>
+#endif
+
 // The module loading test covers the Windows loader lock, which a suspended
 // thread can hold. It needs the lock-free unwinder.
 #if SENTRY_HAS_THREAD_LIST && defined(SENTRY_PLATFORM_WINDOWS)
@@ -403,10 +408,13 @@ SENTRY_TEST(app_hang_with_all_threads)
     TEST_CHECK(!g_all_threads.crashed_has_stacktrace);
     // The test runner thread. Under valgrind, a signal can reach it later than
     // the short wait for threads other than the hung one.
+#if defined(SENTRY_PLATFORM_LINUX)
     const char *analyzer = getenv("RUN_ANALYZER");
-    if (!analyzer || !strstr(analyzer, "valgrind")) {
-        TEST_CHECK(g_all_threads.others_with_frames >= 1);
+    if (analyzer && strstr(analyzer, "valgrind")) {
+        return;
     }
+#endif
+    TEST_CHECK(g_all_threads.others_with_frames >= 1);
 }
 
 #if SENTRY_HAS_THREAD_LIST && SENTRY_TEST_MODULE_LOADING
