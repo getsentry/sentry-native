@@ -9,6 +9,7 @@
 
 #    include <dirent.h>
 #    include <errno.h>
+#    include <fcntl.h>
 #    include <semaphore.h>
 #    include <signal.h>
 #    include <stdio.h>
@@ -200,21 +201,29 @@ deadline_after(uint64_t timeout_ms)
 static bool
 is_signal_blocked(uint64_t tid)
 {
+    // Reads with open/read and a stack buffer: this runs before every sample,
+    // and stdio would allocate.
     char status_path[64];
     snprintf(status_path, sizeof(status_path), "/proc/self/task/%llu/status",
         (unsigned long long)tid);
-    FILE *status_file = fopen(status_path, "r");
-    if (!status_file) {
+    int fd = open(status_path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
         return false;
     }
-    char line[128];
-    unsigned long long blocked = 0;
-    bool found = false;
-    while (!found && fgets(line, sizeof(line), status_file)) {
-        found = sscanf(line, "SigBlk: %llx", &blocked) == 1;
+    char status[2048];
+    ssize_t len = read(fd, status, sizeof(status) - 1);
+    close(fd);
+    if (len <= 0) {
+        return false;
     }
-    fclose(status_file);
-    return found && (blocked & (1ULL << (SENTRY_APP_HANG_SIGNAL - 1)));
+    status[len] = '\0';
+    const char *sig_blk = strstr(status, "SigBlk:");
+    if (!sig_blk) {
+        return false;
+    }
+    unsigned long long blocked
+        = strtoull(sig_blk + sizeof("SigBlk:") - 1, NULL, 16);
+    return blocked & (1ULL << (SENTRY_APP_HANG_SIGNAL - 1));
 }
 
 static bool
