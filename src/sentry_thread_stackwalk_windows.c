@@ -10,7 +10,9 @@
 #    include <string.h>
 #    include <windows.h>
 
-#    include <tlhelp32.h>
+#    if !defined(SENTRY_PLATFORM_XBOX)
+#        include <tlhelp32.h>
+#    endif
 
 #    if defined(_MSC_VER) && defined(_M_X64)
 #        define SENTRY_THREAD_STACKWALK_RTL_UNWIND 1
@@ -171,41 +173,47 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
     return n;
 }
 
-typedef HRESULT(WINAPI *GetThreadDescriptionProc)(HANDLE, PWSTR *);
-
-static void
-get_thread_name(DWORD tid, char *out, size_t out_size)
+#    if defined(SENTRY_PLATFORM_XBOX)
+// ToolHelp32 is not part of the gaming partition.
+size_t
+sentry__thread_list(sentry_thread_info_t *out, size_t max)
 {
-    static GetThreadDescriptionProc get_description = NULL;
-    static bool resolved = false;
-    if (!resolved) {
-        // Windows 10 1607 and later only.
-        HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
-        if (kernel32) {
-            get_description = (GetThreadDescriptionProc)(void *)GetProcAddress(
-                kernel32, "GetThreadDescription");
-        }
-        resolved = true;
+    (void)out;
+    (void)max;
+    return 0;
+}
+#    else
+/**
+ * Retrieve the thread name via GetThreadDescription (Windows 10 1607+).
+ */
+static void
+get_thread_name(DWORD tid, char *name, size_t name_size)
+{
+    typedef HRESULT(WINAPI * GetThreadDescription_t)(HANDLE, PWSTR *);
+    static GetThreadDescription_t get_thread_description
+        = (GetThreadDescription_t)-1;
+    if (get_thread_description == (GetThreadDescription_t)-1) {
+        get_thread_description = (GetThreadDescription_t)GetProcAddress(
+            GetModuleHandleW(L"kernel32.dll"), "GetThreadDescription");
     }
-    out[0] = '\0';
-    if (!get_description) {
+
+    name[0] = '\0';
+    if (!get_thread_description) {
         return;
     }
-
-    HANDLE h = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, tid);
-    if (!h) {
+    HANDLE thread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, tid);
+    if (!thread) {
         return;
     }
     PWSTR description = NULL;
-    if (SUCCEEDED(get_description(h, &description)) && description) {
-        if (WideCharToMultiByte(
-                CP_UTF8, 0, description, -1, out, (int)out_size, NULL, NULL)
-            == 0) {
-            out[0] = '\0';
-        }
-        LocalFree(description);
+    HRESULT hr = get_thread_description(thread, &description);
+    if (SUCCEEDED(hr) && description && description[0] != L'\0') {
+        WideCharToMultiByte(
+            CP_UTF8, 0, description, -1, name, (int)name_size, NULL, NULL);
+        name[name_size - 1] = '\0';
     }
-    CloseHandle(h);
+    LocalFree(description);
+    CloseHandle(thread);
 }
 
 size_t
@@ -234,5 +242,6 @@ sentry__thread_list(sentry_thread_info_t *out, size_t max)
     CloseHandle(snapshot);
     return count;
 }
+#    endif
 
 #endif

@@ -74,26 +74,18 @@ stackwalk_thread(uint64_t tid, void **ips, size_t max)
 }
 
 static const char *
-find_thread_name(
-    const sentry_thread_info_t *threads, size_t count, uint64_t tid)
+thread_name(const sentry_thread_info_t *threads, size_t count, uint64_t tid)
 {
     for (size_t i = 0; i < count; i++) {
         if (threads[i].tid == tid) {
-            return threads[i].name;
+            return threads[i].name[0] ? threads[i].name : NULL;
         }
     }
     return NULL;
 }
 
-static sentry_value_t
-new_thread_value(uint64_t tid, const char *name)
-{
-    return sentry_value_new_thread(tid, name && name[0] ? name : NULL);
-}
-
-// Walks every thread except the watchdog and the hung thread and adds them to
-// the event. The hung thread is added without a stack trace: its stack is on
-// the exception, which `thread_id` links to the `crashed` thread.
+// Adds every thread except the watchdog to the event. The hung thread gets no
+// stack trace: its stack is on the exception, which `thread_id` links to it.
 static void
 add_all_threads(sentry_value_t event, uint64_t hung_tid)
 {
@@ -109,16 +101,16 @@ add_all_threads(sentry_value_t event, uint64_t hung_tid)
         return;
     }
 
-    sentry_value_t exceptions = sentry_value_get_by_key(event, "exception");
-    sentry_value_t exc = sentry_value_get_by_index(
-        sentry_value_get_by_key(exceptions, "values"), 0);
-    char id_buf[32];
-    snprintf(id_buf, sizeof(id_buf), "%llu", (unsigned long long)hung_tid);
-    sentry_value_set_by_key(exc, "thread_id", sentry_value_new_string(id_buf));
-
-    sentry_value_t hung = new_thread_value(
-        hung_tid, find_thread_name(threads, count, hung_tid));
+    sentry_value_t hung = sentry_value_new_thread(
+        hung_tid, thread_name(threads, count, hung_tid));
     sentry_value_set_by_key(hung, "crashed", sentry_value_new_bool(true));
+    sentry_value_t hung_id = sentry_value_get_by_key(hung, "id");
+    sentry_value_incref(hung_id);
+    sentry_value_t exc = sentry_value_get_by_index(
+        sentry_value_get_by_key(
+            sentry_value_get_by_key(event, "exception"), "values"),
+        0);
+    sentry_value_set_by_key(exc, "thread_id", hung_id);
     sentry_event_add_thread(event, hung);
 
     const uint64_t self_tid = sentry__app_hang_current_tid();
@@ -131,7 +123,8 @@ add_all_threads(sentry_value_t event, uint64_t hung_tid)
         if (tid == hung_tid || tid == self_tid) {
             continue;
         }
-        sentry_value_t thread = new_thread_value(tid, threads[i].name);
+        sentry_value_t thread = sentry_value_new_thread(
+            tid, threads[i].name[0] ? threads[i].name : NULL);
         if (sentry__monotonic_time() < deadline) {
             size_t n = stackwalk_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES);
             if (n > 0) {

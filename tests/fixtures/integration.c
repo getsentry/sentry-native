@@ -739,22 +739,6 @@ run_threads(thread_func_t func)
         CloseHandle(threads[t]);
     }
 }
-
-DWORD WINAPI
-app_hang_worker_func(LPVOID lpParam)
-{
-    (void)lpParam;
-    sleep_s(3);
-    return 0;
-}
-
-static void
-wait_for_app_hang_worker(void)
-{
-    HANDLE thread = CreateThread(NULL, 0, app_hang_worker_func, NULL, 0, NULL);
-    WaitForSingleObject(thread, INFINITE);
-    CloseHandle(thread);
-}
 #else
 typedef void *(*thread_func_t)(void *);
 
@@ -791,22 +775,6 @@ run_threads(thread_func_t func)
     for (int t = 0; t < NUM_THREADS; t++) {
         pthread_join(threads[t], NULL);
     }
-}
-
-void *
-app_hang_worker_func(void *arg)
-{
-    (void)arg;
-    sleep_s(3);
-    return NULL;
-}
-
-static void
-wait_for_app_hang_worker(void)
-{
-    pthread_t thread;
-    pthread_create(&thread, NULL, app_hang_worker_func, NULL);
-    pthread_join(thread, NULL);
 }
 #endif
 
@@ -865,10 +833,6 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "app-hang")) {
         sentry_options_set_enable_app_hang_tracking(options, 1);
         sentry_options_set_app_hang_timeout(options, 1000);
-    }
-
-    if (has_arg(argc, argv, "app-hang-all-threads")) {
-        sentry_options_set_app_hang_attach_all_threads(options, 1);
     }
 
     if (has_arg(argc, argv, "attach-stacktrace")) {
@@ -1419,13 +1383,7 @@ main(int argc, char **argv)
 
         // Block the monitored thread past the configured timeout so the
         // watchdog samples this hung thread and captures an AppHang event.
-        // With all threads attached, wait on a worker thread instead, so the
-        // event shows the thread that the hung thread waits on.
-        if (has_arg(argc, argv, "app-hang-all-threads")) {
-            wait_for_app_hang_worker();
-        } else {
-            sleep_s(3);
-        }
+        sleep_s(3);
 
         printf("app-hang: finishing\n");
         fflush(stdout);

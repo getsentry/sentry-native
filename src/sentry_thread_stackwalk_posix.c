@@ -9,7 +9,6 @@
 
 #    include <dirent.h>
 #    include <errno.h>
-#    include <fcntl.h>
 #    include <semaphore.h>
 #    include <signal.h>
 #    include <stdio.h>
@@ -258,26 +257,22 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
 }
 
 static void
-read_thread_name(uint64_t tid, char *out, size_t out_size)
+read_thread_name(const char *tid, char *name, size_t name_size)
 {
-    out[0] = '\0';
-    char path[64];
-    snprintf(path, sizeof(path), "/proc/self/task/%llu/comm",
-        (unsigned long long)tid);
-    int fd = open(path, O_RDONLY | O_CLOEXEC);
-    if (fd < 0) {
+    name[0] = '\0';
+    char comm_path[64];
+    snprintf(comm_path, sizeof(comm_path), "/proc/self/task/%.16s/comm", tid);
+    FILE *comm_file = fopen(comm_path, "r");
+    if (!comm_file) {
         return;
     }
-    ssize_t len = read(fd, out, out_size - 1);
-    close(fd);
-    if (len <= 0) {
-        out[0] = '\0';
-        return;
+    if (fgets(name, (int)name_size, comm_file)) {
+        size_t len = strlen(name);
+        if (len > 0 && name[len - 1] == '\n') {
+            name[len - 1] = '\0';
+        }
     }
-    out[len] = '\0';
-    if (out[len - 1] == '\n') {
-        out[len - 1] = '\0';
-    }
+    fclose(comm_file);
 }
 
 size_t
@@ -289,15 +284,13 @@ sentry__thread_list(sentry_thread_info_t *out, size_t max)
     }
     size_t count = 0;
     struct dirent *entry;
-    while (count < max && (entry = readdir(dir)) != NULL) {
-        char *end = NULL;
-        unsigned long long tid = strtoull(entry->d_name, &end, 10);
-        if (end == entry->d_name || *end != '\0' || tid == 0) {
-            continue; // "." and ".."
+    while (count < max && (entry = readdir(dir))) {
+        if (entry->d_name[0] == '.') {
+            continue;
         }
-        out[count].tid = (uint64_t)tid;
+        out[count].tid = strtoull(entry->d_name, NULL, 10);
         read_thread_name(
-            out[count].tid, out[count].name, sizeof(out[count].name));
+            entry->d_name, out[count].name, sizeof(out[count].name));
         count++;
     }
     closedir(dir);
