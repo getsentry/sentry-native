@@ -469,6 +469,9 @@ SENTRY_TEST(app_hang_all_threads_during_module_loading)
     sentry_options_set_app_hang_timeout(options, 50);
     sentry_options_set_app_hang_attach_all_threads(options, 1);
     sentry_init(options);
+    // The module finder reads the headers of every loaded module once. Build
+    // the list before the loader starts, so it does not race with an unload.
+    sentry_value_decref(sentry_get_modules_list());
 
     sentry_threadid_t loader;
     sentry__thread_spawn(&loader, module_loader, NULL);
