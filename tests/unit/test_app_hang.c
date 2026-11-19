@@ -4,8 +4,9 @@
 #include "sentry_testsupport.h"
 #include "sentry_thread_stackwalk.h"
 
-// The module loading test needs a module that really loads and unloads.
-#if defined(SENTRY_PLATFORM_WINDOWS)
+// The module loading test needs a module that really loads and unloads, and
+// on Windows the lock-free unwinder.
+#if SENTRY_THREAD_STACKWALK_RTL_UNWIND
 #    include <windows.h>
 #    define SENTRY_TEST_MODULE_LOADING 1
 #elif defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)

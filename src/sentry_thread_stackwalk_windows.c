@@ -14,12 +14,6 @@
 #        include <tlhelp32.h>
 #    endif
 
-#    if defined(_MSC_VER) && defined(_M_X64)
-#        define SENTRY_THREAD_STACKWALK_RTL_UNWIND 1
-#    else
-#        define SENTRY_THREAD_STACKWALK_RTL_UNWIND 0
-#    endif
-
 #    if SENTRY_THREAD_STACKWALK_RTL_UNWIND
 // Not in the SDK headers: the low bit of `UnwindData` marks an entry that
 // points to another `RUNTIME_FUNCTION` instead of to unwind info.

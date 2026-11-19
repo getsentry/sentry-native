@@ -15,6 +15,15 @@
 #    define SENTRY_HAS_THREAD_STACKWALK 0
 #endif
 
+// Windows x64 (MSVC) unwinds suspended threads without taking any lock. Other
+// Windows targets use dbghelp, which can block on a lock that the suspended
+// thread holds.
+#if defined(SENTRY_PLATFORM_WINDOWS) && defined(_MSC_VER) && defined(_M_X64)
+#    define SENTRY_THREAD_STACKWALK_RTL_UNWIND 1
+#else
+#    define SENTRY_THREAD_STACKWALK_RTL_UNWIND 0
+#endif
+
 #if SENTRY_HAS_THREAD_STACKWALK
 // Captures the call stack of another thread by suspending it, walking its
 // stack, and writing the instruction pointers into `ips_out` (IPs only; no
