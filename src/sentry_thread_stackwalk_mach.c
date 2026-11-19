@@ -43,12 +43,12 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
     }
 
     size_t n = 0;
+    kern_return_t kr = KERN_SUCCESS;
     if (thread_suspend(target) == KERN_SUCCESS) {
         // Capture register state into a ucontext and unwind via the existing
         // local unwinder. IPs only; no symbolication while suspended.
         _STRUCT_MCONTEXT mctx;
         memset(&mctx, 0, sizeof(mctx));
-        kern_return_t kr;
 #    if defined(__aarch64__)
         mach_msg_type_number_t sc = ARM_THREAD_STATE64_COUNT;
         kr = thread_get_state(
@@ -68,12 +68,52 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
             memset(&s, 0, sizeof(s));
             s.user_context = &uc;
             n = sentry_unwind_stack_from_ucontext(&s, ips, max);
-        } else {
-            SENTRY_DEBUGF("app-hang: thread_get_state failed: %d", kr);
         }
         thread_resume(target); // ALWAYS resume
     }
     mach_port_deallocate(task, target);
+    // Log only after the resume: the logger can take a lock that the
+    // suspended thread holds.
+    if (kr != KERN_SUCCESS) {
+        SENTRY_DEBUGF("app-hang: thread_get_state failed: %d", kr);
+    }
+    return n;
+}
+
+size_t
+sentry__thread_list(sentry_thread_info_t *out, size_t max)
+{
+    task_t task = mach_task_self();
+    thread_act_array_t threads = NULL;
+    mach_msg_type_number_t count = 0;
+    if (task_threads(task, &threads, &count) != KERN_SUCCESS) {
+        return 0;
+    }
+
+    size_t n = 0;
+    for (mach_msg_type_number_t i = 0; i < count; i++) {
+        thread_identifier_info_data_t id_info;
+        mach_msg_type_number_t id_count = THREAD_IDENTIFIER_INFO_COUNT;
+        if (n < max
+            && thread_info(threads[i], THREAD_IDENTIFIER_INFO,
+                   (thread_info_t)&id_info, &id_count)
+                == KERN_SUCCESS) {
+            out[n].tid = id_info.thread_id;
+            out[n].name[0] = '\0';
+            thread_extended_info_data_t ext_info;
+            mach_msg_type_number_t ext_count = THREAD_EXTENDED_INFO_COUNT;
+            if (thread_info(threads[i], THREAD_EXTENDED_INFO,
+                    (thread_info_t)&ext_info, &ext_count)
+                == KERN_SUCCESS) {
+                strncpy(
+                    out[n].name, ext_info.pth_name, sizeof(out[n].name) - 1);
+                out[n].name[sizeof(out[n].name) - 1] = '\0';
+            }
+            n++;
+        }
+        mach_port_deallocate(task, threads[i]);
+    }
+    vm_deallocate(task, (vm_address_t)threads, count * sizeof(thread_t));
     return n;
 }
 

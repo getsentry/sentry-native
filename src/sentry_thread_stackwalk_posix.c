@@ -7,9 +7,13 @@
 #    include "sentry_app_hang_latch.h" // SENTRY_APP_HANG_MAX_FRAMES
 #    include "sentry_logger.h"
 
+#    include <dirent.h>
 #    include <errno.h>
+#    include <fcntl.h>
 #    include <semaphore.h>
 #    include <signal.h>
+#    include <stdio.h>
+#    include <stdlib.h>
 #    include <string.h>
 #    include <sys/syscall.h>
 #    include <time.h>
@@ -31,6 +35,10 @@ static volatile sig_atomic_t g_active = 0;
 static void *g_ips[SENTRY_APP_HANG_MAX_FRAMES];
 static volatile sig_atomic_t g_count = 0;
 static volatile sig_atomic_t g_want = 0;
+// The thread that the current sample is for. A signal that arrives late from a
+// sample that timed out runs the handler on another thread: it must not touch
+// the state of the current sample.
+static volatile pid_t g_target = 0;
 
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
 static sem_t g_uctx_ready; // handler -> watchdog: parked, uctx valid
@@ -48,7 +56,9 @@ handler(int sig, siginfo_t *info, void *ucontext)
     // The handler interrupts arbitrary code on the target thread; preserve its
     // errno so the calls below (sem_*, unw_*) don't leak a value back to it.
     const int saved_errno = errno;
-    if (!__atomic_load_n(&g_active, __ATOMIC_ACQUIRE)) {
+    if (!__atomic_load_n(&g_active, __ATOMIC_ACQUIRE)
+        || (pid_t)syscall(SYS_gettid)
+            != __atomic_load_n(&g_target, __ATOMIC_RELAXED)) {
         errno = saved_errno;
         return; // stray/late delivery; ignore
     }
@@ -191,6 +201,7 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
                 : SENTRY_APP_HANG_MAX_FRAMES),
         __ATOMIC_RELAXED);
     __atomic_store_n(&g_count, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_target, (pid_t)target_tid, __ATOMIC_RELAXED);
     // Release: publishes the g_want/g_count writes above to the handler, which
     // observes them via the acquire-load of g_active on signal entry.
     __atomic_store_n(&g_active, 1, __ATOMIC_RELEASE);
@@ -244,6 +255,53 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
     }
     return n;
 #    endif
+}
+
+static void
+read_thread_name(uint64_t tid, char *out, size_t out_size)
+{
+    out[0] = '\0';
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/self/task/%llu/comm",
+        (unsigned long long)tid);
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return;
+    }
+    ssize_t len = read(fd, out, out_size - 1);
+    close(fd);
+    if (len <= 0) {
+        out[0] = '\0';
+        return;
+    }
+    out[len] = '\0';
+    if (out[len - 1] == '\n') {
+        out[len - 1] = '\0';
+    }
+}
+
+size_t
+sentry__thread_list(sentry_thread_info_t *out, size_t max)
+{
+    DIR *dir = opendir("/proc/self/task");
+    if (!dir) {
+        return 0;
+    }
+    size_t count = 0;
+    struct dirent *entry;
+    while (count < max && (entry = readdir(dir)) != NULL) {
+        char *end = NULL;
+        unsigned long long tid = strtoull(entry->d_name, &end, 10);
+        if (end == entry->d_name || *end != '\0' || tid == 0) {
+            continue; // "." and ".."
+        }
+        out[count].tid = (uint64_t)tid;
+        read_thread_name(
+            out[count].tid, out[count].name, sizeof(out[count].name));
+        count++;
+    }
+    closedir(dir);
+    return count;
 }
 
 #endif

@@ -3359,6 +3359,28 @@ SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout(
     const sentry_options_t *opts);
 
 /**
+ * Enables or disables attaching the stack traces of all threads to app-hang
+ * events.
+ *
+ * By default, an app-hang event only contains the stack trace of the hung
+ * thread. When enabled, the watchdog also walks every other thread of the
+ * process, so the event shows what the hung thread is waiting on (for example,
+ * a worker thread that holds a lock). The hung thread is marked as `crashed`
+ * and linked to the exception through `thread_id`.
+ *
+ * Each thread is suspended (Windows, macOS) or signaled (Linux, Android) while
+ * its stack is walked, so a capture takes longer when the process has many
+ * threads. The number of walked threads and the total walk time are limited.
+ *
+ * Disabled by default. Only has an effect if app-hang detection is enabled via
+ * `sentry_options_set_enable_app_hang_tracking`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_attach_all_threads(
+    sentry_options_t *opts, int attach_all_threads);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_app_hang_attach_all_threads(
+    const sentry_options_t *opts);
+
+/**
  * Records a heartbeat from the calling thread.
  *
  * The first call latches the calling thread as the monitored thread.

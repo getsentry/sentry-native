@@ -131,6 +131,7 @@ sentry_options_new(void)
     opts->thread_stackwalk_mode = SENTRY_THREAD_STACKWALK_MODE_ALL;
     opts->enable_app_hang_tracking = false;
     opts->app_hang_timeout = 5000;
+    opts->app_hang_attach_all_threads = false;
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
@@ -1122,6 +1123,19 @@ uint64_t
 sentry_options_get_app_hang_timeout(const sentry_options_t *opts)
 {
     return opts->app_hang_timeout;
+}
+
+void
+sentry_options_set_app_hang_attach_all_threads(
+    sentry_options_t *opts, int attach_all_threads)
+{
+    opts->app_hang_attach_all_threads = !!attach_all_threads;
+}
+
+int
+sentry_options_get_app_hang_attach_all_threads(const sentry_options_t *opts)
+{
+    return opts->app_hang_attach_all_threads;
 }
 
 void

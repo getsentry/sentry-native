@@ -23,6 +23,12 @@ struct sentry_options_s;
 // this minimum.
 #define SENTRY_APP_HANG_MIN_TIMEOUT_MS (2 * SENTRY_APP_HANG_POLL_MS)
 
+// Limits for attaching all threads to an app-hang event. Threads past the
+// count limit are dropped. Threads reached after the time budget are listed
+// without a stack trace.
+#define SENTRY_APP_HANG_MAX_THREADS 256
+#define SENTRY_APP_HANG_ALL_THREADS_BUDGET_MS 1000
+
 int sentry__app_hang_monitor_start(const struct sentry_options_s *options);
 void sentry__app_hang_monitor_stop(void);
 

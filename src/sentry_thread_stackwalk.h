@@ -21,6 +21,18 @@
 // symbolication while suspended). Returns the number of frames captured.
 size_t sentry__thread_stackwalk(
     uint64_t target_tid, void **ips_out, size_t max_frames);
+
+#    define SENTRY_THREAD_NAME_MAX 64
+
+typedef struct {
+    uint64_t tid;
+    char name[SENTRY_THREAD_NAME_MAX];
+} sentry_thread_info_t;
+
+// Lists the threads of the current process: at most `max` entries are written
+// to `out`. Thread ids use the same id space as `sentry__thread_stackwalk`.
+// Names are UTF-8 and empty when unknown. Returns the number of entries.
+size_t sentry__thread_list(sentry_thread_info_t *out, size_t max);
 #endif
 
 #endif
