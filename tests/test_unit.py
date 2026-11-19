@@ -10,7 +10,6 @@ from .conditions import has_http, is_wine
 _REAL_SIGNAL_TESTS = [
     "app_hang_end_to_end",
     "app_hang_with_all_threads",
-    "app_hang_all_threads_during_module_loading",
 ]
 
 

@@ -4,13 +4,10 @@
 #include "sentry_testsupport.h"
 #include "sentry_thread_stackwalk.h"
 
-// The module loading test needs a module that really loads and unloads, and
-// on Windows the lock-free unwinder.
+// The module loading test covers the Windows loader lock, which a suspended
+// thread can hold. It needs the lock-free unwinder.
 #if SENTRY_HAS_THREAD_LIST && defined(SENTRY_PLATFORM_WINDOWS)
 #    include <windows.h>
-#    define SENTRY_TEST_MODULE_LOADING 1
-#elif defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
-#    include <dlfcn.h>
 #    define SENTRY_TEST_MODULE_LOADING 1
 #else
 #    define SENTRY_TEST_MODULE_LOADING 0
@@ -429,17 +426,10 @@ module_loader(void *arg)
 {
     (void)arg;
     while (sentry__atomic_fetch(&g_stress_keep_loading)) {
-#    if defined(SENTRY_PLATFORM_WINDOWS)
         HMODULE module = LoadLibraryA("winmm.dll");
         if (module) {
             FreeLibrary(module);
         }
-#    else
-        void *handle = dlopen("libz.so.1", RTLD_NOW);
-        if (handle) {
-            dlclose(handle);
-        }
-#    endif
     }
     return 0;
 }

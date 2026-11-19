@@ -226,16 +226,18 @@ is_signal_blocked(uint64_t tid)
     return blocked & (1ULL << (SENTRY_APP_HANG_SIGNAL - 1));
 }
 
+// Waits in 1 ms steps and subtracts the wait from `timeout_ms`, so that the
+// whole sample stays within one timeout.
 static bool
-wait_for_running_handlers(uint64_t timeout_ms)
+wait_for_running_handlers(uint64_t *timeout_ms)
 {
     const struct timespec poll = { 0, 1000000L };
-    for (uint64_t waited = 0;
-        __atomic_load_n(&g_running_handlers, __ATOMIC_ACQUIRE) != 0; waited++) {
-        if (waited >= timeout_ms) {
+    while (__atomic_load_n(&g_running_handlers, __ATOMIC_ACQUIRE) != 0) {
+        if (*timeout_ms == 0) {
             return false;
         }
         nanosleep(&poll, NULL);
+        (*timeout_ms)--;
     }
     return true;
 }
@@ -245,7 +247,7 @@ sentry__thread_stackwalk(
     uint64_t target_tid, void **ips, size_t max, uint64_t timeout_ms)
 {
     if (!ensure_installed() || is_signal_blocked(target_tid)
-        || !wait_for_running_handlers(timeout_ms)) {
+        || !wait_for_running_handlers(&timeout_ms)) {
         return 0;
     }
     // A signal from a previously timed-out sample may still be queued. Drain
