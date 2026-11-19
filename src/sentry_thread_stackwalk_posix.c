@@ -30,43 +30,67 @@
 
 #    define SENTRY_APP_HANG_SIGNAL (SIGRTMIN + 4)
 
-static sem_t g_done;
-static volatile sig_atomic_t g_active = 0;
-static void *g_ips[SENTRY_APP_HANG_MAX_FRAMES];
-static volatile sig_atomic_t g_count = 0;
-static volatile sig_atomic_t g_want = 0;
-// The thread that the current sample is for. A signal that arrives late from a
-// sample that timed out runs the handler on another thread: it must not touch
-// the state of the current sample.
-static volatile pid_t g_target = 0;
-// Handlers that are running. A handler can still be running after its sample
-// timed out, and it writes the shared sample state, so a new sample waits for
-// it to finish.
-static volatile sig_atomic_t g_running_handlers = 0;
+// Each sample uses its own slot, and the signal carries the slot's address. A
+// handler that runs after its sample timed out writes only to its own slot,
+// which nobody reads anymore. A slot is reused only when no handler runs in it.
+#    define SENTRY_APP_HANG_SAMPLE_SLOTS 8
 
+typedef struct {
+    sem_t done; // handler -> watchdog: the sample is complete
+    volatile sig_atomic_t active; // 1 until a handler claims the sample
+    volatile sig_atomic_t running; // handlers that run in this slot
+    volatile pid_t target;
+    size_t want;
+    size_t count;
+    void *ips[SENTRY_APP_HANG_MAX_FRAMES];
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
-static sem_t g_uctx_ready; // handler -> watchdog: parked, uctx valid
-static sem_t
-    g_unwind_done; // watchdog -> handler: unwind complete, you may return
-static volatile sig_atomic_t g_abort_park = 0;
-static ucontext_t *volatile g_park_uctx = NULL;
+    sem_t uctx_ready; // handler -> watchdog: parked, uctx valid
+    sem_t unwind_done; // watchdog -> handler: unwind complete, you may return
+    volatile sig_atomic_t abort_park;
+    ucontext_t *volatile uctx;
 #    endif
+} sample_slot_t;
+
+static sample_slot_t g_slots[SENTRY_APP_HANG_SAMPLE_SLOTS];
+static size_t g_next_slot = 0;
+
+// Accepts only signals that this file sent: they carry a slot address.
+static sample_slot_t *
+slot_from_signal(const siginfo_t *info)
+{
+    if (!info || info->si_code != SI_QUEUE) {
+        return NULL;
+    }
+    for (size_t i = 0; i < SENTRY_APP_HANG_SAMPLE_SLOTS; i++) {
+        if (info->si_value.sival_ptr == &g_slots[i]) {
+            return &g_slots[i];
+        }
+    }
+    return NULL;
+}
 
 static void
 handler(int sig, siginfo_t *info, void *ucontext)
 {
     (void)sig;
-    (void)info;
     // The handler interrupts arbitrary code on the target thread; preserve its
     // errno so the calls below (sem_*, unw_*) don't leak a value back to it.
     const int saved_errno = errno;
-    __atomic_fetch_add(&g_running_handlers, 1, __ATOMIC_ACQ_REL);
-    if (!__atomic_load_n(&g_active, __ATOMIC_ACQUIRE)
-        || (pid_t)syscall(SYS_gettid)
-            != __atomic_load_n(&g_target, __ATOMIC_RELAXED)) {
-        __atomic_fetch_sub(&g_running_handlers, 1, __ATOMIC_RELEASE);
+    sample_slot_t *slot = slot_from_signal(info);
+    if (!slot) {
         errno = saved_errno;
-        return; // stray/late delivery; ignore
+        return;
+    }
+    __atomic_fetch_add(&slot->running, 1, __ATOMIC_ACQ_REL);
+    // A late signal can arrive after the slot was reused for another thread,
+    // or a second time on the same thread. Only the first handler on the
+    // target thread claims the sample.
+    if ((pid_t)syscall(SYS_gettid)
+            != __atomic_load_n(&slot->target, __ATOMIC_RELAXED)
+        || !__atomic_exchange_n(&slot->active, 0, __ATOMIC_ACQ_REL)) {
+        __atomic_fetch_sub(&slot->running, 1, __ATOMIC_RELEASE);
+        errno = saved_errno;
+        return;
     }
     size_t n = 0;
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWIND)
@@ -82,43 +106,62 @@ handler(int sig, siginfo_t *info, void *ucontext)
     if (unw_init_local2(
             &cursor, (unw_context_t *)ucontext, UNW_INIT_SIGNAL_FRAME)
         == 0) {
-        while (n < (size_t)__atomic_load_n(&g_want, __ATOMIC_RELAXED)) {
+        while (n < slot->want) {
             unw_word_t ip = 0;
             if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0 || ip == 0) {
                 break;
             }
-            g_ips[n++] = (void *)(uintptr_t)ip;
+            slot->ips[n++] = (void *)(uintptr_t)ip;
             if (unw_step(&cursor) <= 0) {
                 break;
             }
         }
     }
+    slot->count = n;
 #    elif defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
-    g_park_uctx = (ucontext_t *)ucontext;
-    sem_post(&g_uctx_ready);
+    (void)n;
+    slot->uctx = (ucontext_t *)ucontext;
+    sem_post(&slot->uctx_ready);
     for (;;) {
-        if (sem_wait(&g_unwind_done) == 0) {
+        if (sem_wait(&slot->unwind_done) == 0) {
             break;
         }
-        if (errno != EINTR || g_abort_park) {
+        if (errno != EINTR || slot->abort_park) {
             break;
         }
     }
-    g_park_uctx = NULL;
-    // watchdog wrote g_ips/g_count before releasing us
-    n = (size_t)__atomic_load_n(&g_count, __ATOMIC_RELAXED);
+    slot->uctx = NULL;
 #    else
     (void)ucontext;
+    slot->count = n;
 #    endif
-    __atomic_store_n(&g_count, (sig_atomic_t)n, __ATOMIC_RELAXED);
-    __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
-    sem_post(&g_done);
-    __atomic_fetch_sub(&g_running_handlers, 1, __ATOMIC_RELEASE);
+    sem_post(&slot->done);
+    __atomic_fetch_sub(&slot->running, 1, __ATOMIC_RELEASE);
     errno = saved_errno;
 }
 
 static bool g_installed = false;
-static bool g_sem_initialized = false;
+static size_t g_slots_initialized = 0;
+
+static bool
+init_slot(sample_slot_t *slot)
+{
+    if (sem_init(&slot->done, 0, 0) != 0) {
+        return false;
+    }
+#    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
+    if (sem_init(&slot->uctx_ready, 0, 0) != 0) {
+        sem_destroy(&slot->done);
+        return false;
+    }
+    if (sem_init(&slot->unwind_done, 0, 0) != 0) {
+        sem_destroy(&slot->done);
+        sem_destroy(&slot->uctx_ready);
+        return false;
+    }
+#    endif
+    return true;
+}
 
 static bool
 ensure_installed(void)
@@ -126,29 +169,13 @@ ensure_installed(void)
     if (g_installed) {
         return true;
     }
-    if (!g_sem_initialized) {
-        // Semaphore is process-lifetime; intentionally never sem_destroy'd.
-        if (sem_init(&g_done, 0, 0) != 0) {
+    // Semaphores are process-lifetime; intentionally never sem_destroy'd.
+    for (; g_slots_initialized < SENTRY_APP_HANG_SAMPLE_SLOTS;
+        g_slots_initialized++) {
+        if (!init_slot(&g_slots[g_slots_initialized])) {
             SENTRY_DEBUG("app-hang: sem_init failed");
             return false;
         }
-#    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
-        if (sem_init(&g_uctx_ready, 0, 0) != 0) {
-            SENTRY_DEBUG("app-hang: sem_init(g_uctx_ready) failed");
-            // Tear down the semaphores already initialized so a later retry
-            // starts from a clean slate instead of re-initializing g_done
-            // (re-init of a live semaphore is undefined behavior).
-            sem_destroy(&g_done);
-            return false;
-        }
-        if (sem_init(&g_unwind_done, 0, 0) != 0) {
-            SENTRY_DEBUG("app-hang: sem_init(g_unwind_done) failed");
-            sem_destroy(&g_done);
-            sem_destroy(&g_uctx_ready);
-            return false;
-        }
-#    endif
-        g_sem_initialized = true;
     }
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -226,18 +253,37 @@ is_signal_blocked(uint64_t tid)
     return blocked & (1ULL << (SENTRY_APP_HANG_SIGNAL - 1));
 }
 
-// Waits in 1 ms steps and subtracts the wait from `timeout_ms`, so that the
-// whole sample stays within one timeout.
-static bool
-wait_for_running_handlers(uint64_t *timeout_ms)
+// Returns a slot that no handler runs in, after clearing what a timed-out
+// sample left in it. Only the watchdog thread calls this.
+static sample_slot_t *
+acquire_slot(void)
 {
-    const struct timespec poll = { 0, 1000000L };
-    while (__atomic_load_n(&g_running_handlers, __ATOMIC_ACQUIRE) != 0) {
-        if (*timeout_ms == 0) {
+    for (size_t i = 0; i < SENTRY_APP_HANG_SAMPLE_SLOTS; i++) {
+        size_t index = (g_next_slot + i) % SENTRY_APP_HANG_SAMPLE_SLOTS;
+        sample_slot_t *slot = &g_slots[index];
+        if (__atomic_load_n(&slot->running, __ATOMIC_ACQUIRE) != 0) {
+            continue;
+        }
+        g_next_slot = (index + 1) % SENTRY_APP_HANG_SAMPLE_SLOTS;
+        while (sem_trywait(&slot->done) == 0) { }
+#    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
+        while (sem_trywait(&slot->uctx_ready) == 0) { }
+        while (sem_trywait(&slot->unwind_done) == 0) { }
+        slot->abort_park = 0;
+        slot->uctx = NULL;
+#    endif
+        return slot;
+    }
+    return NULL;
+}
+
+static bool
+wait_for(sem_t *sem, const struct timespec *deadline)
+{
+    while (sem_timedwait(sem, deadline) != 0) {
+        if (errno != EINTR) {
             return false;
         }
-        nanosleep(&poll, NULL);
-        (*timeout_ms)--;
     }
     return true;
 }
@@ -246,76 +292,64 @@ size_t
 sentry__thread_stackwalk(
     uint64_t target_tid, void **ips, size_t max, uint64_t timeout_ms)
 {
-    if (!ensure_installed() || is_signal_blocked(target_tid)
-        || !wait_for_running_handlers(&timeout_ms)) {
+    if (!ensure_installed() || is_signal_blocked(target_tid)) {
         return 0;
     }
-    // A signal from a previously timed-out sample may still be queued. Drain
-    // any stale post here. If a late handler runs during THIS sample it simply
-    // captures the current (correct) thread state; the worst case is one
-    // wasted timeout on the following cycle. Bounded and benign.
-    while (sem_trywait(&g_done) == 0) { }
-#    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
-    // Drain stale rendezvous tokens left by a previously timed-out cycle, and
-    // take ownership of the abort flag here (not in the handler) so a late
-    // handler cannot clear an abort we are about to set.
-    while (sem_trywait(&g_uctx_ready) == 0) { }
-    while (sem_trywait(&g_unwind_done) == 0) { }
-    g_abort_park = 0;
-#    endif
+    sample_slot_t *slot = acquire_slot();
+    if (!slot) {
+        SENTRY_DEBUG("app-hang: all sample slots are in use");
+        return 0;
+    }
 
-    __atomic_store_n(&g_want,
-        (sig_atomic_t)(max < SENTRY_APP_HANG_MAX_FRAMES
-                ? max
-                : SENTRY_APP_HANG_MAX_FRAMES),
-        __ATOMIC_RELAXED);
-    __atomic_store_n(&g_count, 0, __ATOMIC_RELAXED);
-    __atomic_store_n(&g_target, (pid_t)target_tid, __ATOMIC_RELAXED);
-    // Release: publishes the g_want/g_count writes above to the handler, which
-    // observes them via the acquire-load of g_active on signal entry.
-    __atomic_store_n(&g_active, 1, __ATOMIC_RELEASE);
+    slot->want
+        = max < SENTRY_APP_HANG_MAX_FRAMES ? max : SENTRY_APP_HANG_MAX_FRAMES;
+    slot->count = 0;
+    __atomic_store_n(&slot->target, (pid_t)target_tid, __ATOMIC_RELAXED);
+    // Release: publishes the slot fields above to the handler, which claims
+    // the sample with an acquire exchange on `active`.
+    __atomic_store_n(&slot->active, 1, __ATOMIC_RELEASE);
 
-    if (syscall(SYS_tgkill, getpid(), (pid_t)target_tid, SENTRY_APP_HANG_SIGNAL)
+    siginfo_t info;
+    memset(&info, 0, sizeof(info));
+    info.si_signo = SENTRY_APP_HANG_SIGNAL;
+    info.si_code = SI_QUEUE;
+    info.si_pid = getpid();
+    info.si_uid = getuid();
+    info.si_value.sival_ptr = slot;
+    if (syscall(SYS_rt_tgsigqueueinfo, getpid(), (pid_t)target_tid,
+            SENTRY_APP_HANG_SIGNAL, &info)
         != 0) {
-        SENTRY_DEBUGF("app-hang: tgkill(%d) failed: %s", (int)target_tid,
-            strerror(errno));
-        __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
+        const int error = errno;
+        __atomic_store_n(&slot->active, 0, __ATOMIC_RELEASE);
+        SENTRY_DEBUGF("app-hang: rt_tgsigqueueinfo(%d) failed: %s",
+            (int)target_tid, strerror(error));
         return 0;
     }
 
+    const struct timespec deadline = deadline_after(timeout_ms);
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
-    struct timespec ts = deadline_after(timeout_ms);
-    if (sem_timedwait(&g_uctx_ready, &ts) != 0) {
-        g_abort_park = 1;
-        sem_post(&g_unwind_done); // release a handler that parks late
-        __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
+    if (!wait_for(&slot->uctx_ready, &deadline)) {
+        // Abandon the slot. A handler that parks later is released at once.
+        __atomic_store_n(&slot->active, 0, __ATOMIC_RELEASE);
+        slot->abort_park = 1;
+        sem_post(&slot->unwind_done);
         return 0;
     }
     sentry_ucontext_t s;
     memset(&s, 0, sizeof(s));
-    s.user_context = g_park_uctx;
+    s.user_context = slot->uctx;
     size_t n = sentry_unwind_stack_from_ucontext(&s, ips, max);
-    __atomic_store_n(&g_count, (sig_atomic_t)n, __ATOMIC_RELAXED);
-    sem_post(&g_unwind_done); // release the parked handler
-    struct timespec ts2 = deadline_after(timeout_ms);
-    while (sem_timedwait(&g_done, &ts2) != 0 && errno == EINTR) { }
-    __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
-    return n; // ips already filled by sentry_unwind_stack_from_ucontext
+    sem_post(&slot->unwind_done); // release the parked handler
+    wait_for(&slot->done, &deadline);
+    return n;
 #    else
-    struct timespec ts = deadline_after(timeout_ms);
-    while (sem_timedwait(&g_done, &ts) != 0) {
-        if (errno == EINTR) {
-            continue;
-        }
-        // timed out (e.g. thread in uninterruptible sleep)
-        __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
+    if (!wait_for(&slot->done, &deadline)) {
+        // Abandon the slot: a late handler writes only into it.
+        __atomic_store_n(&slot->active, 0, __ATOMIC_RELEASE);
         return 0;
     }
-
-    size_t n = (size_t)__atomic_load_n(&g_count, __ATOMIC_RELAXED);
-    for (size_t i = 0; i < n && i < max; i++) {
-        ips[i] = g_ips[i];
-    }
+    size_t n = slot->count < max ? slot->count : max;
+    memcpy(ips, slot->ips, n * sizeof(void *));
     return n;
 #    endif
 }
