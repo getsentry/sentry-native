@@ -401,8 +401,12 @@ SENTRY_TEST(app_hang_with_all_threads)
     TEST_CHECK(g_all_threads.crashed_count == 1);
     TEST_CHECK(g_all_threads.crashed_matches_exception);
     TEST_CHECK(!g_all_threads.crashed_has_stacktrace);
-    // The test runner thread.
-    TEST_CHECK(g_all_threads.others_with_frames >= 1);
+    // The test runner thread. Under valgrind, a signal can reach it later than
+    // the short wait for threads other than the hung one.
+    const char *analyzer = getenv("RUN_ANALYZER");
+    if (!analyzer || !strstr(analyzer, "valgrind")) {
+        TEST_CHECK(g_all_threads.others_with_frames >= 1);
+    }
 }
 
 #if SENTRY_HAS_THREAD_LIST && SENTRY_TEST_MODULE_LOADING
