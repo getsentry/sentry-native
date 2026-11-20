@@ -3,6 +3,7 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_logger.h"
+#include "sentry_path.h"
 #include "sentry_random.h"
 #include "sentry_sync.h"
 #include "sentry_utils.h"
@@ -1675,6 +1676,37 @@ sentry__crash_scope_event(const sentry_crash_scope_t *scope)
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
     sentry__ensure_event_id(event, NULL);
     return event;
+}
+
+sentry_value_t
+sentry__crash_event_read(const sentry_path_t *run_folder)
+{
+    sentry_path_t *path = sentry__path_join_str(run_folder, "__sentry-event");
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    size_t len = 0;
+    char *buf = sentry__path_read_to_buffer(path, &len);
+    sentry__path_free(path);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t event = sentry_value_from_json(buf, len);
+    sentry_free(buf);
+    if (sentry_value_get_type(event) != SENTRY_VALUE_TYPE_OBJECT) {
+        sentry_value_decref(event);
+        return sentry_value_new_null();
+    }
+    return event;
+}
+
+bool
+sentry__crash_event_remove(const sentry_path_t *run_folder)
+{
+    sentry_path_t *path = sentry__path_join_str(run_folder, "__sentry-event");
+    int rv = path ? sentry__path_remove(path) : 1;
+    sentry__path_free(path);
+    return rv == 0;
 }
 
 // returns false on a hard error, and `sent < len` if the daemon stopped reading

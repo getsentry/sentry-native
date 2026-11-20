@@ -423,6 +423,40 @@ add_attachment(void *data, sentry_value_t attachment)
     // locations.
 }
 
+// a daemon removes the crash event once it has sent the crash or kept it
+// for the next launch
+static bool
+send_unprocessed_crash(
+    const sentry_options_t *options, const sentry_path_t *run_path)
+{
+    sentry_value_t event = sentry__crash_event_read(run_path);
+    if (sentry_value_is_null(event)) {
+        return true;
+    }
+    // remove before sending to prevent repeated sends
+    if (!sentry__crash_event_remove(run_path)) {
+        sentry_value_decref(event);
+        return false;
+    }
+
+    sentry_path_t *path
+        = sentry__path_join_str(run_path, "__sentry-attachments");
+    sentry_value_t attachments = sentry__read_attachment_manifest(path);
+    sentry__path_free(path);
+    sentry_envelope_t *envelope
+        = sentry__enclose_event(options, event, NULL, attachments);
+    sentry_value_decref(attachments);
+    if (!envelope) {
+        return true;
+    }
+    if (options->on_crashed_last_run_func) {
+        options->on_crashed_last_run_func(
+            envelope, options->on_crashed_last_run_data);
+    }
+    sentry__capture_envelope(options->transport, envelope, options);
+    return true;
+}
+
 static bool
 native_backend_process_old_run(sentry_backend_t *backend,
     const sentry_options_t *options, const sentry_path_t *run_path)
@@ -455,7 +489,7 @@ native_backend_process_old_run(sentry_backend_t *backend,
         sentry_envelope_free(envelope);
     }
     sentry__pathiter_free(it);
-    return true;
+    return send_unprocessed_crash(options, run_path);
 }
 
 /**

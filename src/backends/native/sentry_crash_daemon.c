@@ -532,28 +532,6 @@ read_attachment_manifest(const sentry_path_t *run_folder)
     sentry__path_free(path);
     return attachments;
 }
-
-static sentry_value_t
-read_crash_event(const sentry_path_t *run_folder)
-{
-    sentry_path_t *path = sentry__path_join_str(run_folder, "__sentry-event");
-    if (!path) {
-        return sentry_value_new_null();
-    }
-    size_t len = 0;
-    char *buf = sentry__path_read_to_buffer(path, &len);
-    sentry__path_free(path);
-    if (!buf) {
-        return sentry_value_new_null();
-    }
-    sentry_value_t event = sentry_value_from_json(buf, len);
-    sentry_free(buf);
-    if (sentry_value_get_type(event) != SENTRY_VALUE_TYPE_OBJECT) {
-        sentry_value_decref(event);
-        return sentry_value_new_null();
-    }
-    return event;
-}
 #if defined(SENTRY_PLATFORM_ANDROID)
 static sentry_path_t *
 make_run_envelope_path(
@@ -4212,7 +4190,8 @@ ensure_device_arch(sentry_value_t event)
 
 /**
  * Removes the crash envelope once the transport has sent or dumped the crash,
- * or renames it for a later send.
+ * or renames it for a later send. Either way, it also removes the crash event,
+ * which the next launch would otherwise send.
  */
 static void
 retain_crash_envelope(const sentry_options_t *options,
@@ -4236,9 +4215,12 @@ retain_crash_envelope(const sentry_options_t *options,
             if (!ctx->has_on_crashed_last_run) {
                 sentry__path_remove(path);
             }
-        } else if (sentry__path_rename(path, run_path) == 0
-            && ctx->has_on_crashed_last_run) {
-            sentry__run_write_crash_marker(options->run, &event_id);
+            sentry__crash_event_remove(options->run->run_path);
+        } else if (sentry__path_rename(path, run_path) == 0) {
+            if (ctx->has_on_crashed_last_run) {
+                sentry__run_write_crash_marker(options->run, &event_id);
+            }
+            sentry__crash_event_remove(options->run->run_path);
         }
     }
     sentry__path_free(path);
@@ -4333,8 +4315,9 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
 
     sentry_value_t base = sentry__crash_scope_event(&ipc->scope);
     sentry_path_t *run_folder = sentry__path_from_str(ctx->run_path);
-    sentry_value_t crash_event
-        = run_folder ? read_crash_event(run_folder) : sentry_value_new_null();
+    sentry_value_t crash_event = run_folder
+        ? sentry__crash_event_read(run_folder)
+        : sentry_value_new_null();
     if (!sentry_value_is_null(crash_event)) {
         sentry_value_decref(base);
         base = crash_event;
@@ -4606,6 +4589,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
 #if defined(SENTRY_PLATFORM_ANDROID)
     sentry__path_free(android_native_envelope_path);
 #endif
+
+    // A crash sent via transport keeps its event until the send has finished.
+    if (run_folder && sentry_uuid_is_nil(event_id)) {
+        sentry__crash_event_remove(run_folder);
+    }
 
     // Keep the original crash envelope for the callback on the next launch.
     // A crash sent via transport keeps it until the send has finished.

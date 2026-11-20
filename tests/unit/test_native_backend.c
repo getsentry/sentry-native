@@ -203,6 +203,47 @@ SENTRY_TEST(corrupt_crash_envelope_does_not_block_old_run)
 #endif
 }
 
+SENTRY_TEST(interrupted_crash_recovered)
+{
+#ifdef SENTRY_BACKEND_NATIVE
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(sentry__path_remove_all(options->database_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(options->database_path) == 0);
+
+    options->run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!options->run);
+    sentry_run_t *old_run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!old_run);
+    sentry__filelock_unlock(old_run->lock);
+
+    // crash handling was interrupted, so the crash event is left behind
+    sentry_path_t *event_path
+        = sentry__path_join_str(old_run->run_path, "__sentry-event");
+    TEST_ASSERT(!!event_path);
+    const char event[] = "{\"level\":\"fatal\"}";
+    TEST_ASSERT(
+        sentry__path_write_buffer(event_path, event, sizeof(event) - 1) == 0);
+
+    size_t sent_envelopes = 0;
+    sentry_transport_t *transport = sentry_transport_new(count_sent_envelopes);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &sent_envelopes);
+    sentry_options_set_transport(options, transport);
+
+    sentry__process_old_runs(options, 0);
+
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 1);
+    TEST_CHECK(!sentry__path_is_dir(old_run->run_path));
+
+    sentry__path_free(event_path);
+    sentry__run_free(old_run);
+    sentry__run_clean(options->run, true);
+    sentry_options_free(options);
+#else
+    SKIP_TEST();
+#endif
+}
+
 /**
  * Test minidump header structure size and alignment
  */
