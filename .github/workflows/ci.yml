@@ -204,10 +204,13 @@ jobs:
           - name: Windows (VS 2026, ninja + sccache)
             os: windows-2025-vs2026
             USE_SCCACHE: 1
-          - name: Windows ClangCL (2022 + llvm-cov)
+          - name: Windows ClangCL (VS 2022 + llvm-cov)
             os: windows-2022
             VS_GENERATOR_TOOLSET: ClangCL
             RUN_ANALYZER: llvm-cov
+          - name: Windows ClangCL (VS 2026)
+            os: windows-2025-vs2026
+            VS_GENERATOR_TOOLSET: ClangCL
           - name: LLVM-Mingw
             os: windows-latest
             TEST_MINGW: 1
