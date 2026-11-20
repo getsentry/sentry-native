@@ -11,8 +11,10 @@
 #    include <string.h>
 
 size_t
-sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
+sentry__thread_stackwalk(
+    uint64_t target_tid, void **ips, size_t max, uint64_t timeout_ms)
 {
+    (void)timeout_ms;
     task_t task = mach_task_self();
     thread_act_array_t threads = NULL;
     mach_msg_type_number_t count = 0;
@@ -74,6 +76,43 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
         thread_resume(target); // ALWAYS resume
     }
     mach_port_deallocate(task, target);
+    return n;
+}
+
+size_t
+sentry__thread_list(sentry_thread_info_t *out, size_t max)
+{
+    task_t task = mach_task_self();
+    thread_act_array_t threads = NULL;
+    mach_msg_type_number_t count = 0;
+    if (task_threads(task, &threads, &count) != KERN_SUCCESS) {
+        return 0;
+    }
+
+    size_t n = 0;
+    for (mach_msg_type_number_t i = 0; i < count; i++) {
+        thread_identifier_info_data_t id_info;
+        mach_msg_type_number_t id_count = THREAD_IDENTIFIER_INFO_COUNT;
+        if (n < max
+            && thread_info(threads[i], THREAD_IDENTIFIER_INFO,
+                   (thread_info_t)&id_info, &id_count)
+                == KERN_SUCCESS) {
+            out[n].tid = id_info.thread_id;
+            out[n].name[0] = '\0';
+            thread_extended_info_data_t ext_info;
+            mach_msg_type_number_t ext_count = THREAD_EXTENDED_INFO_COUNT;
+            if (thread_info(threads[i], THREAD_EXTENDED_INFO,
+                    (thread_info_t)&ext_info, &ext_count)
+                == KERN_SUCCESS) {
+                strncpy(
+                    out[n].name, ext_info.pth_name, sizeof(out[n].name) - 1);
+                out[n].name[sizeof(out[n].name) - 1] = '\0';
+            }
+            n++;
+        }
+        mach_port_deallocate(task, threads[i]);
+    }
+    vm_deallocate(task, (vm_address_t)threads, count * sizeof(thread_t));
     return n;
 }
 

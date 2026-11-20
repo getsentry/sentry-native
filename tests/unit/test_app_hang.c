@@ -4,6 +4,11 @@
 #include "sentry_testsupport.h"
 #include "sentry_thread_stackwalk.h"
 
+#if defined(SENTRY_PLATFORM_LINUX)
+#    include <stdlib.h>
+#    include <string.h>
+#endif
+
 SENTRY_TEST(app_hang_should_capture)
 {
     // disabled (timeout == 0) -> never captures
@@ -309,4 +314,97 @@ SENTRY_TEST(app_hang_end_to_end)
 
     sentry_close();
     sentry__app_hang_monitor_set_stackwalk_fn(NULL);
+}
+
+typedef struct {
+    long seen;
+    long crashed_count;
+    long crashed_matches_exception;
+    long crashed_has_stacktrace;
+    long others_with_frames;
+} all_threads_result_t;
+
+static all_threads_result_t g_all_threads;
+
+static sentry_value_t
+all_threads_before_send(sentry_value_t event, sentry_hint_t *hint, void *data)
+{
+    (void)hint;
+    (void)data;
+    sentry_value_t exc = sentry_value_get_by_index(
+        sentry_value_get_by_key(
+            sentry_value_get_by_key(event, "exception"), "values"),
+        0);
+    const char *exc_tid
+        = sentry_value_as_string(sentry_value_get_by_key(exc, "thread_id"));
+    char hung_tid[32];
+    snprintf(hung_tid, sizeof(hung_tid), "%llu",
+        (unsigned long long)sentry__app_hang_current_latch().target_tid);
+
+    sentry_value_t threads = sentry_value_get_by_key(
+        sentry_value_get_by_key(event, "threads"), "values");
+    for (size_t i = 0; i < sentry_value_get_length(threads); i++) {
+        sentry_value_t thread = sentry_value_get_by_index(threads, i);
+        const char *id
+            = sentry_value_as_string(sentry_value_get_by_key(thread, "id"));
+        sentry_value_t frames = sentry_value_get_by_key(
+            sentry_value_get_by_key(thread, "stacktrace"), "frames");
+        if (sentry_value_is_true(sentry_value_get_by_key(thread, "crashed"))) {
+            g_all_threads.crashed_count++;
+            g_all_threads.crashed_matches_exception
+                = strcmp(id, exc_tid) == 0 && strcmp(id, hung_tid) == 0;
+            g_all_threads.crashed_has_stacktrace
+                = !sentry_value_is_null(frames);
+        } else if (sentry_value_get_length(frames) > 0) {
+            g_all_threads.others_with_frames++;
+        }
+    }
+
+    sentry__atomic_store(&g_all_threads.seen, 1);
+    sentry_value_decref(event);
+    return sentry_value_new_null();
+}
+
+SENTRY_TEST(app_hang_with_all_threads)
+{
+#if !SENTRY_HAS_THREAD_LIST
+    SKIP_TEST();
+#endif
+    memset(&g_all_threads, 0, sizeof(g_all_threads));
+    sentry__atomic_store(&g_keep_spinning, 1);
+    sentry__app_hang_latch_reset();
+    sentry__app_hang_monitor_set_stackwalk_fn(NULL);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send(options, all_threads_before_send, NULL);
+    sentry_options_set_enable_app_hang_tracking(options, 1);
+    sentry_options_set_app_hang_timeout(options, 50);
+    sentry_options_set_app_hang_thread_stackwalk_mode(
+        options, SENTRY_THREAD_STACKWALK_MODE_ALL);
+    sentry_init(options);
+
+    sentry_threadid_t t;
+    sentry__thread_spawn(&t, spinner, NULL);
+    for (int i = 0; i < 500 && !sentry__atomic_fetch(&g_all_threads.seen);
+        i++) {
+        sleep_ms(10);
+    }
+    sentry__atomic_store(&g_keep_spinning, 0);
+    sentry__thread_join(t);
+    sentry_close();
+
+    TEST_CHECK(sentry__atomic_fetch(&g_all_threads.seen) == 1);
+    TEST_CHECK(g_all_threads.crashed_count == 1);
+    TEST_CHECK(g_all_threads.crashed_matches_exception);
+    TEST_CHECK(!g_all_threads.crashed_has_stacktrace);
+    // The test runner thread. Under valgrind, a signal can reach it later than
+    // the short wait for threads other than the hung one.
+#if defined(SENTRY_PLATFORM_LINUX)
+    const char *analyzer = getenv("RUN_ANALYZER");
+    if (analyzer && strstr(analyzer, "valgrind")) {
+        return;
+    }
+#endif
+    TEST_CHECK(g_all_threads.others_with_frames >= 1);
 }
