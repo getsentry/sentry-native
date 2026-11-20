@@ -25,6 +25,7 @@
 // Include native backend headers
 #    include "../../src/backends/native/minidump/sentry_minidump_format.h"
 #    include "../../src/backends/native/sentry_crash_context.h"
+#    include "../../src/backends/native/sentry_crash_handler.h"
 #    include "../../src/backends/native/sentry_crash_ipc.h"
 #    if defined(SENTRY_PLATFORM_ANDROID)
 #        include <sys/socket.h>
@@ -1957,5 +1958,35 @@ SENTRY_TEST(crash_ipc_notify_without_daemon)
     TEST_CHECK(!sentry__crash_ipc_notify(ipc));
     signal(SIGPIPE, previous);
     sentry__crash_ipc_free(ipc);
+#endif
+}
+
+#if defined(SENTRY_BACKEND_NATIVE) && defined(SENTRY_PLATFORM_LINUX)
+static void
+exit_from_crash_callback(void)
+{
+    _exit(42);
+}
+#endif
+
+SENTRY_TEST(crash_handler_preloaded_callback)
+{
+#if !defined(SENTRY_BACKEND_NATIVE) || !defined(SENTRY_PLATFORM_LINUX)
+    SKIP_TEST();
+#else
+    // fork() keeps the preloaded handlers out of the test process
+    pid_t child = fork();
+    TEST_ASSERT(child >= 0);
+    if (child == 0) {
+        sentry__crash_handler_preload();
+        sentry__crash_handler_init(
+            NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, exit_from_crash_callback);
+        raise(SIGSEGV);
+        _exit(1);
+    }
+    int status = 0;
+    TEST_CHECK_INT_EQUAL(waitpid(child, &status, 0), child);
+    TEST_CHECK(WIFEXITED(status));
+    TEST_CHECK_INT_EQUAL(WEXITSTATUS(status), 42);
 #endif
 }
