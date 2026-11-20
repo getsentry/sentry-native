@@ -124,7 +124,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
-option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in sentry and sentry-crash as errors on GCC and Clang" OFF)
+option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in sentry-native as errors" OFF)
 
 option(SENTRY_INTEGRATION_PLATFORM
 	"Enable the downstream-provided platform integration" OFF)
@@ -597,6 +597,9 @@ if(MSVC)
 	else()
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4 /wd5105>)
 	endif()
+	if(SENTRY_ERROR_ON_WARNINGS)
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/WX>)
+	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
 		"${PROJECT_SOURCE_DIR}/src/sentry_mpack.c"
@@ -612,7 +615,7 @@ if(MSVC)
 
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang") # clang-cl
 		target_compile_options(sentry PRIVATE
-			$<BUILD_INTERFACE:-Werror -Wall>
+			$<BUILD_INTERFACE:-Wall>
 			$<BUILD_INTERFACE:-Wno-unsafe-buffer-usage>
 			$<BUILD_INTERFACE:-Wno-nonportable-system-include-path>
 			$<BUILD_INTERFACE:-Wno-declaration-after-statement>
@@ -629,7 +632,13 @@ if(MSVC)
 			$<BUILD_INTERFACE:-Wno-reserved-identifier>
 			$<BUILD_INTERFACE:-Wno-old-style-cast>
 			$<BUILD_INTERFACE:-Wno-zero-as-null-pointer-constant>
+			$<BUILD_INTERFACE:-Wno-c++-compat>
+			$<BUILD_INTERFACE:-Wno-padded>
 		)
+		# older versions reject the unknown option under -Werror
+		if(CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 21)
+			target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-nrvo>)
+		endif()
 	endif()
 else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
@@ -795,6 +804,18 @@ if(SENTRY_BACKEND_CRASHPAD)
 		set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
 	endif()
 	add_subdirectory(external/crashpad crashpad_build)
+
+	if(SENTRY_ERROR_ON_WARNINGS)
+		if(MSVC)
+			target_compile_options(crashpad_interface INTERFACE
+				$<$<COMPILE_LANGUAGE:C,CXX>:/WX>
+			)
+		else()
+			target_compile_options(crashpad_interface INTERFACE
+				$<$<COMPILE_LANGUAGE:C,CXX>:-Werror>
+			)
+		endif()
+	endif()
 
 	if(WIN32)
 		add_dependencies(sentry crashpad::wer)
@@ -991,10 +1012,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 	endif()
 
 	# Copy warning options from sentry target
-	if(NOT MSVC)
-		get_target_property(SENTRY_COMPILE_OPTIONS sentry COMPILE_OPTIONS)
-		target_compile_options(sentry-crash PRIVATE ${SENTRY_COMPILE_OPTIONS})
-	endif()
+	get_target_property(SENTRY_COMPILE_OPTIONS sentry COMPILE_OPTIONS)
+	target_compile_options(sentry-crash PRIVATE ${SENTRY_COMPILE_OPTIONS})
 
 	# Copy include directories from sentry target
 	target_include_directories(sentry-crash PRIVATE
