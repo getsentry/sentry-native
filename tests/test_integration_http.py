@@ -1151,6 +1151,71 @@ def test_on_crashed_last_run(cmake, backend):
                 not has_breakpad or is_qemu, reason="test needs breakpad backend"
             ),
         ),
+    ],
+)
+def test_send_previous_run_envelopes_disabled(cmake, httpserver, backend):
+    """With the option off, the crash envelope of the previous run stays on
+    disk (the crash callback still fires), and is sent once it's back on."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    args = ["log", "on-crashed-last-run"]
+
+    # The crash leaves its envelope in the run folder for the next start
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        [*args, "crash"],
+        expect_failure=True,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    run_dirs = list((tmp_path / ".sentry-native").glob("*.run"))
+    assert len(run_dirs) == 1
+    envelopes = list(run_dirs[0].glob("*.envelope"))
+    assert len(envelopes) == 1
+    assert len(httpserver.log) == 0
+
+    # Option off: the callback fires, but nothing is sent and the envelope stays
+    restarted = run(
+        tmp_path,
+        "sentry_test_integration",
+        [*args, "no-send-previous-run-envelopes", "no-setup"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert f"CRASHED_LAST_RUN:{envelopes[0].stem}".encode() in restarted.stdout
+    assert len(httpserver.log) == 0
+    assert envelopes[0].is_file()
+
+    # Option back on: the envelope is sent, without a second callback
+    restarted_again = run(
+        tmp_path,
+        "sentry_test_integration",
+        [*args, "no-setup"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert b"CRASHED_LAST_RUN:" not in restarted_again.stdout
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert envelope.headers["event_id"] == envelopes[0].stem
+    assert not run_dirs[0].exists()
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
         pytest.param(
             "native",
             marks=pytest.mark.skipif(

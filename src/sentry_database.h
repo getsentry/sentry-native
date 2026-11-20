@@ -171,10 +171,23 @@ void sentry__process_old_runs(
     const sentry_options_t *options, uint64_t last_crash);
 
 /**
- * Captures and removes all envelope files from a run directory.
+ * Processes the `.envelope` files in the run directory `run_path` of a
+ * previous run.
+ *
+ * For each envelope that has a matching `<event-uuid>.crash` marker, the
+ * marker is removed and `on_crashed_last_run` is invoked, regardless of
+ * `send_envelopes`.
+ *
+ * If `send_envelopes` is true, each envelope is submitted to the transport and
+ * its file is removed. If it is false, the envelope files are left in
+ * `run_path` so a later run can send them. Files that cannot be read are
+ * removed in both cases.
+ *
+ * Returns the number of envelope files left on disk; the caller must not
+ * remove `run_path` while it is non-zero.
  */
-void sentry__process_run_envelopes(
-    const sentry_options_t *options, const sentry_path_t *run_path);
+int sentry__process_run_envelopes(const sentry_options_t *options,
+    const sentry_path_t *run_path, bool send_envelopes);
 
 /**
  * Writes `<event-uuid>.crash` into `run` after verifying that the matching

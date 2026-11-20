@@ -4353,7 +4353,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     // before notifying the daemon. Queue those before writing the crash
     // envelope so an attachment-ref prewrite is not captured a second time.
     if (run_folder && options->transport && options->run) {
-        sentry__process_run_envelopes(options, run_folder);
+        sentry__process_run_envelopes(options, run_folder, true);
     } else {
         SENTRY_DEBUG("No run folder or transport for additional envelopes");
     }

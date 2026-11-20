@@ -99,6 +99,7 @@ struct sentry_options_s {
     bool send_client_reports;
     bool enable_large_attachments;
     bool attach_stacktrace;
+    bool send_previous_run_envelopes;
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */

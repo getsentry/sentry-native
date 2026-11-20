@@ -1031,6 +1031,9 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "cache-keep-always")) {
         sentry_options_set_cache_keep(options, SENTRY_CACHE_KEEP_ALWAYS);
     }
+    if (has_arg(argc, argv, "no-send-previous-run-envelopes")) {
+        sentry_options_set_send_previous_run_envelopes(options, 0);
+    }
     if (has_arg(argc, argv, "http-retry")) {
         sentry_options_set_http_retry(options, true);
     }

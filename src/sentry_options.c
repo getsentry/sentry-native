@@ -133,6 +133,7 @@ sentry_options_new(void)
     opts->app_hang_timeout = 5000;
     opts->http_retry = false;
     opts->send_client_reports = true;
+    opts->send_previous_run_envelopes = true;
     opts->enable_large_attachments = false;
     opts->attach_stacktrace = false;
 #ifdef SENTRY_INTEGRATION_PLATFORM
@@ -1185,4 +1186,17 @@ int
 sentry_options_get_send_client_reports(const sentry_options_t *opts)
 {
     return opts->send_client_reports;
+}
+
+void
+sentry_options_set_send_previous_run_envelopes(
+    sentry_options_t *opts, int enabled)
+{
+    opts->send_previous_run_envelopes = !!enabled;
+}
+
+int
+sentry_options_get_send_previous_run_envelopes(const sentry_options_t *opts)
+{
+    return opts->send_previous_run_envelopes;
 }

@@ -3278,6 +3278,33 @@ SENTRY_API int sentry_options_get_send_client_reports(
     const sentry_options_t *opts);
 
 /**
+ * Enables or disables sending envelopes left over from previous runs during
+ * `sentry_init`.
+ *
+ * Envelopes that could not be sent before a previous run ended (for example
+ * because the network was unreachable) are stored on disk. By default,
+ * `sentry_init` submits them again. When the network is up but unresponsive,
+ * these sends can make `sentry_close` wait for the full shutdown timeout in
+ * every run. Disabling this option keeps those envelopes on disk instead, and
+ * they are sent by a later run that has the option enabled.
+ *
+ * The `on_crashed_last_run` callback is still invoked, and sessions from
+ * previous runs are still finalized and kept. Envelopes captured during the
+ * current run are sent as usual and are not affected by this option.
+ *
+ * Enabled by default.
+ */
+SENTRY_API void sentry_options_set_send_previous_run_envelopes(
+    sentry_options_t *opts, int enabled);
+
+/**
+ * Returns whether envelopes left over from previous runs are sent during
+ * `sentry_init`.
+ */
+SENTRY_API int sentry_options_get_send_previous_run_envelopes(
+    const sentry_options_t *opts);
+
+/**
  * The potential returns of calling any of the sentry_log_X functions
  * - Success means a log was enqueued
  * - Discard means the `before_send_log` function discarded the log
