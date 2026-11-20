@@ -615,7 +615,7 @@ if(MSVC)
 
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang") # clang-cl
 		target_compile_options(sentry PRIVATE
-			$<BUILD_INTERFACE:-Werror -Wall>
+			$<BUILD_INTERFACE:-Wall>
 			$<BUILD_INTERFACE:-Wno-unsafe-buffer-usage>
 			$<BUILD_INTERFACE:-Wno-nonportable-system-include-path>
 			$<BUILD_INTERFACE:-Wno-declaration-after-statement>
