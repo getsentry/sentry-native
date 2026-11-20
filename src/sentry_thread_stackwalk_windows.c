@@ -33,12 +33,12 @@ find_function_entry(DWORD64 pc, DWORD64 *image_base, bool *in_image)
         return NULL;
     }
     const BYTE *base = (const BYTE *)mbi.AllocationBase;
-    const IMAGE_DOS_HEADER *dos = (const IMAGE_DOS_HEADER *)base;
+    const IMAGE_DOS_HEADER *dos = (const IMAGE_DOS_HEADER *)(const void *)base;
     if (dos->e_magic != IMAGE_DOS_SIGNATURE) {
         return NULL;
     }
     const IMAGE_NT_HEADERS64 *nt
-        = (const IMAGE_NT_HEADERS64 *)(base + dos->e_lfanew);
+        = (const IMAGE_NT_HEADERS64 *)(const void *)(base + dos->e_lfanew);
     if (nt->Signature != IMAGE_NT_SIGNATURE
         || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         return NULL;
@@ -51,7 +51,8 @@ find_function_entry(DWORD64 pc, DWORD64 *image_base, bool *in_image)
     if (dir->VirtualAddress == 0) {
         return NULL;
     }
-    PRUNTIME_FUNCTION table = (PRUNTIME_FUNCTION)(base + dir->VirtualAddress);
+    PRUNTIME_FUNCTION table
+        = (PRUNTIME_FUNCTION)(const void *)(base + dir->VirtualAddress);
     const DWORD rva = (DWORD)(pc - *image_base);
     size_t lo = 0;
     size_t hi = dir->Size / sizeof(RUNTIME_FUNCTION);
@@ -62,8 +63,8 @@ find_function_entry(DWORD64 pc, DWORD64 *image_base, bool *in_image)
         } else if (rva >= table[mid].EndAddress) {
             lo = mid + 1;
         } else if (table[mid].UnwindData & RUNTIME_FUNCTION_INDIRECTION) {
-            return (PRUNTIME_FUNCTION)(base + table[mid].UnwindData
-                - RUNTIME_FUNCTION_INDIRECTION);
+            return (PRUNTIME_FUNCTION)(const void *)(base
+                + table[mid].UnwindData - RUNTIME_FUNCTION_INDIRECTION);
         } else {
             return &table[mid];
         }
@@ -79,6 +80,12 @@ unwind_rtl(const CONTEXT *thread_ctx, void **ips, size_t max)
 {
     CONTEXT ctx = *thread_ctx;
     size_t n = 0;
+#        ifdef __clang__
+#            pragma clang diagnostic push
+#            pragma clang diagnostic ignored "-Wlanguage-extension-token"
+#        endif
+#        pragma warning(push)
+#        pragma warning(disable : 6320 6322)
     __try {
         while (n < max && ctx.Rip != 0) {
             ips[n++] = (void *)ctx.Rip;
@@ -105,6 +112,10 @@ unwind_rtl(const CONTEXT *thread_ctx, void **ips, size_t max)
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         // Keep the frames that were walked before the fault.
     }
+#        pragma warning(pop)
+#        ifdef __clang__
+#            pragma clang diagnostic pop
+#        endif
     return n;
 }
 #    else
