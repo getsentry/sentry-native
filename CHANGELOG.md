@@ -18,6 +18,7 @@
 
 - [Aureliolo](https://github.com/Aureliolo)
 - [HlustikP](https://github.com/HlustikP)
+- [bionicbeagle](https://github.com/bionicbeagle)
 
 ## 0.17.6
 
