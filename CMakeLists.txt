@@ -1012,10 +1012,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 	endif()
 
 	# Copy warning options from sentry target
-	if(NOT MSVC)
-		get_target_property(SENTRY_COMPILE_OPTIONS sentry COMPILE_OPTIONS)
-		target_compile_options(sentry-crash PRIVATE ${SENTRY_COMPILE_OPTIONS})
-	endif()
+	get_target_property(SENTRY_COMPILE_OPTIONS sentry COMPILE_OPTIONS)
+	target_compile_options(sentry-crash PRIVATE ${SENTRY_COMPILE_OPTIONS})
 
 	# Copy include directories from sentry target
 	target_include_directories(sentry-crash PRIVATE
