@@ -714,10 +714,11 @@ sentry__run_write_crash_marker(
     return rv == 0;
 }
 
-void
-sentry__process_run_envelopes(
-    const sentry_options_t *options, const sentry_path_t *run_path)
+int
+sentry__process_run_envelopes(const sentry_options_t *options,
+    const sentry_path_t *run_path, bool send_envelopes)
 {
+    int kept_envelopes = 0;
     sentry_pathiter_t *it = sentry__path_iter_directory(run_path);
     const sentry_path_t *file;
     while (it && (file = sentry__pathiter_next(it)) != NULL) {
@@ -727,6 +728,7 @@ sentry__process_run_envelopes(
             continue;
         }
         sentry_envelope_t *envelope = sentry__envelope_from_path(file);
+        bool unreadable = envelope == NULL;
         if (envelope) {
             sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
             sentry_path_t *marker = run_crash_marker_path(run_path, &event_id);
@@ -740,11 +742,45 @@ sentry__process_run_envelopes(
                 }
             }
             sentry__path_free(marker);
-            sentry__capture_envelope(options->transport, envelope, options);
+            if (send_envelopes) {
+                sentry__capture_envelope(options->transport, envelope, options);
+            } else {
+                kept_envelopes++;
+                sentry_envelope_free(envelope);
+            }
         }
-        sentry__path_remove(file);
+        // Sent envelopes are no longer needed on disk, and unreadable files
+        // never will be.
+        if (send_envelopes || unreadable) {
+            sentry__path_remove(file);
+        }
     }
     sentry__pathiter_free(it);
+    return kept_envelopes;
+}
+
+static void
+finalize_unclosed_session(sentry_session_t *session, uint64_t *last_crash)
+{
+    // this is just a heuristic: whenever the session was not
+    // closed properly, and we do have a crash that happened
+    // *after* the session was started, we will assume that the
+    // crash corresponds to the session and flag it as crashed.
+    // this should only happen when using crashpad, and there
+    // should normally be only a single unclosed session at a
+    // time.
+    if (session->status == SENTRY_SESSION_STATUS_OK) {
+        bool was_crash = *last_crash && *last_crash > session->started_us;
+        if (was_crash) {
+            session->duration_us = *last_crash - session->started_us;
+            session->errors += 1;
+            // we only set at most one unclosed session as
+            // crashed
+            *last_crash = 0;
+        }
+        session->status = was_crash ? SENTRY_SESSION_STATUS_CRASHED
+                                    : SENTRY_SESSION_STATUS_ABNORMAL;
+    }
 }
 
 void
@@ -830,7 +866,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             processed = options->backend->process_old_run_func(
                 options->backend, options, run_dir);
         }
-        sentry__process_run_envelopes(options, run_dir);
+        int kept_envelopes = sentry__process_run_envelopes(
+            options, run_dir, options->send_previous_run_envelopes);
+        bool keep_run_dir = false;
 
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;
@@ -838,36 +876,51 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             if (sentry__path_ends_with(file, ".crash")) {
                 // handled by sentry__process_run_envelopes above
                 continue;
+            } else if (sentry__path_ends_with(file, ".envelope")
+                && !options->send_previous_run_envelopes) {
+                // Kept for a later run, see `send_previous_run_envelopes`
+                continue;
             } else if (sentry__path_filename_matches(file, "session.json")) {
+                if (!options->send_previous_run_envelopes) {
+                    // If this is a session file, and we are not sending old
+                    // envelopes, we are going to create an envelope out of it
+                    // and save it in its corresponding run_dir for it to be
+                    // sent later
+                    sentry_session_t *old_run_session
+                        = sentry__session_from_path(file);
+                    if (old_run_session == NULL) {
+                        sentry__path_remove(file);
+                        continue;
+                    }
+                    sentry_envelope_t *old_run_session_envelope
+                        = sentry__envelope_new(options);
+                    if (old_run_session_envelope == NULL) {
+                        sentry__session_free(old_run_session);
+                        keep_run_dir = true;
+                        continue;
+                    }
+
+                    finalize_unclosed_session(old_run_session, &last_crash);
+                    sentry__envelope_add_session(
+                        old_run_session_envelope, old_run_session);
+                    if (write_envelope(run_dir, old_run_session_envelope)) {
+                        kept_envelopes++;
+                        sentry__path_remove(file);
+                    } else {
+                        keep_run_dir = true;
+                    }
+
+                    sentry__session_free(old_run_session);
+                    sentry_envelope_free(old_run_session_envelope);
+                    continue;
+                }
                 if (!session_envelope) {
                     session_envelope = sentry__envelope_new(options);
                 }
                 sentry_session_t *session = sentry__session_from_path(file);
                 if (session) {
-                    // this is just a heuristic: whenever the session was not
-                    // closed properly, and we do have a crash that happened
-                    // *after* the session was started, we will assume that the
-                    // crash corresponds to the session and flag it as crashed.
-                    // this should only happen when using crashpad, and there
-                    // should normally be only a single unclosed session at a
-                    // time.
-                    if (session->status == SENTRY_SESSION_STATUS_OK) {
-                        bool was_crash
-                            = last_crash && last_crash > session->started_us;
-                        if (was_crash) {
-                            session->duration_us
-                                = last_crash - session->started_us;
-                            session->errors += 1;
-                            // we only set at most one unclosed session as
-                            // crashed
-                            last_crash = 0;
-                        }
-                        session->status = was_crash
-                            ? SENTRY_SESSION_STATUS_CRASHED
-                            : SENTRY_SESSION_STATUS_ABNORMAL;
-                    }
+                    finalize_unclosed_session(session, &last_crash);
                     sentry__envelope_add_session(session_envelope, session);
-
                     sentry__session_free(session);
                     if ((++session_num) >= SENTRY_MAX_ENVELOPE_SESSIONS) {
                         sentry__capture_envelope(
@@ -883,7 +936,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         }
         sentry__pathiter_free(run_iter);
 
-        if (processed) {
+        if (processed && kept_envelopes == 0 && !keep_run_dir) {
             sentry__path_remove_all(run_dir);
         }
         if (daemon_lock) {
@@ -893,7 +946,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
     }
     sentry__pathiter_free(db_iter);
 
-    if (session_envelope) {
+    if (session_envelope && options->send_previous_run_envelopes) {
         sentry__capture_envelope(options->transport, session_envelope, options);
     }
 }

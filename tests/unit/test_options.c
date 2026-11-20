@@ -451,3 +451,17 @@ SENTRY_TEST(options_shutdown_timeout)
 
     sentry_options_free(options);
 }
+
+SENTRY_TEST(options_set_send_previous_run_envelopes)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_CHECK_INT_EQUAL(
+        sentry_options_get_send_previous_run_envelopes(options), 1);
+    sentry_options_set_send_previous_run_envelopes(options, 0);
+    TEST_CHECK_INT_EQUAL(
+        sentry_options_get_send_previous_run_envelopes(options), 0);
+    sentry_options_set_send_previous_run_envelopes(options, 1);
+    TEST_CHECK_INT_EQUAL(
+        sentry_options_get_send_previous_run_envelopes(options), 1);
+    sentry_options_free(options);
+}

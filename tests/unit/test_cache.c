@@ -9,6 +9,7 @@
 #include "sentry_session.h"
 #include "sentry_string.h"
 #include "sentry_testsupport.h"
+#include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
 #include "transports/sentry_http_transport.h"
@@ -278,6 +279,283 @@ SENTRY_TEST(old_run_retry)
     sentry__run_clean(options->run, true);
     sentry_options_free(options);
 #endif
+}
+
+typedef struct {
+    size_t sent;
+    size_t crashed;
+    size_t abnormal;
+} session_statuses_t;
+
+static void
+count_session_statuses(sentry_envelope_t *envelope, void *user_data)
+{
+    session_statuses_t *statuses = user_data;
+    statuses->sent++;
+    // envelopes loaded from disk are raw and have no items until parsed
+    sentry__envelope_materialize(envelope);
+    for (size_t i = 0; i < sentry__envelope_get_item_count(envelope); i++) {
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, i);
+        const char *type = sentry_value_as_string(
+            sentry__envelope_item_get_header(item, "type"));
+        if (strcmp(type, "session") != 0) {
+            continue;
+        }
+        size_t buf_len;
+        const char *buf = sentry__envelope_item_get_payload(item, &buf_len);
+        sentry_value_t session = sentry_value_from_json(buf, buf_len);
+        const char *status = sentry_value_as_string(
+            sentry_value_get_by_key(session, "status"));
+        if (strcmp(status, "crashed") == 0) {
+            statuses->crashed++;
+        } else if (strcmp(status, "abnormal") == 0) {
+            statuses->abnormal++;
+        }
+        sentry_value_decref(session);
+    }
+    sentry_envelope_free(envelope);
+}
+
+static sentry_path_t *
+write_unclosed_session(const sentry_path_t *run_path, int sid)
+{
+    if (sentry__path_create_dir_all(run_path) != 0) {
+        return NULL;
+    }
+    char json[256];
+    int len = snprintf(json, sizeof(json),
+        "{\"init\":true,\"sid\":\"00000000-0000-4000-8000-%012d\","
+        "\"status\":\"ok\",\"errors\":0,"
+        "\"started\":\"2020-01-01T00:00:00Z\",\"duration\":0,"
+        "\"attrs\":{\"release\":\"test@1.0.0\"}}",
+        sid);
+    sentry_path_t *path = sentry__path_join_str(run_path, "session.json");
+    if (!path || len <= 0
+        || sentry__path_write_buffer(path, json, (size_t)len) != 0) {
+        sentry__path_free(path);
+        return NULL;
+    }
+    return path;
+}
+
+static size_t
+count_envelope_files(const sentry_path_t *dir)
+{
+    size_t count = 0;
+    sentry_pathiter_t *it = sentry__path_iter_directory(dir);
+    const sentry_path_t *file;
+    while (it && (file = sentry__pathiter_next(it)) != NULL) {
+        if (sentry__path_ends_with(file, ".envelope")) {
+            count++;
+        }
+    }
+    sentry__pathiter_free(it);
+    return count;
+}
+
+SENTRY_TEST(send_previous_run_envelopes_disabled_marks_one_session_crashed)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    session_statuses_t statuses = { 0 };
+    sentry_transport_t *transport
+        = sentry_transport_new(count_session_statuses);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &statuses);
+    sentry_options_set_transport(options, transport);
+
+    sentry_options_set_send_previous_run_envelopes(options, 0);
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+    sentry_path_t *old_run1
+        = sentry__path_join_str(options->database_path, "first.run");
+    sentry_path_t *old_run2
+        = sentry__path_join_str(options->database_path, "second.run");
+    TEST_ASSERT(!!old_run1 && !!old_run2);
+    sentry__path_remove_all(old_run1);
+    sentry__path_remove_all(old_run2);
+
+    // Two runs that never closed their sessions, both started before the crash
+    sentry_path_t *session1 = write_unclosed_session(old_run1, 1);
+    sentry_path_t *session2 = write_unclosed_session(old_run2, 2);
+    TEST_ASSERT(!!session1 && !!session2);
+    uint64_t last_crash = sentry__usec_time();
+
+    // Option off: each session.json becomes an envelope in its run folder,
+    // nothing is sent
+    sentry__process_old_runs(options, last_crash);
+    TEST_CHECK(!sentry__path_is_file(session1));
+    TEST_CHECK(!sentry__path_is_file(session2));
+    TEST_CHECK(sentry__path_is_dir(old_run1));
+    TEST_CHECK(sentry__path_is_dir(old_run2));
+    TEST_CHECK_INT_EQUAL(count_envelope_files(old_run1), 1);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(old_run2), 1);
+    TEST_CHECK_INT_EQUAL(statuses.sent, 0);
+
+    // Option back on: both session envelopes are sent, and the single crash
+    // was attributed to only one of them
+    sentry_options_set_send_previous_run_envelopes(options, 1);
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(statuses.sent, 2);
+    TEST_CHECK_INT_EQUAL(statuses.crashed, 1);
+    TEST_CHECK_INT_EQUAL(statuses.abnormal, 1);
+    TEST_CHECK(!sentry__path_is_dir(old_run1));
+    TEST_CHECK(!sentry__path_is_dir(old_run2));
+
+    sentry__path_free(session1);
+    sentry__path_free(session2);
+    sentry__path_free(old_run1);
+    sentry__path_free(old_run2);
+    sentry_close();
+}
+
+SENTRY_TEST(send_previous_run_envelopes_disabled_keeps_envelopes)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    size_t sent_envelopes = 0;
+    sentry_transport_t *transport = sentry_transport_new(count_sent_envelopes);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &sent_envelopes);
+    sentry_options_set_transport(options, transport);
+
+    sentry_options_set_send_previous_run_envelopes(options, 0);
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+    sentry_path_t *old_run1
+        = sentry__path_join_str(options->database_path, "first.run");
+    sentry_path_t *old_run2
+        = sentry__path_join_str(options->database_path, "second.run");
+    TEST_ASSERT(!!old_run1 && !!old_run2);
+    sentry__path_remove_all(old_run1);
+    sentry__path_remove_all(old_run2);
+
+    sentry_uuid_t normal1 = sentry_uuid_new_v4();
+    sentry_uuid_t normal2 = sentry_uuid_new_v4();
+    sentry_path_t *normal1_envelope = write_event_envelope(old_run1, &normal1);
+    sentry_path_t *normal2_envelope = write_event_envelope(old_run2, &normal2);
+    TEST_ASSERT(!!normal1_envelope && !!normal2_envelope);
+
+    // Option off: nothing is sent, everything stays on disk.
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK(sentry__path_is_dir(old_run1));
+    TEST_CHECK(sentry__path_is_dir(old_run2));
+    TEST_CHECK(sentry__path_is_file(normal1_envelope));
+    TEST_CHECK(sentry__path_is_file(normal2_envelope));
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 0);
+
+    // Option off idempotency: nothing is sent, everything stays on disk.
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK(sentry__path_is_dir(old_run1));
+    TEST_CHECK(sentry__path_is_dir(old_run2));
+    TEST_CHECK(sentry__path_is_file(normal1_envelope));
+    TEST_CHECK(sentry__path_is_file(normal2_envelope));
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 0);
+
+    // Option on: envelopes get sent and its run directores get deleted
+    sentry_options_set_send_previous_run_envelopes(options, 1);
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK(!sentry__path_is_dir(old_run1));
+    TEST_CHECK(!sentry__path_is_dir(old_run2));
+    TEST_CHECK(!sentry__path_is_file(normal1_envelope));
+    TEST_CHECK(!sentry__path_is_file(normal2_envelope));
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 2);
+
+    sentry__path_free(normal1_envelope);
+    sentry__path_free(normal2_envelope);
+    sentry__path_free(old_run1);
+    sentry__path_free(old_run2);
+    sentry_close();
+}
+
+SENTRY_TEST(send_previous_run_envelopes_disabled_fires_crash_callback_once)
+{
+    crashed_last_run_state_t state = { 0 };
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    size_t sent_envelopes = 0;
+    sentry_transport_t *transport = sentry_transport_new(count_sent_envelopes);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &sent_envelopes);
+    sentry_options_set_transport(options, transport);
+
+    sentry_options_set_on_crashed_last_run(
+        options, record_crashed_last_run, &state);
+    sentry_options_set_send_previous_run_envelopes(options, 0);
+
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+    sentry_path_t *old_run1
+        = sentry__path_join_str(options->database_path, "first.run");
+    sentry_path_t *old_run2
+        = sentry__path_join_str(options->database_path, "second.run");
+    TEST_ASSERT(!!old_run1 && !!old_run2);
+    sentry__path_remove_all(old_run1);
+    sentry__path_remove_all(old_run2);
+
+    sentry_uuid_t crash1 = sentry_uuid_new_v4();
+    sentry_uuid_t crash2 = sentry_uuid_new_v4();
+    sentry_uuid_t normal = sentry_uuid_new_v4();
+    sentry_path_t *crash1_envelope = write_event_envelope(old_run1, &crash1);
+    sentry_path_t *normal_envelope = write_event_envelope(old_run1, &normal);
+    sentry_path_t *crash2_envelope = write_event_envelope(old_run2, &crash2);
+    sentry_path_t *crash1_marker = write_run_crash_marker(old_run1, &crash1);
+    sentry_path_t *crash2_marker = write_run_crash_marker(old_run2, &crash2);
+    TEST_ASSERT(!!crash1_envelope && !!normal_envelope && !!crash2_envelope);
+    TEST_ASSERT(!!crash1_marker && !!crash2_marker);
+
+    // Option off: the callback fires once per crash (not for the normal event),
+    // and all three envelopes stay on disk unsent
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 2);
+    TEST_CHECK_INT_EQUAL(state.materialized_count, 2);
+    TEST_CHECK(state_has_event_id(&state, &crash1));
+    TEST_CHECK(state_has_event_id(&state, &crash2));
+    TEST_CHECK(!state_has_event_id(&state, &normal));
+    TEST_CHECK(sentry__path_is_dir(old_run1));
+    TEST_CHECK(sentry__path_is_dir(old_run2));
+    TEST_CHECK(!sentry__path_is_file(crash1_marker));
+    TEST_CHECK(!sentry__path_is_file(crash2_marker));
+    TEST_CHECK(sentry__path_is_file(crash1_envelope));
+    TEST_CHECK(sentry__path_is_file(crash2_envelope));
+    TEST_CHECK(sentry__path_is_file(normal_envelope));
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 0);
+
+    // Second pass: the markers are gone in the previous run, so the callback
+    // doesn't fire again; nothing is sent or deleted
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 2);
+    TEST_CHECK_INT_EQUAL(state.materialized_count, 2);
+    TEST_CHECK(sentry__path_is_dir(old_run1));
+    TEST_CHECK(sentry__path_is_dir(old_run2));
+    TEST_CHECK(sentry__path_is_file(crash1_envelope));
+    TEST_CHECK(sentry__path_is_file(crash2_envelope));
+    TEST_CHECK(sentry__path_is_file(normal_envelope));
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 0);
+
+    // Option back on: the leftovers are sent, the callback does not fire again
+    sentry_options_set_send_previous_run_envelopes(options, 1);
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 2);
+    TEST_CHECK_INT_EQUAL(state.materialized_count, 2);
+    TEST_CHECK(!sentry__path_is_dir(old_run1));
+    TEST_CHECK(!sentry__path_is_dir(old_run2));
+    TEST_CHECK(!sentry__path_is_file(crash1_marker));
+    TEST_CHECK(!sentry__path_is_file(crash2_marker));
+    TEST_CHECK(!sentry__path_is_file(crash1_envelope));
+    TEST_CHECK(!sentry__path_is_file(crash2_envelope));
+    TEST_CHECK(!sentry__path_is_file(normal_envelope));
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 3);
+
+    sentry__path_free(crash1_marker);
+    sentry__path_free(crash2_marker);
+    sentry__path_free(crash1_envelope);
+    sentry__path_free(normal_envelope);
+    sentry__path_free(crash2_envelope);
+    sentry__path_free(old_run1);
+    sentry__path_free(old_run2);
+    sentry_close();
 }
 
 SENTRY_TEST(on_crashed_last_run)
