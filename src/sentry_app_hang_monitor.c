@@ -93,11 +93,13 @@ add_all_threads(sentry_value_t event, uint64_t hung_tid)
     sentry_thread_info_t *threads = sentry_malloc(
         sizeof(sentry_thread_info_t) * SENTRY_APP_HANG_MAX_THREADS);
     if (!threads) {
+        SENTRY_DEBUG("app-hang: failed to allocate the thread list");
         return;
     }
     const size_t count
         = sentry__thread_list(threads, SENTRY_APP_HANG_MAX_THREADS);
     if (count == 0) {
+        SENTRY_DEBUG("app-hang: failed to list threads");
         sentry_free(threads);
         return;
     }

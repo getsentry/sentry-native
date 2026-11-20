@@ -86,9 +86,10 @@ get_thread_name(DWORD tid, char *name, size_t name_size)
     PWSTR description = NULL;
     HRESULT hr = get_thread_description(thread, &description);
     if (SUCCEEDED(hr) && description && description[0] != L'\0') {
-        WideCharToMultiByte(
-            CP_UTF8, 0, description, -1, name, (int)name_size, NULL, NULL);
-        name[name_size - 1] = '\0';
+        if (!WideCharToMultiByte(CP_UTF8, 0, description, -1, name,
+                (int)name_size, NULL, NULL)) {
+            name[0] = '\0';
+        }
     }
     LocalFree(description);
     CloseHandle(thread);

@@ -235,7 +235,7 @@ is_signal_pending(uint64_t tid)
     if (fd < 0) {
         return false;
     }
-    char status[2048];
+    char status[4096];
     ssize_t len = read(fd, status, sizeof(status) - 1);
     close(fd);
     if (len <= 0) {
