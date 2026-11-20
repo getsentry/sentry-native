@@ -17,6 +17,6 @@ public class CrashReceiver extends BroadcastReceiver {
     }
     // keep the process active until the crash
     goAsync();
-    MainActivity.crashLater();
+    MainActivity.crashLater(intent);
   }
 }

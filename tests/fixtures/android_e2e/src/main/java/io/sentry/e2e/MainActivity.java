@@ -18,7 +18,7 @@ public class MainActivity extends Activity {
     super.onCreate(state);
     init(getApplicationContext(), getIntent());
     if (getIntent().getBooleanExtra("crash", true)) {
-      crashLater();
+      crashLater(getIntent());
     }
   }
 
@@ -44,13 +44,14 @@ public class MainActivity extends Activity {
         });
   }
 
-  static void crashLater() {
+  static void crashLater(Intent intent) {
     Handler handler = new Handler(Looper.getMainLooper());
+    int delay = intent.getIntExtra("crash_delay", 1000);
     // the SDK executor syncs the scope to native first
     Sentry.getCurrentScopes()
         .getOptions()
         .getExecutorService()
-        .submit(() -> handler.postDelayed(MainActivity::triggerNativeCrash, 1000));
+        .submit(() -> handler.postDelayed(MainActivity::triggerNativeCrash, delay));
   }
 
   private static void callNativeCrash() {

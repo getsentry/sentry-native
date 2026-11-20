@@ -1114,10 +1114,17 @@ def assert_android_native_event(event, test_id, tombstone, debuggable=True):
     scope="module",
 )
 @pytest.mark.parametrize("tombstone", [False, True], ids=["native", "tombstone"])
-def test_e2e_android_native(android_e2e_app, android_logcat, debuggable, tombstone):
+@pytest.mark.parametrize("delay", [1000, 0], ids=["late", "early"])
+def test_e2e_android_native(
+    android_e2e_app, android_logcat, debuggable, tombstone, delay
+):
     """The crash service sends native crashes, optionally merged with a tombstone."""
     if tombstone and is_android < 31:
         pytest.skip("Tombstone merging needs Android API 31+")
+    if not delay and is_android < 29:
+        pytest.skip(
+            "Below API 29, a crash on the main thread before the service connects is not reported"
+        )
     test_id = str(uuid.uuid4())
     package = android_e2e_app
     adb("shell", "pm", "clear", package, check=True, capture_output=True)
@@ -1137,6 +1144,9 @@ def test_e2e_android_native(android_e2e_app, android_logcat, debuggable, tombsto
             "--ez",
             "tombstone",
             str(tombstone).lower(),
+            "--ei",
+            "crash_delay",
+            str(delay),
             check=True,
             capture_output=True,
         )
