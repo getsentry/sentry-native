@@ -15,21 +15,11 @@
 #    define SENTRY_HAS_THREAD_STACKWALK 0
 #endif
 
-// Windows x64 (MSVC) unwinds suspended threads without taking any lock. Other
-// Windows targets use dbghelp, which can block on a lock that the suspended
-// thread holds.
-#if defined(SENTRY_PLATFORM_WINDOWS) && defined(_MSC_VER) && defined(_M_X64)
-#    define SENTRY_THREAD_STACKWALK_RTL_UNWIND 1
-#else
-#    define SENTRY_THREAD_STACKWALK_RTL_UNWIND 0
-#endif
-
-// Listing and walking all threads. On Windows this needs the lock-free
-// unwinder, because a walk with dbghelp can deadlock on any suspended thread.
-// Xbox has no API to list the threads of a process.
+// Listing and walking all threads. On Windows, the cross-thread walk is only
+// validated on x64, and Xbox has no API to list the threads of a process.
 #if SENTRY_HAS_THREAD_STACKWALK                                                \
     && (!defined(SENTRY_PLATFORM_WINDOWS)                                      \
-        || (SENTRY_THREAD_STACKWALK_RTL_UNWIND                                 \
+        || ((defined(_M_X64) || defined(__x86_64__)) && !defined(_M_ARM64EC)   \
             && !defined(SENTRY_PLATFORM_XBOX)))
 #    define SENTRY_HAS_THREAD_LIST 1
 #else

@@ -45,12 +45,12 @@ sentry__thread_stackwalk(
     }
 
     size_t n = 0;
-    kern_return_t kr = KERN_SUCCESS;
     if (thread_suspend(target) == KERN_SUCCESS) {
         // Capture register state into a ucontext and unwind via the existing
         // local unwinder. IPs only; no symbolication while suspended.
         _STRUCT_MCONTEXT mctx;
         memset(&mctx, 0, sizeof(mctx));
+        kern_return_t kr;
 #    if defined(__aarch64__)
         mach_msg_type_number_t sc = ARM_THREAD_STATE64_COUNT;
         kr = thread_get_state(
@@ -70,15 +70,12 @@ sentry__thread_stackwalk(
             memset(&s, 0, sizeof(s));
             s.user_context = &uc;
             n = sentry_unwind_stack_from_ucontext(&s, ips, max);
+        } else {
+            SENTRY_DEBUGF("app-hang: thread_get_state failed: %d", kr);
         }
         thread_resume(target); // ALWAYS resume
     }
     mach_port_deallocate(task, target);
-    // Log only after the resume: the logger can take a lock that the
-    // suspended thread holds.
-    if (kr != KERN_SUCCESS) {
-        SENTRY_DEBUGF("app-hang: thread_get_state failed: %d", kr);
-    }
     return n;
 }
 

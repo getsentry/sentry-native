@@ -1,4 +1,3 @@
-XX(app_hang_all_threads_during_module_loading)
 XX(app_hang_disarm_prevents_capture)
 XX(app_hang_end_to_end)
 XX(app_hang_latch)

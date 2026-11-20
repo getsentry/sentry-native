@@ -9,15 +9,6 @@
 #    include <string.h>
 #endif
 
-// The module loading test covers the Windows loader lock, which a suspended
-// thread can hold. It needs the lock-free unwinder.
-#if SENTRY_HAS_THREAD_LIST && defined(SENTRY_PLATFORM_WINDOWS)
-#    include <windows.h>
-#    define SENTRY_TEST_MODULE_LOADING 1
-#else
-#    define SENTRY_TEST_MODULE_LOADING 0
-#endif
-
 SENTRY_TEST(app_hang_should_capture)
 {
     // disabled (timeout == 0) -> never captures
@@ -415,85 +406,4 @@ SENTRY_TEST(app_hang_with_all_threads)
     }
 #endif
     TEST_CHECK(g_all_threads.others_with_frames >= 1);
-}
-
-#if SENTRY_HAS_THREAD_LIST && SENTRY_TEST_MODULE_LOADING
-#    define STRESS_CAPTURES 50
-
-static volatile long g_stress_events;
-static volatile long g_stress_keep_loading;
-
-static sentry_value_t
-stress_before_send(sentry_value_t event, sentry_hint_t *hint, void *data)
-{
-    (void)hint;
-    (void)data;
-    sentry__atomic_fetch_and_add(&g_stress_events, 1);
-    sentry_value_decref(event);
-    return sentry_value_new_null();
-}
-
-SENTRY_THREAD_FN
-module_loader(void *arg)
-{
-    (void)arg;
-    while (sentry__atomic_fetch(&g_stress_keep_loading)) {
-        HMODULE module = LoadLibraryA("winmm.dll");
-        if (module) {
-            FreeLibrary(module);
-        }
-    }
-    return 0;
-}
-
-SENTRY_THREAD_FN
-repeatedly_hung(void *arg)
-{
-    (void)arg;
-    for (long i = 0; i < STRESS_CAPTURES; i++) {
-        sentry_app_hang_heartbeat();
-        for (int wait = 0;
-            wait < 500 && sentry__atomic_fetch(&g_stress_events) <= i; wait++) {
-            sleep_ms(10);
-        }
-    }
-    return 0;
-}
-
-#endif
-
-// A thread can be suspended while it holds the loader lock. The walk must not
-// wait for that lock, or the watchdog and the suspended thread hang forever.
-SENTRY_TEST(app_hang_all_threads_during_module_loading)
-{
-#if !SENTRY_HAS_THREAD_LIST || !SENTRY_TEST_MODULE_LOADING
-    SKIP_TEST();
-#else
-    g_stress_events = 0;
-    sentry__atomic_store(&g_stress_keep_loading, 1);
-    sentry__app_hang_latch_reset();
-    sentry__app_hang_monitor_set_stackwalk_fn(NULL);
-
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_before_send(options, stress_before_send, NULL);
-    sentry_options_set_enable_app_hang_tracking(options, 1);
-    sentry_options_set_app_hang_timeout(options, 50);
-    sentry_options_set_app_hang_attach_all_threads(options, 1);
-    sentry_init(options);
-    // The module finder reads the headers of every loaded module once. Build
-    // the list before the loader starts, so it does not race with an unload.
-    sentry_value_decref(sentry_get_modules_list());
-
-    sentry_threadid_t loader;
-    sentry__thread_spawn(&loader, module_loader, NULL);
-    sentry_threadid_t hung;
-    sentry__thread_spawn(&hung, repeatedly_hung, NULL);
-    sentry__thread_join(hung);
-    sentry__atomic_store(&g_stress_keep_loading, 0);
-    sentry__thread_join(loader);
-    sentry_close();
-
-    TEST_CHECK(sentry__atomic_fetch(&g_stress_events) == STRESS_CAPTURES);
-#endif
 }

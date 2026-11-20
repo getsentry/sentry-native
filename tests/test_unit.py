@@ -3,18 +3,16 @@ import pytest
 from . import run
 from .conditions import has_http, is_wine
 
-# These tests drive the real cross-thread RT-signal sampler and unwind a signal
-# frame inside the handler. qemu-user does not emulate thread-targeted signal
-# delivery/unwinding faithfully, so the sample never produces frames. They run
-# natively (incl. native arm64); skip only on qemu.
-_REAL_SIGNAL_TESTS = [
-    "app_hang_end_to_end",
-    "app_hang_with_all_threads",
-]
-
 
 def _skip_if_unsupported(unittest):
-    if unittest in _REAL_SIGNAL_TESTS and os.environ.get("TEST_QEMU"):
+    # app_hang_end_to_end drives the real cross-thread RT-signal sampler and
+    # unwinds a signal frame inside the handler. qemu-user does not emulate
+    # thread-targeted signal delivery/unwinding faithfully, so the sample never
+    # produces frames. It runs natively (incl. native arm64); skip only on qemu.
+    if unittest in (
+        "app_hang_end_to_end",
+        "app_hang_with_all_threads",
+    ) and os.environ.get("TEST_QEMU"):
         pytest.skip(
             f"{unittest} requires real signal delivery (unsupported under qemu-user)"
         )

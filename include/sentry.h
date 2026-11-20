@@ -3372,9 +3372,9 @@ SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout(
  * its stack is walked, so a capture takes longer when the process has many
  * threads. The number of walked threads and the total walk time are limited.
  *
- * Supported on Windows x64 (MSVC builds), Linux, Android and macOS. On other
- * platforms, including Xbox and other Windows builds, the option has no effect
- * and a warning is logged.
+ * Supported on Windows x64, Linux, Android and macOS. On other platforms,
+ * including Xbox and Windows x86 and ARM64, the option has no effect and a
+ * warning is logged.
  *
  * Disabled by default. Only has an effect if app-hang detection is enabled via
  * `sentry_options_set_enable_app_hang_tracking`.
