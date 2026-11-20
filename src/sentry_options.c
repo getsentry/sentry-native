@@ -110,9 +110,9 @@ sentry_options_new(void)
         false;
 #endif
     opts->backend = sentry__backend_new();
-    opts->transport = sentry__transport_new_default();
+    opts->transport = sentry_transport_new_default();
     opts->refcount = 1;
-    opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
+    opts->shutdown_timeout = UINT64_MAX;
     opts->transfer_timeout = SENTRY_DEFAULT_TRANSFER_TIMEOUT;
     sentry_options_set_sample_rate(
         opts, sentry__getenv_double("SENTRY_SAMPLE_RATE", 1.0));
@@ -434,19 +434,6 @@ const char *
 sentry_options_get_proxy(const sentry_options_t *opts)
 {
     return opts->proxy;
-}
-
-void
-sentry_options_set_http_proxy_n(
-    sentry_options_t *opts, const char *proxy, size_t proxy_len)
-{
-    sentry_options_set_proxy_n(opts, proxy, proxy_len);
-}
-
-void
-sentry_options_set_http_proxy(sentry_options_t *opts, const char *proxy)
-{
-    sentry_options_set_proxy(opts, proxy);
 }
 
 const char *
@@ -782,9 +769,17 @@ sentry_options_set_shutdown_timeout(
 }
 
 uint64_t
-sentry_options_get_shutdown_timeout(sentry_options_t *opts)
+sentry_options_get_shutdown_timeout(const sentry_options_t *opts)
 {
-    return opts->shutdown_timeout;
+    return sentry__options_has_shutdown_timeout(opts)
+        ? opts->shutdown_timeout
+        : SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
+}
+
+bool
+sentry__options_has_shutdown_timeout(const sentry_options_t *opts)
+{
+    return opts->shutdown_timeout != UINT64_MAX;
 }
 
 void
@@ -795,7 +790,7 @@ sentry_options_set_transfer_timeout(
 }
 
 uint64_t
-sentry_options_get_transfer_timeout(sentry_options_t *opts)
+sentry_options_get_transfer_timeout(const sentry_options_t *opts)
 {
     return opts->transfer_timeout;
 }
@@ -813,21 +808,6 @@ sentry_options_add_attachment_n(
 {
     sentry_value_decref(sentry__attachments_add_path_n(
         &opts->attachments, path, path_len, NULL, NULL));
-}
-
-void
-sentry_options_add_view_hierarchy(sentry_options_t *opts, const char *path)
-{
-    sentry_value_decref(sentry__attachments_add_path(&opts->attachments, path,
-        SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json"));
-}
-
-void
-sentry_options_add_view_hierarchy_n(
-    sentry_options_t *opts, const char *path, size_t path_len)
-{
-    sentry_value_decref(sentry__attachments_add_path_n(&opts->attachments, path,
-        path_len, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json"));
 }
 
 void
@@ -920,24 +900,6 @@ sentry_options_add_attachmentw(sentry_options_t *opts, const wchar_t *path)
 }
 
 void
-sentry_options_add_view_hierarchyw(sentry_options_t *opts, const wchar_t *path)
-{
-    size_t path_len = path ? wcslen(path) : 0;
-    sentry_value_decref(
-        sentry__attachments_add_wpath_n(&opts->attachments, path, path_len,
-            SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json"));
-}
-
-void
-sentry_options_add_view_hierarchyw_n(
-    sentry_options_t *opts, const wchar_t *path, size_t path_len)
-{
-    sentry_value_decref(
-        sentry__attachments_add_wpath_n(&opts->attachments, path, path_len,
-            SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json"));
-}
-
-void
 sentry_options_set_handler_pathw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len)
 {
@@ -999,7 +961,7 @@ sentry_options_set_max_spans(sentry_options_t *opts, size_t max_spans)
  * transaction.
  */
 size_t
-sentry_options_get_max_spans(sentry_options_t *opts)
+sentry_options_get_max_spans(const sentry_options_t *opts)
 {
     return opts->max_spans;
 }
@@ -1020,7 +982,7 @@ sentry_options_set_traces_sample_rate(
  * Returns the sample rate for transactions.
  */
 double
-sentry_options_get_traces_sample_rate(sentry_options_t *opts)
+sentry_options_get_traces_sample_rate(const sentry_options_t *opts)
 {
     return opts->traces_sample_rate;
 }

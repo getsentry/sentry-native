@@ -1,5 +1,4 @@
 #include "sentry_boot.h"
-#include "sentry_logger.h"
 #include "sentry_unwinder.h"
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
@@ -65,7 +64,7 @@ static
     bool
     find_mem_range_from_fd(int fd, uintptr_t ptr, mem_range_t *range)
 {
-    char buf[4096];
+    char buf[512];
     size_t carry = 0;
     bool skip_to_nl = false; // true while discarding an oversized line's tail
 
@@ -156,28 +155,24 @@ sentry__unwind_stack_libunwind(
         int ret = unw_init_local2(&cursor, (unw_context_t *)uctx->user_context,
             UNW_INIT_SIGNAL_FRAME);
         if (ret != 0) {
-            SENTRY_WARN("Failed to initialize libunwind with ucontext");
             return 0;
         }
     } else {
-#ifdef __clang__
+#ifdef __GNUC__
 // This pragma is required to build with Werror on ARM64 Ubuntu
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored                                           \
-        "-Wgnu-statement-expression-from-macro-expansion"
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wpedantic"
 #endif
         int ret = unw_getcontext(&uc);
-#ifdef __clang__
-#    pragma clang diagnostic pop
+#ifdef __GNUC__
+#    pragma GCC diagnostic pop
 #endif
         if (ret != 0) {
-            SENTRY_WARN("Failed to retrieve context with libunwind");
             return 0;
         }
 
         ret = unw_init_local(&cursor, &uc);
         if (ret != 0) {
-            SENTRY_WARN("Failed to initialize libunwind with local context");
             return 0;
         }
     }
@@ -203,9 +198,6 @@ sentry__unwind_stack_libunwind(
     // ensure we have a valid stack pointer otherwise we only send the top frame
     mem_range_t stack = { 0, 0 };
     if (uctx && !find_mem_range((uintptr_t)sp, &stack)) {
-        SENTRY_WARNF("unwinder: SP (%p) is in unmapped memory likely due to "
-                     "stack overflow",
-            (void *)sp);
         return n;
     }
 

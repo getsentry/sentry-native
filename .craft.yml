@@ -3,17 +3,23 @@ changelogPolicy: auto
 targets:
   - name: github
     includeNames: /^(sentry-native).*\.zip$/
+    excludeNames: /^sentry-native\.zip$/
   - name: registry
     sdks:
       github:getsentry/sentry-native:
       maven:io.sentry:sentry-native-ndk:
   - name: gcs
-    includeNames: /^(sentry-native\.zip)$/
+    includeNames: /^sentry-native-\d+\.\d+\.\d+.*\.zip$/
     bucket: sentry-sdk-assets
     paths:
       - path: /sentry-native/{{version}}/
         metadata:
           cacheControl: public, max-age=2592000
+  - name: gcs
+    id: latest
+    includeNames: /^sentry-native\.zip$/
+    bucket: sentry-sdk-assets
+    paths:
       - path: /sentry-native/latest/
         metadata:
           cacheControl: public, max-age=600
@@ -32,4 +38,5 @@ targets:
     batchType: android
     bundleIdPrefix: sentry-native-ndk-
 requireNames:
-  - /^sentry-native.zip$/
+  - /^sentry-native-\d+\.\d+\.\d+.*\.zip$/
+  - /^sentry-native\.zip$/

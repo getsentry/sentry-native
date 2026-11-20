@@ -159,4 +159,9 @@ bool sentry__options_add_integration(
 bool sentry__options_has_integration(
     const sentry_options_t *opts, const char *name);
 
+/**
+ * Returns whether the `shutdown_timeout` option has been set.
+ */
+bool sentry__options_has_shutdown_timeout(const sentry_options_t *opts);
+
 #endif

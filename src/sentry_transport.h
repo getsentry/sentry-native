@@ -46,7 +46,7 @@ int sentry__transport_shutdown(sentry_transport_t *transport, uint64_t timeout);
 /**
  * This will create a new platform specific HTTP transport.
  */
-sentry_transport_t *sentry__transport_new_default(void);
+sentry_transport_t *sentry_transport_new_default(void);
 
 /**
  * This function will instruct the platform specific transport to dump all the

@@ -25,7 +25,8 @@ test-unit: update-test-discovery CMakeLists.txt
 	@cd unit-build; cmake \
 		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(PWD)/unit-build \
 		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO=$(PWD)/unit-build \
-		-DSENTRY_BACKEND=none \
+		-DSENTRY_BACKEND=$(or $(SENTRY_BACKEND),none) \
+		$(if $(SENTRY_TRANSPORT),-DSENTRY_TRANSPORT=$(SENTRY_TRANSPORT)) \
 		..
 	@cmake --build unit-build --target sentry_test_unit --parallel --config RelWithDebInfo
 	./unit-build/sentry_test_unit
@@ -39,7 +40,8 @@ test-leaks: update-test-discovery CMakeLists.txt
 	@mkdir -p leak-build
 	@cd leak-build; cmake \
 		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(PWD)/leak-build \
-		-DSENTRY_BACKEND=none \
+		-DSENTRY_BACKEND=$(or $(SENTRY_BACKEND),none) \
+		$(if $(SENTRY_TRANSPORT),-DSENTRY_TRANSPORT=$(SENTRY_TRANSPORT)) \
 		-DWITH_ASAN_OPTION=ON \
 		-DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
 		-DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \

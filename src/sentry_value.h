@@ -93,6 +93,12 @@ char *sentry__value_remove_and_take_key_n(
     sentry_value_t value, const char *key, size_t key_len);
 
 /**
+ * Removes a value by key and returns it, transferring ownership to the
+ * caller. Returns a null value if the key does not exist.
+ */
+sentry_value_t sentry__value_take_by_key(sentry_value_t value, const char *key);
+
+/**
  * This will parse the Value into a UUID, or return a `nil` UUID on error.
  * See also `sentry_uuid_from_string`.
  */

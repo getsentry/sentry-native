@@ -135,10 +135,11 @@ before_send_callback(sentry_value_t event, sentry_hint_t *hint, void *user_data)
 {
     (void)user_data;
 
+    char *json = sentry_value_to_json(event);
     sentry_hint_clear_attachments(hint);
     sentry_hint_add_attachment(hint,
-        sentry_attachment_from_bytes(
-            "before_send", strlen("before_send"), "callback.txt"));
+        sentry_attachment_from_bytes(json, strlen(json), "before_send.json"));
+    sentry_free(json);
 
     // make our mark on the event
     sentry_value_set_by_key(
@@ -188,10 +189,11 @@ on_crash_callback(const sentry_ucontext_t *uctx, sentry_value_t event,
         }
     }
 
+    char *json = sentry_value_to_json(event);
     sentry_hint_clear_attachments(hint);
     sentry_hint_add_attachment(hint,
-        sentry_attachment_from_bytes(
-            "on_crash", strlen("on_crash"), "callback.txt"));
+        sentry_attachment_from_bytes(json, strlen(json), "on_crash.json"));
+    sentry_free(json);
 
     // tell the backend to retain the event
     return event;
@@ -444,6 +446,14 @@ test_logger_callback(
 }
 
 static void
+report_trace_header(const char *key, const char *value, void *userdata)
+{
+    (void)userdata;
+    printf("%s: %s\n", key, value);
+    sentry_set_extra(key, sentry_value_new_string(value));
+}
+
+static void
 print_envelope(sentry_envelope_t *envelope, void *unused_state)
 {
     (void)unused_state;
@@ -667,6 +677,14 @@ trigger_oom_exhaust(void)
 #endif
 }
 
+static void
+trigger_null_call(void)
+{
+    // keep a caller frame independent of libc startup
+    void (*volatile func)(void) = NULL;
+    func();
+}
+
 static sentry_value_t
 create_debug_crumb(const char *message)
 {
@@ -818,6 +836,9 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "log")) {
         sentry_options_set_debug(options, 1);
+    }
+    if (has_arg(argc, argv, "trace")) {
+        sentry_options_set_logger_level(options, SENTRY_LEVEL_TRACE);
     }
 
     if (has_arg(argc, argv, "attachment")) {
@@ -1061,6 +1082,10 @@ main(int argc, char **argv)
         sentry_options_set_crash_upload_mode(
             options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     }
+    const char *minidump_mode = get_arg_value(argc, argv, "minidump-mode");
+    if (minidump_mode) {
+        sentry_options_set_minidump_mode(options, atoi(minidump_mode));
+    }
 
     // E2E test mode: generate unique test ID for event correlation
     char e2e_test_id[37] = { 0 };
@@ -1175,7 +1200,7 @@ main(int argc, char **argv)
             fclose(f);
             sentry_value_t attachment = sentry_attachment_from_file(large_file);
             sentry_attachment_set_type(
-                attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+                attachment, SENTRY_ATTACHMENT_TYPE_GENERIC);
             sentry_add_attachment(attachment);
         }
     }
@@ -1263,6 +1288,22 @@ main(int argc, char **argv)
         sentry_set_trace(direct_trace_id, direct_parent_span_id);
     }
 
+    if (has_arg(argc, argv, "continue-trace")) {
+        // the headers of an upstream app, if given
+        const char *sentry_trace = getenv("SENTRY_TEST_SENTRY_TRACE");
+        const char *baggage = getenv("SENTRY_TEST_BAGGAGE");
+        sentry_continue_trace(sentry_trace
+                ? sentry_trace
+                : "aaaabbbbccccddddeeeeffff00001111-f0f0f0f0f0f0f0f0-1",
+            baggage ? baggage
+                    : "sentry-trace_id=aaaabbbbccccddddeeeeffff00001111,"
+                      "sentry-environment=upstream,sentry-sample_rand=0.25");
+    }
+
+    if (has_arg(argc, argv, "iter-trace-headers")) {
+        sentry_iter_trace_propagation_headers(report_trace_header, NULL);
+    }
+
     if (has_arg(argc, argv, "replay-context")) {
         // mimics an embedder (e.g. sentry-unreal) that stages replay clips in
         // `<database>/replays/` and announces the active replay on the scope
@@ -1285,6 +1326,25 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "update-release-env")) {
         sentry_set_release("updated-release");
         sentry_set_environment("updated-environment");
+    }
+
+    if (has_arg(argc, argv, "acquire-scope")) {
+        sentry_scope_t *scope = sentry_scope_acquire();
+        sentry_scope_set_tag(scope, "acquired", "yes");
+        sentry_scope_set_release(scope, "scope-release");
+        sentry_scope_set_environment(scope, "scope-environment");
+        sentry_scope_set_user(
+            scope, sentry_value_new_user("scope-user", NULL, NULL, NULL));
+        sentry_scope_add_breadcrumb(
+            scope, sentry_value_new_breadcrumb(NULL, "acquired breadcrumb"));
+        sentry_scope_attach_bytes(scope, "scope", 5, "scope.txt");
+        sentry_scope_release(scope);
+    }
+
+    if (has_arg(argc, argv, "clear-scope")) {
+        sentry_scope_t *scope = sentry_scope_acquire();
+        sentry_scope_clear(scope);
+        sentry_scope_release(scope);
     }
 
     if (has_arg(argc, argv, "start-session")) {
@@ -1329,6 +1389,12 @@ main(int argc, char **argv)
             sentry_attachment_set_content_type(
                 bytes, "application/octet-stream");
             sentry_scope_add_attachment(scope, bytes);
+        }
+
+        if (has_arg(argc, argv, "set-scope-trace")) {
+            const char *scope_trace_id = "11112222333344445555666677778888";
+            const char *scope_parent_span_id = "0f0f0f0f0f0f0f0f";
+            sentry_scope_set_trace(scope, scope_trace_id, scope_parent_span_id);
         }
 
         sentry_scope_capture_event(scope, event, NULL);
@@ -1409,8 +1475,22 @@ main(int argc, char **argv)
             sentry_span_start_child(ospan, "open.grand.span", NULL));
     }
 
+    const char *allocation_mib = get_arg_value(argc, argv, "large-allocation");
+    if (allocation_mib) {
+        const size_t size = strtoul(allocation_mib, NULL, 10) * 1024 * 1024;
+        char *allocation = malloc(size);
+        if (allocation) {
+            const size_t touched
+                = has_arg(argc, argv, "sparse-allocation") ? 32 : size;
+            memset(allocation + size - touched, 0xA5, touched);
+        }
+    }
+
     if (has_arg(argc, argv, "crash")) {
         sentry_crash();
+    }
+    if (has_arg(argc, argv, "crash-null")) {
+        trigger_null_call();
     }
 #ifdef SENTRY_PLATFORM_LINUX
     if (has_arg(argc, argv, "crash-high-address")) {
@@ -1534,19 +1614,6 @@ main(int argc, char **argv)
         // Clean up the temporary file
         remove(attachment_path);
     }
-    if (has_arg(argc, argv, "capture-user-report")) {
-        sentry_value_t event = sentry_value_new_message_event(
-            SENTRY_LEVEL_INFO, "my-logger", "Hello user feedback!");
-        sentry_uuid_t event_id = sentry_capture_event(event);
-
-        SENTRY_SUPPRESS_DEPRECATED
-        sentry_value_t user_feedback = sentry_value_new_user_feedback(
-            &event_id, "some-name", "some-email", "some-comment");
-
-        sentry_capture_user_feedback(user_feedback);
-        SENTRY_RESTORE_DEPRECATED
-    }
-
     if (has_arg(argc, argv, "capture-transaction")) {
         sentry_transaction_context_t *tx_ctx
             = sentry_transaction_context_new("little.teapot",

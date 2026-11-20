@@ -24,7 +24,6 @@ name = "native-code-review"
 paths = ["src/**", "include/**", "ndk/lib/src/main/jni/**"]
 ignorePaths = ["**/*.md", "src/CMakeLists.txt", "src/exports.map"]
 incremental = true
-maxTurns = 30
 
 [[skills.triggers]]
 type = "pull_request"
@@ -52,7 +51,6 @@ paths = [
 ]
 ignorePaths = ["**/*.md", "external/**", "vendor/**", ".github/ISSUE_TEMPLATE/**"]
 incremental = true
-maxTurns = 30
 
 [[skills.triggers]]
 type = "pull_request"
@@ -72,7 +70,6 @@ ignorePaths = [
   "tests/fixtures/*.so",
 ]
 incremental = true
-maxTurns = 30
 
 [[skills.triggers]]
 type = "pull_request"

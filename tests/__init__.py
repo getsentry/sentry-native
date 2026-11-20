@@ -45,7 +45,8 @@ def run_command(name):
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
-SENTRY_VERSION = "0.17.6"
+SENTRY_VERSION = "1.0.0-beta.1"
+SENTRY_VERSION_BASE = SENTRY_VERSION.split("-", 1)[0]
 
 # must match the fixed id set by the example's "replay-context" arg
 REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
@@ -299,12 +300,10 @@ def run(
         ) from None
 
 
-def run_crash(tmp_path, exe, args, env, **kwargs):
+def crash_env(env):
     """
-    Run a crash test.
-
-    When running under ASAN, we configure it to not intercept crash signals
-    so that our native crash handler can run and capture the crash.
+    Configure ASAN to not intercept crash signals, so that our native crash
+    handler can run and capture the crash.
     """
     # When running under ASAN, disable ASAN's signal handling so our crash
     # handler can run. ASAN would otherwise intercept SIGSEGV/SIGABRT/etc
@@ -321,8 +320,17 @@ def run_crash(tmp_path, exe, args, env, **kwargs):
             env = dict(env, ASAN_OPTIONS=f"{asan_opts}:{asan_signal_opts}")
         else:
             env = dict(env, ASAN_OPTIONS=asan_signal_opts)
+    return env
 
-    run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
+
+def run_crash(tmp_path, exe, args, env, **kwargs):
+    """
+    Run a crash test.
+
+    When running under ASAN, we configure it to not intercept crash signals
+    so that our native crash handler can run and capture the crash.
+    """
+    run(tmp_path, exe, args, expect_failure=True, env=crash_env(env), **kwargs)
 
 
 def check_output(*args, **kwargs):

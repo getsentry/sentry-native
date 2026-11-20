@@ -192,3 +192,9 @@ sentry__uuid_is_valid(const char *id, size_t len)
     }
     return true;
 }
+
+bool
+sentry__uuid_eq(const sentry_uuid_t *a, const sentry_uuid_t *b)
+{
+    return memcmp(a->bytes, b->bytes, sizeof(a->bytes)) == 0;
+}

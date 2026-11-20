@@ -34,4 +34,9 @@ sentry_uuid_t sentry__uuid_from_native(const GUID *guid);
  */
 bool sentry__uuid_is_valid(const char *id, size_t len);
 
+/**
+ * True if `a` and `b` are the same UUID.
+ */
+bool sentry__uuid_eq(const sentry_uuid_t *a, const sentry_uuid_t *b);
+
 #endif

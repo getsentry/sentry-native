@@ -223,12 +223,29 @@ SENTRY_TEST(find_mem_range)
 
     mem_range_t crafted_range = { 0, 0 };
     found = find_mem_range_from_fd(fd, (uintptr_t)0xdead1000, &crafted_range);
-    close(fd);
-    unlink(tmp_path);
     TEST_CHECK(found);
     TEST_CHECK_PTR_EQUAL(
         (void *)crafted_range.lo, (void *)(uintptr_t)0xdead0000);
     TEST_CHECK_PTR_EQUAL(
         (void *)crafted_range.hi, (void *)(uintptr_t)0xdeadf000);
+
+    // Test that the address prefix can span two 512-byte reads.
+    TEST_ASSERT(ftruncate(fd, 0) == 0);
+    lseek(fd, 0, SEEK_SET);
+    TEST_ASSERT(write(fd, skip_prefix, strlen(skip_prefix))
+        == (ssize_t)strlen(skip_prefix));
+    size_t padding = 507 - strlen(skip_prefix);
+    TEST_ASSERT(write(fd, filler, padding) == (ssize_t)padding);
+    TEST_ASSERT(write(fd, "\n", 1) == 1);
+    TEST_ASSERT(write(fd, target, strlen(target)) == (ssize_t)strlen(target));
+    lseek(fd, 0, SEEK_SET);
+
+    mem_range_t split_range = { 0, 0 };
+    found = find_mem_range_from_fd(fd, (uintptr_t)0xdead1000, &split_range);
+    close(fd);
+    unlink(tmp_path);
+    TEST_CHECK(found);
+    TEST_CHECK_PTR_EQUAL((void *)split_range.lo, (void *)(uintptr_t)0xdead0000);
+    TEST_CHECK_PTR_EQUAL((void *)split_range.hi, (void *)(uintptr_t)0xdeadf000);
 #endif
 }

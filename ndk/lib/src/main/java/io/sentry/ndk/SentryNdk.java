@@ -2,6 +2,7 @@ package io.sentry.ndk;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @ApiStatus.Internal
 public final class SentryNdk {
@@ -19,6 +20,25 @@ public final class SentryNdk {
    *     to initialize
    */
   private static native int initSentryNative(@NotNull final NdkOptions options);
+
+  private static native int nativeCreateCrashShm();
+
+  private static native void nativeInitCrashDaemon(
+      int shmFd, int notifyFd, int readyFd, int messageFd);
+
+  private static native long nativeRunCrashDaemon(
+      int appPid, long appTid, int notifyFd, int readyFd, int messageFd, int shmFd);
+
+  private static native int nativeDupCrashShmFd();
+
+  private static native boolean nativeReattachCrashDaemon(
+      int notifyFd, int readyFd, int messageFd);
+
+  private static native @NotNull String nativeGetCrashEnvelopePath(long handle);
+
+  private static native int nativeSendEnvelope(long handle, @NotNull String path, long timeout);
+
+  private static native void nativeCloseCrashDaemon(long handle);
 
   private static native void shutdown();
 
@@ -52,6 +72,88 @@ public final class SentryNdk {
           "A sentry-native internal init error occurred, please check the logs for more details.");
     } else if (returnCode < 0) {
       throw new IllegalStateException("A sentry-native setup failure occurred");
+    }
+  }
+
+  /** Creates the shared memory of the crash IPC, or returns -1 if that fails. Needs API 30+. */
+  public static int createCrashShm() {
+    loadNativeLibraries();
+    return nativeCreateCrashShm();
+  }
+
+  public static void initCrashDaemon(int shmFd, int notifyFd, int readyFd, int messageFd) {
+    loadNativeLibraries();
+    nativeInitCrashDaemon(shmFd, notifyFd, readyFd, messageFd);
+  }
+
+  /** Runs a crash daemon for an app process until it exits or crashes. */
+  public static @Nullable CrashDaemon runCrashDaemon(
+      int appPid, long appTid, int notifyFd, int readyFd, int messageFd, int shmFd) {
+    loadNativeLibraries();
+    final long handle = nativeRunCrashDaemon(appPid, appTid, notifyFd, readyFd, messageFd, shmFd);
+    return handle == 0 ? null : new CrashDaemon(handle);
+  }
+
+  /**
+   * Returns a duplicate of the crash IPC's shared memory file for a restarted crash service, or -1
+   * if the app has none to reattach.
+   */
+  public static int dupCrashShmFd() {
+    loadNativeLibraries();
+    return nativeDupCrashShmFd();
+  }
+
+  /**
+   * Switches the crash IPC to the daemon of a restarted crash service and sends it the current
+   * scope. Takes ownership of the fds.
+   *
+   * @return false if the app could not reattach, for example while handling a crash
+   */
+  public static boolean reattachCrashDaemon(int notifyFd, int readyFd, int messageFd) {
+    loadNativeLibraries();
+    return nativeReattachCrashDaemon(notifyFd, readyFd, messageFd);
+  }
+
+  @ApiStatus.Internal
+  public static final class CrashDaemon implements AutoCloseable {
+    private final @NotNull String envelopePath;
+    private long handle;
+
+    private CrashDaemon(long handle) {
+      this.handle = handle;
+      envelopePath = nativeGetCrashEnvelopePath(handle);
+    }
+
+    public @NotNull String getEnvelopePath() {
+      return envelopePath;
+    }
+
+    /** Sends the merged envelope and closes the daemon. */
+    public synchronized @NotNull SendResult sendEnvelope(@NotNull String path, long timeout) {
+      final long handle = this.handle;
+      this.handle = 0;
+      return handle != 0
+          ? SendResult.values()[nativeSendEnvelope(handle, path, timeout)]
+          : SendResult.FAILED;
+    }
+
+    @Override
+    public synchronized void close() {
+      final long handle = this.handle;
+      this.handle = 0;
+      if (handle != 0) {
+        nativeCloseCrashDaemon(handle);
+      }
+    }
+
+    /** The outcome of {@link #sendEnvelope(String, long)}. */
+    public enum SendResult {
+      /** The envelope was neither sent nor kept. */
+      FAILED,
+      /** The envelope was sent. */
+      SENT,
+      /** The envelope was not sent and is kept for the next launch. */
+      KEPT
     }
   }
 

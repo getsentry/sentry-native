@@ -7,13 +7,18 @@
 /**
  * Initialize crash handler (install signal handlers)
  */
-int sentry__crash_handler_init(
-    sentry_crash_ipc_t *ipc, sentry_handler_strategy_t strategy);
+int sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+    sentry_handler_strategy_t strategy, void (*callback)(void));
 
 /**
  * Reinstalls crash handlers while retaining IPC and the signal stack.
  */
 int sentry__crash_handler_reinstall(void);
+
+/**
+ * Preload crash handler before full initialization.
+ */
+int sentry__crash_handler_preload(void);
 
 /**
  * Shutdown crash handler (restore previous handlers)

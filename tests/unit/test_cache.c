@@ -11,6 +11,7 @@
 #include "sentry_testsupport.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
+#include "transports/sentry_http_transport.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <windows.h>
@@ -139,16 +140,29 @@ state_has_event_id(
     return false;
 }
 
+static int
+test_http_send_fails(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    (void)client;
+    (void)req;
+    (void)resp;
+    return false;
+}
+
 SENTRY_TEST(cache_keep)
 {
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
     SKIP_TEST();
 #endif
     SENTRY_TEST_OPTIONS_NEW(options);
-    TEST_ASSERT(!!options->transport);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
     sentry_options_set_http_retry(options, false);
+    sentry_transport_t *transport
+        = sentry__http_transport_new(NULL, test_http_send_fails);
+    TEST_ASSERT(!!transport);
+    sentry_options_set_transport(options, transport);
     sentry_init(options);
 
     sentry_path_t *cache_path
