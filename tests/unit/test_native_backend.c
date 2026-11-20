@@ -44,6 +44,14 @@ count_sent_envelopes(sentry_envelope_t *envelope, void *state)
     (*count)++;
     sentry_envelope_free(envelope);
 }
+
+static void
+count_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
+{
+    (void)envelope;
+    size_t *count = user_data;
+    (*count)++;
+}
 #endif
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -212,31 +220,56 @@ SENTRY_TEST(interrupted_crash_recovered)
 
     options->run = sentry__run_new(options->database_path);
     TEST_ASSERT(!!options->run);
-    sentry_run_t *old_run = sentry__run_new(options->database_path);
-    TEST_ASSERT(!!old_run);
-    sentry__filelock_unlock(old_run->lock);
-
-    // crash handling was interrupted, so the crash event is left behind
-    sentry_path_t *event_path
-        = sentry__path_join_str(old_run->run_path, "__sentry-event");
-    TEST_ASSERT(!!event_path);
-    const char event[] = "{\"level\":\"fatal\"}";
-    TEST_ASSERT(
-        sentry__path_write_buffer(event_path, event, sizeof(event) - 1) == 0);
 
     size_t sent_envelopes = 0;
     sentry_transport_t *transport = sentry_transport_new(count_sent_envelopes);
     TEST_ASSERT(!!transport);
     sentry_transport_set_state(transport, &sent_envelopes);
     sentry_options_set_transport(options, transport);
+    size_t crashed_last_run = 0;
+    sentry_options_set_on_crashed_last_run(
+        options, count_crashed_last_run, &crashed_last_run);
 
-    sentry__process_old_runs(options, 0);
+    for (size_t i = 1; i <= 2; i++) {
+        sentry_run_t *old_run = sentry__run_new(options->database_path);
+        TEST_ASSERT(!!old_run);
+        sentry__filelock_unlock(old_run->lock);
 
-    TEST_CHECK_INT_EQUAL(sent_envelopes, 1);
-    TEST_CHECK(!sentry__path_is_dir(old_run->run_path));
+        // crash handling was interrupted, so the crash event is left behind
+        sentry_path_t *event_path
+            = sentry__path_join_str(old_run->run_path, "__sentry-event");
+        TEST_ASSERT(!!event_path);
+        const char event[] = "{\"level\":\"fatal\"}";
+        TEST_ASSERT(
+            sentry__path_write_buffer(event_path, event, sizeof(event) - 1)
+            == 0);
+        sentry__path_free(event_path);
 
-    sentry__path_free(event_path);
-    sentry__run_free(old_run);
+        // the daemon's envelope, if any, takes precedence
+        if (i == 2) {
+            sentry_path_t *envelope_path = sentry__path_join_str(
+                old_run->run_path, "__sentry-crash.envelope");
+            TEST_ASSERT(!!envelope_path);
+            sentry_envelope_t *envelope = sentry__envelope_new(NULL);
+            TEST_ASSERT(!!envelope);
+            sentry__envelope_add_event(envelope,
+                sentry_value_new_message_event(
+                    SENTRY_LEVEL_FATAL, NULL, "crash"),
+                NULL);
+            TEST_ASSERT(
+                sentry_envelope_write_to_path(envelope, envelope_path) == 0);
+            sentry_envelope_free(envelope);
+            sentry__path_free(envelope_path);
+        }
+
+        sentry__process_old_runs(options, 0);
+
+        TEST_CHECK_INT_EQUAL(sent_envelopes, i);
+        TEST_CHECK_INT_EQUAL(crashed_last_run, i);
+        TEST_CHECK(!sentry__path_is_dir(old_run->run_path));
+        sentry__run_free(old_run);
+    }
+
     sentry__run_clean(options->run, true);
     sentry_options_free(options);
 #else

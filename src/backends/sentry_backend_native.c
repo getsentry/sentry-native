@@ -472,7 +472,14 @@ native_backend_process_old_run(sentry_backend_t *backend,
             continue;
         }
 
-        sentry_envelope_t *envelope = options->on_crashed_last_run_func
+        // a daemon interrupted before the crash was sent leaves the event
+        sentry_path_t *event_path
+            = sentry__path_join_str(run_path, "__sentry-event");
+        bool interrupted = event_path && sentry__path_is_file(event_path);
+        sentry__path_free(event_path);
+
+        sentry_envelope_t *envelope
+            = options->on_crashed_last_run_func || interrupted
             ? sentry__envelope_from_path(file)
             : NULL;
         bool materialized = envelope && sentry__envelope_materialize(envelope);
@@ -482,9 +489,15 @@ native_backend_process_old_run(sentry_backend_t *backend,
             sentry__pathiter_free(it);
             return false;
         }
-        if (materialized) {
+        if (materialized && options->on_crashed_last_run_func) {
             options->on_crashed_last_run_func(
                 envelope, options->on_crashed_last_run_data);
+        }
+        // prefer the daemon's envelope to the crash event
+        if (materialized && interrupted
+            && sentry__crash_event_remove(run_path)) {
+            sentry__capture_envelope(options->transport, envelope, options);
+            envelope = NULL;
         }
         sentry_envelope_free(envelope);
     }
