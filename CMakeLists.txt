@@ -124,7 +124,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
-option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in sentry and sentry-crash as errors on GCC and Clang" OFF)
+option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in sentry-native as errors on GCC and Clang" OFF)
 
 option(SENTRY_INTEGRATION_PLATFORM
 	"Enable the downstream-provided platform integration" OFF)
@@ -795,6 +795,12 @@ if(SENTRY_BACKEND_CRASHPAD)
 		set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
 	endif()
 	add_subdirectory(external/crashpad crashpad_build)
+
+	if(SENTRY_ERROR_ON_WARNINGS AND NOT MSVC)
+		target_compile_options(crashpad_interface INTERFACE
+			$<$<COMPILE_LANGUAGE:C,CXX>:-Werror>
+		)
+	endif()
 
 	if(WIN32)
 		add_dependencies(sentry crashpad::wer)

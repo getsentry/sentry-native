@@ -188,6 +188,15 @@ if(WIN32)
 	endif()
 endif()
 
+if(MSVC)
+	target_compile_options(breakpad_client PRIVATE /W3)
+else()
+	target_compile_options(breakpad_client PRIVATE -Wall)
+	if(SENTRY_ERROR_ON_WARNINGS)
+		target_compile_options(breakpad_client PRIVATE -Werror)
+	endif()
+endif()
+
 # breakpad has includes directly to `third_party/lss/...`,
 # which are being resolved correctly when we add the current directory to
 # the include directories. A giant hack, yes, but it works
