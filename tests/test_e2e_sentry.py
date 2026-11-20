@@ -28,6 +28,7 @@ import pytest
 import requests
 
 from . import adb, run, check_output, sourcedir, Envelope
+from .assertions import wait_for
 from .conditions import (
     has_breakpad,
     has_crashpad,
@@ -1061,7 +1062,9 @@ def android_logcat(request):
         print(f"\nlogcat:\n{logcat}")
 
 
-def assert_android_native_event(event, test_id, tombstone, debuggable=True):
+def assert_android_native_event(
+    event, test_id, tombstone, debuggable=True, daemon=True
+):
     assert event["platform"] == "native"
     assert event["release"]["version"] == "sentry-native-e2e"
     assert event["user"]["id"] == test_id
@@ -1090,11 +1093,12 @@ def assert_android_native_event(event, test_id, tombstone, debuggable=True):
                 for function in functions
             )
 
-    threads = get_threads_from_event(event)
-    # a single thread means the daemon could not read the app's /proc
-    assert len(threads["values"]) >= 2
-    assert any(thread["crashed"] for thread in threads["values"])
-    verify_no_thread_duplication(threads, "test_e2e_android_native")
+    if daemon:
+        threads = get_threads_from_event(event)
+        # a single thread means the daemon could not read the app's /proc
+        assert len(threads["values"]) >= 2
+        assert any(thread["crashed"] for thread in threads["values"])
+        verify_no_thread_duplication(threads, "test_e2e_android_native")
 
     images = get_debug_meta_from_event(event)["images"]
     # default packaging maps the libraries straight from the APK
@@ -1121,38 +1125,77 @@ def test_e2e_android_native(
     """The crash service sends native crashes, optionally merged with a tombstone."""
     if tombstone and is_android < 31:
         pytest.skip("Tombstone merging needs Android API 31+")
-    if not delay and is_android < 29:
-        pytest.skip(
-            "Below API 29, a crash on the main thread before the service connects is not reported"
-        )
+    # below API 29, a crashed main thread can't connect the crash service, so
+    # the next launch sends the crash
+    relaunch = not delay and is_android < 29
     test_id = str(uuid.uuid4())
     package = android_e2e_app
     adb("shell", "pm", "clear", package, check=True, capture_output=True)
     try:
-        adb(
-            "shell",
-            "am",
-            "start",
-            "-n",
-            f"{package}/.MainActivity",
-            "--es",
-            "dsn",
-            os.environ["SENTRY_E2E_DSN"],
-            "--es",
-            "test_id",
-            test_id,
-            "--ez",
-            "tombstone",
-            str(tombstone).lower(),
-            "--ei",
-            "crash_delay",
-            str(delay),
-            check=True,
-            capture_output=True,
-        )
-        # no restart: delivery must happen from the surviving crash service
+        try:
+            adb(
+                "shell",
+                "am",
+                "start",
+                # the relaunch must not race with the start of the crashing process
+                *(["-W"] if relaunch else []),
+                "-n",
+                f"{package}/.MainActivity",
+                "--es",
+                "dsn",
+                os.environ["SENTRY_E2E_DSN"],
+                "--es",
+                "test_id",
+                test_id,
+                "--ez",
+                "tombstone",
+                str(tombstone).lower(),
+                "--ei",
+                "crash_delay",
+                str(delay),
+                check=True,
+                capture_output=True,
+                timeout=10 if relaunch else None,
+            )
+        except subprocess.TimeoutExpired:
+            # older Android waits forever for a launch that crashes in onCreate
+            pass
+        if relaunch:
+
+            def running():
+                # API 21 has no pidof, and API 26+ lists all processes only with -A
+                ps = adb(
+                    "shell",
+                    "ps",
+                    *(["-A"] if is_android >= 26 else []),
+                    capture_output=True,
+                    text=True,
+                ).stdout
+                return any(line.split()[-1:] == [package] for line in ps.splitlines())
+
+            # relaunch only once the crashed process has exited
+            assert wait_for(lambda: not running(), timeout=30)
+            adb(
+                "shell",
+                "am",
+                "start",
+                "-n",
+                f"{package}/.MainActivity",
+                "--es",
+                "dsn",
+                os.environ["SENTRY_E2E_DSN"],
+                "--es",
+                "test_id",
+                test_id,
+                "--ez",
+                "crash",
+                "false",
+                check=True,
+                capture_output=True,
+            )
+        # otherwise, no restart: delivery must happen from the surviving crash service
         event = poll_sentry_for_event(test_id)
-        assert_android_native_event(event, test_id, tombstone, debuggable)
+        assert_android_native_event(event, test_id, tombstone, debuggable, not relaunch)
     finally:
         adb("shell", "am", "force-stop", package, check=False)
 
