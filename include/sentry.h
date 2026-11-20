@@ -1446,6 +1446,13 @@ typedef enum {
      * with the thread count.
      */
     SENTRY_THREAD_STACKWALK_MODE_ALL = 2,
+
+    /**
+     * Walk the hung thread only. Alias of `CRASHED_ONLY` for
+     * `sentry_options_set_app_hang_thread_stackwalk_mode`.
+     */
+    SENTRY_THREAD_STACKWALK_MODE_HUNG_ONLY
+    = SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY,
 } sentry_thread_stackwalk_mode_t;
 
 /**
@@ -3361,7 +3368,7 @@ SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout(
 /**
  * Sets which threads the app-hang watchdog walks.
  *
- * - CRASHED_ONLY (default): the event only contains the stack trace of the
+ * - HUNG_ONLY (default): the event only contains the stack trace of the
  *   hung thread. Unlike crash reports, no other threads are listed.
  * - ALL: the watchdog also walks every other thread of the process, so the
  *   event shows what the hung thread is waiting on (for example, a worker

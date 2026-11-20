@@ -132,7 +132,7 @@ sentry_options_new(void)
     opts->enable_app_hang_tracking = false;
     opts->app_hang_timeout = 5000;
     opts->app_hang_thread_stackwalk_mode
-        = SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY;
+        = SENTRY_THREAD_STACKWALK_MODE_HUNG_ONLY;
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
