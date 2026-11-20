@@ -380,7 +380,8 @@ SENTRY_TEST(app_hang_with_all_threads)
     sentry_options_set_before_send(options, all_threads_before_send, NULL);
     sentry_options_set_enable_app_hang_tracking(options, 1);
     sentry_options_set_app_hang_timeout(options, 50);
-    sentry_options_set_app_hang_attach_all_threads(options, 1);
+    sentry_options_set_app_hang_thread_stackwalk_mode(
+        options, SENTRY_THREAD_STACKWALK_MODE_ALL);
     sentry_init(options);
 
     sentry_threadid_t t;

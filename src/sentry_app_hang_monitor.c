@@ -215,7 +215,8 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
     }
 
     g_timeout_ms = options->app_hang_timeout;
-    g_attach_all_threads = options->app_hang_attach_all_threads;
+    g_attach_all_threads = options->app_hang_thread_stackwalk_mode
+        == SENTRY_THREAD_STACKWALK_MODE_ALL;
 #    if !SENTRY_HAS_THREAD_LIST
     if (g_attach_all_threads) {
         SENTRY_WARN("app-hang: attaching all threads is not supported on this "

@@ -5,7 +5,7 @@
 **Features**:
 
 - Session replay: add user input events (such as mouse clicks and touches) provided in the replay sidecar to the replay recording. ([#2288](https://github.com/getsentry/sentry-native/pull/2288))
-- Add `sentry_options_set_app_hang_attach_all_threads` to attach the stack traces of all threads to app-hang events. ([#2327](https://github.com/getsentry/sentry-native/pull/2327))
+- Add `sentry_options_set_app_hang_thread_stackwalk_mode` to attach the stack traces of all threads to app-hang events. ([#2327](https://github.com/getsentry/sentry-native/pull/2327))
 
 **Fixes**:
 
