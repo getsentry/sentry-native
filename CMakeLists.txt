@@ -124,7 +124,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
-option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in sentry-native as errors on GCC and Clang" OFF)
+option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in sentry-native as errors" OFF)
 
 option(SENTRY_INTEGRATION_PLATFORM
 	"Enable the downstream-provided platform integration" OFF)
@@ -597,6 +597,9 @@ if(MSVC)
 	else()
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4 /wd5105>)
 	endif()
+	if(SENTRY_ERROR_ON_WARNINGS)
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/WX>)
+	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
 		"${PROJECT_SOURCE_DIR}/src/sentry_mpack.c"
@@ -796,10 +799,16 @@ if(SENTRY_BACKEND_CRASHPAD)
 	endif()
 	add_subdirectory(external/crashpad crashpad_build)
 
-	if(SENTRY_ERROR_ON_WARNINGS AND NOT MSVC)
-		target_compile_options(crashpad_interface INTERFACE
-			$<$<COMPILE_LANGUAGE:C,CXX>:-Werror>
-		)
+	if(SENTRY_ERROR_ON_WARNINGS)
+		if(MSVC)
+			target_compile_options(crashpad_interface INTERFACE
+				$<$<COMPILE_LANGUAGE:C,CXX>:/WX>
+			)
+		else()
+			target_compile_options(crashpad_interface INTERFACE
+				$<$<COMPILE_LANGUAGE:C,CXX>:-Werror>
+			)
+		endif()
 	endif()
 
 	if(WIN32)
