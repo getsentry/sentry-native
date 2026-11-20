@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 #include "sentry_crash_context.h"
+#include "sentry_path.h"
 #include "sentry_ringbuffer.h"
 
 #include <stddef.h>
@@ -98,6 +99,8 @@ void sentry__crash_scope_free(sentry_crash_scope_t *scope);
 bool sentry__crash_scope_apply(
     sentry_crash_scope_t *scope, const sentry_crash_ipc_message_t *message);
 sentry_value_t sentry__crash_scope_event(const sentry_crash_scope_t *scope);
+sentry_value_t sentry__crash_event_read(const sentry_path_t *run_folder);
+bool sentry__crash_event_remove(const sentry_path_t *run_folder);
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
 typedef HANDLE sentry_process_handle_t;
