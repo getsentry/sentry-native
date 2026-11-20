@@ -18,7 +18,7 @@ android {
 
     defaultConfig {
         applicationId = "io.sentry.e2e"
-        minSdk = 30
+        minSdk = 21
         targetSdk = project.property("targetSdk").toInteger()
         ndk { abiFilters.add(System.getenv("ANDROID_ARCH")) }
     }

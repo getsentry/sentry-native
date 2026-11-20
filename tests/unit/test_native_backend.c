@@ -2054,3 +2054,23 @@ SENTRY_TEST(crash_ipc_notify_without_daemon)
     sentry__crash_ipc_free(ipc);
 #endif
 }
+
+SENTRY_TEST(crash_ipc_notify_before_main_thread_attach)
+{
+#if !defined(SENTRY_BACKEND_NATIVE)                                            \
+    || !(defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID))
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    ipc->awaiting_ready = 1;
+    ipc->attach_on_main_thread = true;
+    // the crashed main thread can't attach the daemon
+    TEST_CHECK(!sentry__crash_ipc_notify(ipc));
+
+    uint64_t ready = 1;
+    TEST_CHECK_INT_EQUAL(
+        write(ipc->ready_fd, &ready, sizeof(ready)), sizeof(ready));
+    TEST_CHECK(sentry__crash_ipc_notify(ipc));
+    sentry__crash_ipc_free(ipc);
+#endif
+}

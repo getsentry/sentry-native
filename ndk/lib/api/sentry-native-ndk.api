@@ -110,6 +110,7 @@ public final class io/sentry/ndk/NdkOptions {
 public final class io/sentry/ndk/SentryNdk {
 	public static fun close ()V
 	public static fun createCrashShm ()I
+	public static fun createCrashShm (Ljava/lang/String;)I
 	public static fun dupCrashShmFd ()I
 	public static fun init (Lio/sentry/ndk/NdkOptions;)V
 	public static fun initCrashDaemon (IIII)V
