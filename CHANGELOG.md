@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `sentry_options_set_send_previous_run_envelopes` to skip sending envelopes left over from previous runs during `sentry_init`. They stay on disk and are sent by a later run with the option enabled. This avoids delaying startup and shutdown when the network hangs. ([#2332](https://github.com/getsentry/sentry-native/pull/2332))
+
 **Fixes**:
 
 - Native: retain crash envelopes on OOM in the crash daemon. ([#2320](https://github.com/getsentry/sentry-native/pull/2320))
