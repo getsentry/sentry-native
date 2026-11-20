@@ -632,7 +632,13 @@ if(MSVC)
 			$<BUILD_INTERFACE:-Wno-reserved-identifier>
 			$<BUILD_INTERFACE:-Wno-old-style-cast>
 			$<BUILD_INTERFACE:-Wno-zero-as-null-pointer-constant>
+			$<BUILD_INTERFACE:-Wno-c++-compat>
+			$<BUILD_INTERFACE:-Wno-padded>
 		)
+		# older versions reject the unknown option under -Werror
+		if(CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 21)
+			target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-nrvo>)
+		endif()
 	endif()
 else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
