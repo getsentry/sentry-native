@@ -44,8 +44,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ vars.SDK_MAINTAINER_BOT_APP_ID }}
-          private-key: ${{ secrets.SDK_MAINTAINER_BOT_PRIVATE_KEY }}
+          client-id: ${{ vars.CLASSIFIERS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CLASSIFIERS_APP_KEY }}
           permission-contents: write
           permission-pull-requests: write
 
