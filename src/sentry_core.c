@@ -631,7 +631,12 @@ set_offline_mode(bool enabled)
         // the store returns the previous value: only act on actual changes
         if (sentry__atomic_store(&options->run->offline_mode, new_val)
             != new_val) {
-            // TODO: notify the backend (crashpad pauses uploads on its own)
+            // backends that upload on their own (crashpad handler, native
+            // daemon) re-read the upload gate in this callback
+            if (options->backend
+                && options->backend->user_consent_changed_func) {
+                options->backend->user_consent_changed_func(options->backend);
+            }
 
             sentry_path_t *offline_path
                 = sentry__path_join_str(options->database_path, "offline-mode");
@@ -695,13 +700,17 @@ sentry__submit_envelope_internal(sentry_transport_t *transport,
         int retry_count = http_retry ? 0 : -1;
         cached = sentry__run_write_cache(run, envelope, retry_count);
         if (cached && !sentry__run_should_skip_upload(run)) {
-            // consent given meanwhile -> trigger retry to avoid waiting
+            // uploads unblocked meanwhile -> trigger retry to avoid waiting
             // until the next retry poll
             sentry_transport_retry(transport);
         }
     }
-    SENTRY_INFO(cached ? "caching envelope due to missing user consent"
-                       : "discarding envelope due to missing user consent");
+    const char *reason = sentry__atomic_fetch(&run->offline_mode)
+        ? "offline mode"
+        : "missing user consent";
+    SENTRY_INFOF(cached ? "caching envelope due to %s"
+                        : "discarding envelope due to %s",
+        reason);
     sentry_envelope_free(envelope);
 }
 
