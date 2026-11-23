@@ -318,6 +318,9 @@ typedef struct {
     // Atomic user consent (sentry_user_consent_t), updated whenever user
     // consent changes so the daemon can honor it at crash time.
     volatile long user_consent;
+    // Atomic offline mode (bool), updated whenever it changes, for the same
+    // reason.
+    volatile long offline_mode;
 
     // Platform-specific crash context
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
