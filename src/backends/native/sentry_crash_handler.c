@@ -908,6 +908,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     // This allows malloc/free to work safely in signal handler context
 #    ifdef SENTRY_PLATFORM_UNIX
     sentry__page_allocator_enable();
+    (void)!sentry__enter_signal_handler();
 #    endif
 
     // Call Sentry's exception handler to invoke on_crash/before_send hooks
@@ -996,6 +997,7 @@ daemon_handling:
 
     // Re-enable previous signal handlers before re-raising to prevent loops
     sentry__exit_crash_handler();
+    sentry__leave_signal_handler();
     reset_signal_handlers();
 
     if (g_handler_strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
