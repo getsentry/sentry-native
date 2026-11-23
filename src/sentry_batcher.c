@@ -1,5 +1,6 @@
 #include "sentry_batcher.h"
 #include "sentry_alloc.h"
+#include "sentry_core.h"
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
 #include "sentry_string.h"
@@ -330,11 +331,9 @@ process_batch_sync(sentry_batcher_t *batcher, sentry_envelope_t *envelope,
         // crash
         sentry__run_write_envelope(batcher->run, envelope);
         sentry_envelope_free(envelope);
-    } else if (!sentry__run_should_skip_upload(batcher->run)) {
-        // Normal operation: use transport for HTTP transmission
-        sentry__transport_send_envelope(batcher->transport, envelope);
     } else {
-        sentry_envelope_free(envelope);
+        sentry__submit_envelope_internal(batcher->transport, envelope,
+            batcher->run, batcher->cache_keep, batcher->http_retry);
     }
 }
 
@@ -391,12 +390,10 @@ batch_task_complete(void *task_data)
     if (sentry__atomic_fetch(&task->batcher->crash_flush)) {
         sentry__run_write_envelope(task->batcher->run, task->envelope);
         sentry_envelope_free(task->envelope);
-    } else if (!sentry__run_should_skip_upload(task->batcher->run)) {
-        // Normal operation: use transport for HTTP transmission
-        sentry__transport_send_envelope(
-            task->batcher->transport, task->envelope);
     } else {
-        sentry_envelope_free(task->envelope);
+        sentry__submit_envelope_internal(task->batcher->transport,
+            task->envelope, task->batcher->run, task->batcher->cache_keep,
+            task->batcher->http_retry);
     }
     task->envelope = NULL;
 
@@ -782,6 +779,12 @@ sentry__batcher_startup(
     // are only accessed in flush() which is bound by the options lifetime.
     batcher->transport = options->transport;
     batcher->run = options->run;
+
+    // copied by value (unlike the refs above), so they stay valid for the
+    // batcher's lifetime; passed to sentry__submit_envelope_internal to decide
+    // whether to cache envelopes when uploads are blocked
+    batcher->cache_keep = options->cache_keep;
+    batcher->http_retry = options->http_retry;
 
     // Defer thread creation until there's work; IDLE allows the first enqueue
     // to start it, while STOPPED prevents startup after shutdown.

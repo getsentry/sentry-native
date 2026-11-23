@@ -3,6 +3,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_retry.h"
@@ -902,6 +903,50 @@ SENTRY_TEST(cache_consent_revoked_nocache)
     }
     sentry__pathiter_free(iter);
     TEST_CHECK_INT_EQUAL(count, 0);
+
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_consent_revoked_logs)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, true);
+    sentry_options_set_require_user_consent(options, true);
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+    sentry_user_consent_revoke();
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    sentry__path_remove_all(cache_path);
+
+    TEST_CHECK_INT_EQUAL(sentry_log_info("hello"), 0);
+    // logs are batched: force the batcher to submit the batch now
+    sentry_flush(5000);
+
+    int count = 0;
+    bool is_retry_format = false;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(cache_path);
+    const sentry_path_t *entry;
+    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+        if (sentry__path_ends_with(entry, ".envelope")) {
+            count++;
+            uint64_t ts;
+            int attempt;
+            const char *uuid;
+            is_retry_format = sentry__parse_cache_filename(
+                sentry__path_filename(entry), &ts, &attempt, &uuid);
+        }
+    }
+    sentry__pathiter_free(iter);
+    TEST_CHECK_INT_EQUAL(count, 1);
+    TEST_CHECK(is_retry_format);
 
     sentry__path_free(cache_path);
     sentry_close();

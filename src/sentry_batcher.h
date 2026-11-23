@@ -68,6 +68,8 @@ typedef struct {
     sentry_dsn_t *dsn;
     sentry_transport_t *transport;
     sentry_run_t *run;
+    sentry_cache_keep_t cache_keep;
+    bool http_retry;
 } sentry_batcher_t;
 
 typedef struct {
