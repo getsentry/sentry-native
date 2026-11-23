@@ -87,10 +87,27 @@ static sentry_scope_t *g_isolation_scope = NULL;
 static __declspec(thread) scope_access_t *g_scope_access;
 static __declspec(thread) scope_access_t
     g_scope_access_pool[SCOPE_ACCESS_POOL_SIZE];
+#    define SCOPE_ACCESS_NOINLINE __declspec(noinline)
 #else
 static __thread scope_access_t *g_scope_access;
 static __thread scope_access_t g_scope_access_pool[SCOPE_ACCESS_POOL_SIZE];
+#    define SCOPE_ACCESS_NOINLINE __attribute__((noinline))
 #endif
+
+// the first TLS access on a thread may allocate (e.g. on macOS), so keep it out
+// of line where compilers cannot hoist it above the signal handler checks
+static SCOPE_ACCESS_NOINLINE scope_access_t **
+scope_access_list(void)
+{
+    return &g_scope_access;
+}
+
+static SCOPE_ACCESS_NOINLINE scope_access_t *
+scope_access_pool(void)
+{
+    return g_scope_access_pool;
+}
+
 #ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_lock)
 #else
@@ -106,7 +123,7 @@ scope_data_get_access(const sentry_scope_data_t *data)
         return NULL;
     }
 #endif
-    for (scope_access_t *access = g_scope_access; access;
+    for (scope_access_t *access = *scope_access_list(); access;
         access = access->next) {
         if (access->data == data) {
             return access;
@@ -896,9 +913,10 @@ scope_begin(const sentry_scope_t *scope, bool write)
     }
 
     // depth == 0 marks a free slot
+    scope_access_t *pool = scope_access_pool();
     for (size_t i = 0; i < SCOPE_ACCESS_POOL_SIZE; i++) {
-        if (g_scope_access_pool[i].depth == 0) {
-            access = &g_scope_access_pool[i];
+        if (pool[i].depth == 0) {
+            access = &pool[i];
             access->pooled = true;
             break;
         }
@@ -919,8 +937,9 @@ scope_begin(const sentry_scope_t *scope, bool write)
     access->data = data;
     access->depth = 1;
     access->write = write;
-    access->next = g_scope_access;
-    g_scope_access = access;
+    scope_access_t **list = scope_access_list();
+    access->next = *list;
+    *list = access;
     return 0;
 }
 
@@ -972,7 +991,7 @@ scope_end(const sentry_scope_t *scope)
     }
 #endif
 
-    scope_access_t **link = &g_scope_access;
+    scope_access_t **link = scope_access_list();
     while (*link && (*link)->data != scope->data) {
         link = &(*link)->next;
     }
