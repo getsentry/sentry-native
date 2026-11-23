@@ -52,6 +52,7 @@ from .assertions import (
 )
 from .conditions import has_files, has_http, has_system_proxy, is_arm64e, is_kcov
 from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine, is_x86
+from .conditions import is_valgrind
 from .proxy import proxy_test_finally, start_proxy, system_proxy
 
 pytestmark = pytest.mark.skipif(
@@ -2285,3 +2286,28 @@ def test_native_full_mode(cmake, httpserver, args, embedded, uploaded):
     assert uploaded == any(
         req.headers.get("upload-metadata") == metadata for req in requests
     )
+
+
+@pytest.mark.skipif(is_valgrind, reason="valgrind replaces malloc")
+def test_native_crash_malloc_locked(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_malloc_lock"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        # fail fast if the crash handler deadlocks on the allocator
+        result = run_crash(
+            tmp_path,
+            "sentry_test_malloc_lock",
+            ["log", "attachment", "crash-malloc-locked"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            timeout=60,
+        )
+        if result.returncode == 77:
+            pytest.skip("malloc lock unavailable")
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_native_crash(envelope)
+    assert_attachment(envelope)

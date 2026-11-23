@@ -796,6 +796,10 @@ run_threads(thread_func_t func)
 }
 #endif
 
+#ifdef SENTRY_TEST_MALLOC_LOCK
+void crash_malloc_locked(void (*crash)(void));
+#endif
+
 int
 main(int argc, char **argv)
 {
@@ -1550,6 +1554,14 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "kill")) {
         kill(getpid(), SIGSEGV);
+    }
+#endif
+#ifdef SENTRY_TEST_MALLOC_LOCK
+    if (has_arg(argc, argv, "crash-malloc-locked")) {
+        // returns only if the allocator cannot be locked
+        crash_malloc_locked(sentry_crash);
+        sentry_close();
+        return 77;
     }
 #endif
 
