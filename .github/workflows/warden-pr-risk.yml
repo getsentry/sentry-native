@@ -1,0 +1,49 @@
+name: Warden PR risk
+
+# Publishes the `warden: sdk-pr-risk` check as one PR comment and a
+# `warden risk: <level>` label, to compare with getsentry/classifiers.
+# Warden has no label or summary-comment output of its own.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test the publish script
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: node --test .github/workflows/scripts/warden-pr-risk.test.ts
+
+  publish:
+    name: Publish the rating
+    # The org Warden workflow skips fork PRs, so they never get a rating.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const {publishWardenRisk} = await import(`${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/warden-pr-risk.ts`);
+            await publishWardenRisk({github, context, core});
