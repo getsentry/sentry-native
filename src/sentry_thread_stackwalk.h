@@ -16,11 +16,12 @@
 #endif
 
 // Listing and walking all threads. On Windows, the cross-thread walk is only
-// validated on x64, and Xbox has no API to list the threads of a process.
+// validated on x64 and ARM64, and Xbox has no API to list the threads of a
+// process.
 #if SENTRY_HAS_THREAD_STACKWALK                                                \
     && (!defined(SENTRY_PLATFORM_WINDOWS)                                      \
-        || ((defined(_M_X64) || defined(__x86_64__)) && !defined(_M_ARM64EC)   \
-            && !defined(SENTRY_PLATFORM_XBOX)))
+        || ((defined(_M_X64) || defined(__x86_64__) || defined(_M_ARM64))      \
+            && !defined(_M_ARM64EC) && !defined(SENTRY_PLATFORM_XBOX)))
 #    define SENTRY_HAS_THREAD_LIST 1
 #else
 #    define SENTRY_HAS_THREAD_LIST 0

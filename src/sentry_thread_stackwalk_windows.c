@@ -42,13 +42,14 @@ sentry__thread_stackwalk(
             s.exception_ptrs = ep;
             // NOTE: the shared dbghelp unwinder drives StackWalk64 with
             // GetCurrentThread() (the watchdog's pseudo-handle), not the
-            // suspended target thread. On x64 the walk is CONTEXT-driven and
-            // reads the target's stack from the shared process address space,
-            // so the captured IPs are correct. On x86 (frame-pointer mode) and
-            // ARM64, StackWalk64 may use the thread handle for register
-            // updates, so cross-thread unwinding there needs the target handle
-            // threaded through the unwinder. Tracked as a follow-up; x64 is the
-            // validated path for this experimental feature.
+            // suspended target thread. On x64 and ARM64 the walk is
+            // CONTEXT-driven and reads the target's stack from the shared
+            // process address space, so the captured IPs are correct. On x86
+            // (frame-pointer mode), StackWalk64 may use the thread handle for
+            // register updates, so cross-thread unwinding there needs the
+            // target handle threaded through the unwinder. Tracked as a
+            // follow-up; x64 and ARM64 are the validated paths for this
+            // experimental feature.
             n = sentry_unwind_stack_from_ucontext(&s, ips, max);
         } else {
             SENTRY_DEBUGF(
