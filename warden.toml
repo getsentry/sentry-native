@@ -77,3 +77,22 @@ maxTurns = 30
 [[skills.triggers]]
 type = "pull_request"
 actions = ["opened", "synchronize", "reopened"]
+
+# Shadow-mode PR risk rating, ported from the getsentry/classifiers SDK rubric
+# to compare the two approaches. Findings are risk drivers, not bugs: the PR's
+# risk is the highest severity in the `warden: sdk-pr-risk` check, and no
+# findings means low. reportOn = "off" keeps them out of review comments.
+# Verification is off because it checks that a finding is a real bug.
+# incremental = false because risk is judged on the whole PR, not one push.
+[[skills]]
+name = "sdk-pr-risk"
+reportOn = "off"
+incremental = false
+maxTurns = 10
+
+[skills.verification]
+enabled = false
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened"]
