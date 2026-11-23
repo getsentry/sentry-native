@@ -324,13 +324,11 @@ typedef struct {
     long others_with_frames;
 } all_threads_result_t;
 
-static all_threads_result_t g_all_threads;
-
 static sentry_value_t
 all_threads_before_send(sentry_value_t event, sentry_hint_t *hint, void *data)
 {
     (void)hint;
-    (void)data;
+    all_threads_result_t *result = data;
     sentry_value_t exc = sentry_value_get_by_index(
         sentry_value_get_by_key(
             sentry_value_get_by_key(event, "exception"), "values"),
@@ -350,17 +348,16 @@ all_threads_before_send(sentry_value_t event, sentry_hint_t *hint, void *data)
         sentry_value_t frames = sentry_value_get_by_key(
             sentry_value_get_by_key(thread, "stacktrace"), "frames");
         if (sentry_value_is_true(sentry_value_get_by_key(thread, "crashed"))) {
-            g_all_threads.crashed_count++;
-            g_all_threads.crashed_matches_exception
+            result->crashed_count++;
+            result->crashed_matches_exception
                 = strcmp(id, exc_tid) == 0 && strcmp(id, hung_tid) == 0;
-            g_all_threads.crashed_has_stacktrace
-                = !sentry_value_is_null(frames);
+            result->crashed_has_stacktrace = !sentry_value_is_null(frames);
         } else if (sentry_value_get_length(frames) > 0) {
-            g_all_threads.others_with_frames++;
+            result->others_with_frames++;
         }
     }
 
-    sentry__atomic_store(&g_all_threads.seen, 1);
+    sentry__atomic_store(&result->seen, 1);
     sentry_value_decref(event);
     return sentry_value_new_null();
 }
@@ -370,14 +367,15 @@ SENTRY_TEST(app_hang_with_all_threads)
 #if !SENTRY_HAS_THREAD_LIST
     SKIP_TEST();
 #endif
-    memset(&g_all_threads, 0, sizeof(g_all_threads));
+    all_threads_result_t result;
+    memset(&result, 0, sizeof(result));
     sentry__atomic_store(&g_keep_spinning, 1);
     sentry__app_hang_latch_reset();
     sentry__app_hang_monitor_set_stackwalk_fn(NULL);
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_before_send(options, all_threads_before_send, NULL);
+    sentry_options_set_before_send(options, all_threads_before_send, &result);
     sentry_options_set_enable_app_hang_tracking(options, 1);
     sentry_options_set_app_hang_timeout(options, 50);
     sentry_options_set_app_hang_thread_stackwalk_mode(
@@ -386,18 +384,17 @@ SENTRY_TEST(app_hang_with_all_threads)
 
     sentry_threadid_t t;
     sentry__thread_spawn(&t, spinner, NULL);
-    for (int i = 0; i < 500 && !sentry__atomic_fetch(&g_all_threads.seen);
-        i++) {
+    for (int i = 0; i < 500 && !sentry__atomic_fetch(&result.seen); i++) {
         sleep_ms(10);
     }
     sentry__atomic_store(&g_keep_spinning, 0);
     sentry__thread_join(t);
     sentry_close();
 
-    TEST_CHECK(sentry__atomic_fetch(&g_all_threads.seen) == 1);
-    TEST_CHECK(g_all_threads.crashed_count == 1);
-    TEST_CHECK(g_all_threads.crashed_matches_exception);
-    TEST_CHECK(!g_all_threads.crashed_has_stacktrace);
+    TEST_CHECK(sentry__atomic_fetch(&result.seen) == 1);
+    TEST_CHECK(result.crashed_count == 1);
+    TEST_CHECK(result.crashed_matches_exception);
+    TEST_CHECK(!result.crashed_has_stacktrace);
     // The test runner thread. Under valgrind, a signal can reach it later than
     // the short wait for threads other than the hung one.
 #if defined(SENTRY_PLATFORM_LINUX)
@@ -406,5 +403,5 @@ SENTRY_TEST(app_hang_with_all_threads)
         return;
     }
 #endif
-    TEST_CHECK(g_all_threads.others_with_frames >= 1);
+    TEST_CHECK(result.others_with_frames >= 1);
 }
