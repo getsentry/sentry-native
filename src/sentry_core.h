@@ -2,6 +2,7 @@
 #define SENTRY_CORE_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_database.h"
 #include "sentry_logger.h"
 #include "sentry_sampling_context.h"
 
@@ -132,6 +133,19 @@ sentry_value_t sentry__transaction_finish_value(
  */
 void sentry__submit_envelope(sentry_transport_t *transport,
     sentry_envelope_t *envelope, const sentry_options_t *options);
+
+/**
+ * This function will submit the `envelope` to the given `transport`, first
+ * checking for consent, it takes the settings (run, cache_keep, http_retry)
+ * as parameters
+ * This function takes ownership of the envelope, no matter if it is sent or
+ * not, it is freed, so the caller must not use it afterwards.
+ *
+ * This is intended for callers that don't hold `options`, such as the batcher
+ */
+void sentry__submit_envelope_internal(sentry_transport_t *transport,
+    sentry_envelope_t *envelope, sentry_run_t *run,
+    sentry_cache_keep_t cache_keep, bool http_retry);
 
 /**
  * Captures the `envelope` on the isolation scope, recording the last sent event

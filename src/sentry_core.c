@@ -614,18 +614,27 @@ void
 sentry__submit_envelope(sentry_transport_t *transport,
     sentry_envelope_t *envelope, const sentry_options_t *options)
 {
-    if (!sentry__run_should_skip_upload(options->run)) {
+    sentry__submit_envelope_internal(transport, envelope, options->run,
+        options->cache_keep, options->http_retry);
+}
+
+void
+sentry__submit_envelope_internal(sentry_transport_t *transport,
+    sentry_envelope_t *envelope, sentry_run_t *run,
+    sentry_cache_keep_t cache_keep, bool http_retry)
+{
+    if (!sentry__run_should_skip_upload(run)) {
         sentry__transport_send_envelope(transport, envelope);
         return;
     }
     bool cached = false;
-    if (options->cache_keep || options->http_retry) {
-        int retry_count = options->http_retry ? 0 : -1;
-        cached = sentry__run_write_cache(options->run, envelope, retry_count);
-        if (cached && !sentry__run_should_skip_upload(options->run)) {
+    if (cache_keep || http_retry) {
+        int retry_count = http_retry ? 0 : -1;
+        cached = sentry__run_write_cache(run, envelope, retry_count);
+        if (cached && !sentry__run_should_skip_upload(run)) {
             // consent given meanwhile -> trigger retry to avoid waiting
             // until the next retry poll
-            sentry_transport_retry(options->transport);
+            sentry_transport_retry(transport);
         }
     }
     SENTRY_INFO(cached ? "caching envelope due to missing user consent"
