@@ -708,8 +708,8 @@ sentry__submit_envelope_internal(sentry_transport_t *transport,
     const char *reason = sentry__atomic_fetch(&run->offline_mode)
         ? "offline mode"
         : "missing user consent";
-    SENTRY_INFOF(cached ? "caching envelope due to %s"
-                        : "discarding envelope due to %s",
+    SENTRY_INFOF(
+        cached ? "caching envelope due to %s" : "discarding envelope due to %s",
         reason);
     sentry_envelope_free(envelope);
 }
