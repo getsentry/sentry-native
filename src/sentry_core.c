@@ -97,6 +97,15 @@ sentry__should_skip_upload(void)
 }
 
 static void
+warn_offline_mode_without_retry(const sentry_options_t *options)
+{
+    if (!options->http_retry) {
+        SENTRY_WARN("offline mode is enabled without `http_retry`: "
+                    "envelopes will not be sent later");
+    }
+}
+
+static void
 flush_scope(sentry_scope_t *scope)
 {
     sentry_options_t *options = sentry__options_incref(scope->state);
@@ -288,6 +297,10 @@ sentry_init(sentry_options_t *options)
     options->run->require_user_consent = options->require_user_consent;
 
     sentry__run_load_user_consent(options->run, options->database_path);
+    sentry__run_load_offline_mode(options->run, options->database_path);
+    if (sentry__atomic_fetch(&options->run->offline_mode)) {
+        warn_offline_mode_without_retry(options);
+    }
 
     if (!options->dsn || !options->dsn->is_valid) {
         const char *raw_dsn = sentry_options_get_dsn(options);
@@ -608,6 +621,56 @@ sentry_user_consent_is_required(void)
         required = options->require_user_consent;
     }
     return required;
+}
+
+static void
+set_offline_mode(bool enabled)
+{
+    long new_val = enabled ? 1 : 0;
+    SENTRY_WITH_OPTIONS (options) {
+        // the store returns the previous value: only act on actual changes
+        if (sentry__atomic_store(&options->run->offline_mode, new_val)
+            != new_val) {
+            // TODO: notify the backend (crashpad pauses uploads on its own)
+
+            sentry_path_t *offline_path
+                = sentry__path_join_str(options->database_path, "offline-mode");
+            if (enabled) {
+                sentry__path_write_buffer(offline_path, "1\n", 2);
+                warn_offline_mode_without_retry(options);
+            } else {
+                sentry__path_remove(offline_path);
+                // the session start update is withheld while uploads are
+                // blocked without `http_retry`
+                sentry__session_send_start_update(options);
+                // flush any envelopes cached while offline
+                sentry_transport_retry(options->transport);
+            }
+            sentry__path_free(offline_path);
+        }
+    }
+}
+
+void
+sentry_offline_mode_enable(void)
+{
+    set_offline_mode(true);
+}
+
+void
+sentry_offline_mode_disable(void)
+{
+    set_offline_mode(false);
+}
+
+int
+sentry_offline_mode_is_enabled(void)
+{
+    int enabled = 0;
+    SENTRY_WITH_OPTIONS (options) {
+        enabled = sentry__atomic_fetch(&options->run->offline_mode) ? 1 : 0;
+    }
+    return enabled;
 }
 
 void

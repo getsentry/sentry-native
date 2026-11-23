@@ -18,12 +18,15 @@ typedef struct sentry_run_s {
     long retain; // (atomic) bool
     long require_user_consent; // (atomic) bool
     long user_consent; // (atomic) sentry_user_consent_t
+    long offline_mode; // (atomic) bool
     char *installation_id;
 } sentry_run_t;
 
 /**
- * This function will check the user consent, and return `true` if uploads
- * should *not* be sent to the sentry server, and be discarded instead.
+ * This function will check the user consent and offline mode, and return `true`
+ * if uploads should *not* be sent to the sentry server. Whether a blocked
+ * envelope is cached or discarded is decided by
+ * `sentry__submit_envelope_internal`.
  *
  * This is a lock-free variant of `sentry__should_skip_upload`, safe to call
  * from worker threads while the options are locked during SDK shutdown.
@@ -34,6 +37,12 @@ bool sentry__run_should_skip_upload(sentry_run_t *run);
  * Loads the persisted user consent (`<database>/user-consent`) into the run.
  */
 void sentry__run_load_user_consent(
+    sentry_run_t *run, const sentry_path_t *database_path);
+
+/**
+ * Loads the persisted offline mode (`<database>/offline-mode`) into the run.
+ */
+void sentry__run_load_offline_mode(
     sentry_run_t *run, const sentry_path_t *database_path);
 
 /**

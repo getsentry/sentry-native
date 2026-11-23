@@ -33,8 +33,10 @@
 #endif
 
 /**
- * This function will check the user consent, and return `true` if uploads
- * should *not* be sent to the sentry server, and be discarded instead.
+ * This function will check the user consent and offline mode, and return `true`
+ * if uploads should *not* be sent to the sentry server. Whether a blocked
+ * envelope is cached or discarded is decided by
+ * `sentry__submit_envelope_internal`.
  *
  * Note: This function acquires the options lock internally. Use
  * `sentry__run_should_skip_upload` from worker threads that may run while
