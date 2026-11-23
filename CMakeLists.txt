@@ -488,8 +488,8 @@ if (NOT SENTRY_SDK_VERSION STREQUAL "")
 	target_compile_definitions(sentry PRIVATE SENTRY_SDK_VERSION="${SENTRY_SDK_VERSION}")
 endif()
 
-# we do not need this on android, only linux
-if(LINUX)
+# we do not need this on android, only linux and apple
+if(LINUX OR APPLE)
 	target_sources(sentry PRIVATE
 		"${PROJECT_SOURCE_DIR}/vendor/stb_sprintf.c"
 		"${PROJECT_SOURCE_DIR}/vendor/stb_sprintf.h"

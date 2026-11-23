@@ -22,7 +22,9 @@
 
 #ifdef SENTRY_PLATFORM_DARWIN
 #    include <xlocale.h>
-#elif defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
+#endif
+#if defined(SENTRY_PLATFORM_DARWIN)                                            \
+    || (defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID))
 #    include "../vendor/stb_sprintf.h"
 #endif
 
@@ -671,10 +673,8 @@ sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...)
     int rv;
 #ifdef SENTRY_PLATFORM_WINDOWS
     rv = _vsnprintf_l(buf, buf_size, fmt, c_locale(), args);
-#elif !defined(HAS_C_LOCALE)
+#elif !defined(HAS_C_LOCALE) && !defined(SENTRY_PLATFORM_DARWIN)
     rv = vsnprintf(buf, buf_size, fmt, args);
-#elif defined(SENTRY_PLATFORM_DARWIN)
-    rv = vsnprintf_l(buf, buf_size, c_locale(), fmt, args);
 #else
     rv = stbsp_vsnprintf(buf, buf_size, fmt, args);
 #endif
