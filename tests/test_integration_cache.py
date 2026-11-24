@@ -608,6 +608,40 @@ def test_cache_offline_mode_native(cmake, httpserver):
     not has_native or is_qemu,
     reason="native backend not available",
 )
+def test_cache_offline_mode_native_dumped(cmake, httpserver):
+    """The crash daemon applies offline mode before it submits the envelopes
+    the crashing app dumped (here: a pending log), not only the crash."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run_crash(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "stdout", "http-retry", "offline-mode-enable", "capture-log", "crash"],
+        env=env,
+        wait_for_daemon=True,
+    )
+
+    # the crash and the dumped log are both cached, nothing was uploaded
+    assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) >= 2)
+    assert len(httpserver.log) == 0
+
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "offline-mode-disable"],
+        env=env,
+    )
+    assert len(httpserver.log) >= 2
+    assert len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+@pytest.mark.skipif(
+    not has_native or is_qemu,
+    reason="native backend not available",
+)
 def test_cache_consent_native(cmake, httpserver):
     """Daemon honors revoked consent for crash envelopes."""
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
