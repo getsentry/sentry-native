@@ -1436,6 +1436,13 @@ typedef enum {
      * with the thread count.
      */
     SENTRY_THREAD_STACKWALK_MODE_ALL = 2,
+
+    /**
+     * Walk the hung thread only. Alias of `CRASHED_ONLY` for
+     * `sentry_options_set_app_hang_thread_stackwalk_mode`.
+     */
+    SENTRY_THREAD_STACKWALK_MODE_HUNG_ONLY
+    = SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY,
 } sentry_thread_stackwalk_mode_t;
 
 /**
@@ -3403,6 +3410,32 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout(
     sentry_options_t *opts, uint64_t app_hang_timeout);
 SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout(
     const sentry_options_t *opts);
+
+/**
+ * Sets which threads the app-hang watchdog walks.
+ *
+ * - HUNG_ONLY (default): the event only contains the stack trace of the
+ *   hung thread. Unlike crash reports, no other threads are listed.
+ * - ALL: the watchdog also walks every other thread of the process, so the
+ *   event shows what the hung thread is waiting on (for example, a worker
+ *   thread that holds a lock). The hung thread is marked as `crashed` and
+ *   linked to the exception through `thread_id`.
+ *
+ * Each thread is suspended (Windows, macOS) or signaled (Linux, Android) while
+ * its stack is walked, so a capture takes longer when the process has many
+ * threads. The number of walked threads and the total walk time are limited.
+ *
+ * ALL is supported on Windows x64 and ARM64, Linux, Android and macOS. On
+ * other platforms, including Xbox and Windows x86, it has no effect and a
+ * warning is logged.
+ *
+ * Only has an effect if app-hang detection is enabled via
+ * `sentry_options_set_enable_app_hang_tracking`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_thread_stackwalk_mode(
+    sentry_options_t *opts, sentry_thread_stackwalk_mode_t mode);
+SENTRY_EXPERIMENTAL_API sentry_thread_stackwalk_mode_t
+sentry_options_get_app_hang_thread_stackwalk_mode(const sentry_options_t *opts);
 
 /**
  * Records a heartbeat from the calling thread.
