@@ -362,7 +362,6 @@ def cmake_build(cwd, targets, options):
 
 
 def configure_clang_cl(config_cmd: list[str]):
-    config_cmd.append("-G Visual Studio 17 2022")
     config_cmd.append("-A x64")
     config_cmd.append("-T ClangCL")
 

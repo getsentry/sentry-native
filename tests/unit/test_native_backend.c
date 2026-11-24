@@ -17,6 +17,7 @@
 #include "sentry_testsupport.h"
 #include "sentry_tracing.h"
 #include "sentry_utils.h"
+#include "sentry_uuid.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,6 +26,7 @@
 // Include native backend headers
 #    include "../../src/backends/native/minidump/sentry_minidump_format.h"
 #    include "../../src/backends/native/sentry_crash_context.h"
+#    include "../../src/backends/native/sentry_crash_handler.h"
 #    include "../../src/backends/native/sentry_crash_ipc.h"
 #    if defined(SENTRY_PLATFORM_ANDROID)
 #        include <sys/socket.h>
@@ -42,6 +44,20 @@ count_sent_envelopes(sentry_envelope_t *envelope, void *state)
 {
     size_t *count = state;
     (*count)++;
+    sentry_envelope_free(envelope);
+}
+
+typedef struct {
+    size_t count;
+    sentry_uuid_t event_id;
+} sent_envelopes_t;
+
+static void
+record_sent_envelopes(sentry_envelope_t *envelope, void *state)
+{
+    sent_envelopes_t *sent = state;
+    sent->count++;
+    sent->event_id = sentry__envelope_get_event_id(envelope);
     sentry_envelope_free(envelope);
 }
 
@@ -211,7 +227,7 @@ SENTRY_TEST(corrupt_crash_envelope_does_not_block_old_run)
 #endif
 }
 
-SENTRY_TEST(interrupted_crash_recovered)
+SENTRY_TEST(recover_interrupted_crash)
 {
 #ifdef SENTRY_BACKEND_NATIVE
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -221,10 +237,10 @@ SENTRY_TEST(interrupted_crash_recovered)
     options->run = sentry__run_new(options->database_path);
     TEST_ASSERT(!!options->run);
 
-    size_t sent_envelopes = 0;
-    sentry_transport_t *transport = sentry_transport_new(count_sent_envelopes);
+    sent_envelopes_t sent = { 0 };
+    sentry_transport_t *transport = sentry_transport_new(record_sent_envelopes);
     TEST_ASSERT(!!transport);
-    sentry_transport_set_state(transport, &sent_envelopes);
+    sentry_transport_set_state(transport, &sent);
     sentry_options_set_transport(options, transport);
     size_t crashed_last_run = 0;
     sentry_options_set_on_crashed_last_run(
@@ -239,10 +255,14 @@ SENTRY_TEST(interrupted_crash_recovered)
         sentry_path_t *event_path
             = sentry__path_join_str(old_run->run_path, "__sentry-event");
         TEST_ASSERT(!!event_path);
-        const char event[] = "{\"level\":\"fatal\"}";
+        sentry_uuid_t event_id = sentry_uuid_new_v4();
+        char id[37];
+        sentry_uuid_as_string(&event_id, id);
+        char event[128];
+        snprintf(event, sizeof(event),
+            "{\"event_id\":\"%s\",\"level\":\"fatal\"}", id);
         TEST_ASSERT(
-            sentry__path_write_buffer(event_path, event, sizeof(event) - 1)
-            == 0);
+            sentry__path_write_buffer(event_path, event, strlen(event)) == 0);
         sentry__path_free(event_path);
 
         // the daemon's envelope, if any, takes precedence
@@ -256,6 +276,7 @@ SENTRY_TEST(interrupted_crash_recovered)
                 sentry_value_new_message_event(
                     SENTRY_LEVEL_FATAL, NULL, "crash"),
                 NULL);
+            event_id = sentry__envelope_get_event_id(envelope);
             TEST_ASSERT(
                 sentry_envelope_write_to_path(envelope, envelope_path) == 0);
             sentry_envelope_free(envelope);
@@ -264,7 +285,8 @@ SENTRY_TEST(interrupted_crash_recovered)
 
         sentry__process_old_runs(options, 0);
 
-        TEST_CHECK_INT_EQUAL(sent_envelopes, i);
+        TEST_CHECK_INT_EQUAL(sent.count, i);
+        TEST_CHECK(sentry__uuid_eq(&sent.event_id, &event_id));
         TEST_CHECK_INT_EQUAL(crashed_last_run, i);
         TEST_CHECK(!sentry__path_is_dir(old_run->run_path));
         sentry__run_free(old_run);
@@ -1747,6 +1769,7 @@ SENTRY_TEST(crash_ipc_awaiting_ready)
     while (!sentry__crash_ipc_flush(ipc)) {
         sentry__crash_ipc_receive(ipc, 0);
     }
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
     sentry_value_t snapshot = scope_snapshot();
     TEST_CHECK(sentry__crash_ipc_send(
         ipc, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, snapshot));
@@ -2051,5 +2074,35 @@ SENTRY_TEST(crash_ipc_notify_before_main_thread_attach)
         write(ipc->ready_fd, &ready, sizeof(ready)), sizeof(ready));
     TEST_CHECK(sentry__crash_ipc_notify(ipc));
     sentry__crash_ipc_free(ipc);
+#endif
+}
+
+#if defined(SENTRY_BACKEND_NATIVE) && defined(SENTRY_PLATFORM_LINUX)
+static void
+exit_from_crash_callback(void)
+{
+    _exit(42);
+}
+#endif
+
+SENTRY_TEST(crash_handler_preloaded_callback)
+{
+#if !defined(SENTRY_BACKEND_NATIVE) || !defined(SENTRY_PLATFORM_LINUX)
+    SKIP_TEST();
+#else
+    // fork() keeps the preloaded handlers out of the test process
+    pid_t child = fork();
+    TEST_ASSERT(child >= 0);
+    if (child == 0) {
+        sentry__crash_handler_preload();
+        sentry__crash_handler_init(
+            NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, exit_from_crash_callback);
+        raise(SIGSEGV);
+        _exit(1);
+    }
+    int status = 0;
+    TEST_CHECK_INT_EQUAL(waitpid(child, &status, 0), child);
+    TEST_CHECK(WIFEXITED(status));
+    TEST_CHECK_INT_EQUAL(WEXITSTATUS(status), 42);
 #endif
 }
