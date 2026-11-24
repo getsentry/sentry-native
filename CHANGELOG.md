@@ -6,6 +6,7 @@
 
 - Native: retain crash envelopes on OOM in the crash daemon. ([#2320](https://github.com/getsentry/sentry-native/pull/2320))
 - Native: omit crash metadata in minidump-only mode. ([#2324](https://github.com/getsentry/sentry-native/pull/2324))
+- Native: prevent malloc deadlocks in signal handling. ([#2336](https://github.com/getsentry/sentry-native/pull/2336))
 
 ## 1.0.0-beta.1
 
