@@ -1106,6 +1106,58 @@ SENTRY_TEST(cache_offline_mode_flush)
     sentry_close();
 }
 
+SENTRY_TEST(cache_offline_mode_queued)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, true);
+    size_t sent = 0;
+    sentry_transport_t *transport
+        = sentry__http_transport_new(&sent, test_http_send_ok);
+    TEST_ASSERT(!!transport);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+    // let the startup retry poll run before clearing the cache
+    sentry_flush(5000);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    sentry__path_remove_all(cache_path);
+    sent = 0;
+
+    sentry_set_offline(1);
+
+    // hand an envelope to the transport directly, as if it had been queued
+    // before offline mode was enabled (bypassing the check at submission)
+    sentry_envelope_t *envelope = sentry__envelope_new(options);
+    TEST_ASSERT(!!envelope);
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    sentry__envelope_add_event(
+        envelope, sentry__value_new_event_with_id(&event_id), NULL);
+    sentry__transport_send_envelope(options->transport, envelope);
+    sentry_flush(5000);
+
+    // the queued envelope was not sent but cached for retry
+    int retry_format = 0;
+    TEST_CHECK_INT_EQUAL(sent, 0);
+    TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, &retry_format), 1);
+    TEST_CHECK_INT_EQUAL(retry_format, 1);
+
+    // disabling offline mode sends it
+    sentry_set_offline(0);
+    sentry_flush(5000);
+
+    TEST_CHECK_INT_EQUAL(sent, 1);
+    TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, NULL), 0);
+
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
 SENTRY_TEST(cache_max_size_and_age)
 {
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
