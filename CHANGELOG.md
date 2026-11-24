@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Native: SMART minidumps now also capture referenced read-only module data, such as string literals. ([#2321](https://github.com/getsentry/sentry-native/pull/2321))
+
 **Fixes**:
 
 - Native: retain crash envelopes on OOM in the crash daemon. ([#2320](https://github.com/getsentry/sentry-native/pull/2320))

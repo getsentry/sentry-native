@@ -1992,13 +1992,13 @@ should_include_region(const memory_mapping_t *mapping,
 //
 // Mirrors Windows' MiniDumpWithIndirectlyReferencedMemory: walks every
 // captured thread's stack words and the crashing thread's GPRs and, for
-// each value that lands inside a writable heap mapping, captures a small
-// page-aligned chunk so debuggers can chase pointers held in struct
-// locals at crash time.
+// each value that lands inside a writable heap mapping or read-only
+// file-backed data such as .rodata, captures a small page-aligned chunk
+// so debuggers can chase pointers held in struct locals at crash time.
 //
 // The algorithm + accumulator + dedup live in sentry_minidump_indirect.c.
 // This block is the Linux platform shim: it provides the two callbacks
-// (is_writable_heap, read_memory) and drives the walker for each thread.
+// (is_capturable, read_memory) and drives the walker for each thread.
 
 /**
  * Find the mapping containing addr via binary search over writer->mappings,
@@ -2025,21 +2025,25 @@ find_mapping_for_addr(const minidump_writer_t *writer, uint64_t addr)
 }
 
 static bool
-linux_indirect_is_writable_heap(void *ctx, uint64_t addr)
+linux_indirect_is_capturable(void *ctx, uint64_t addr)
 {
     const minidump_writer_t *writer = (const minidump_writer_t *)ctx;
     const memory_mapping_t *m = find_mapping_for_addr(writer, addr);
     if (!m) {
         return false;
     }
-    // Must be readable+writable, not executable. This admits [heap] and
-    // anonymous rw-p mappings (typical heap allocators); rejects code
-    // pages, rwx JIT pages (rare and risky), and read-only data segments.
-    if (m->permissions[0] != 'r' || m->permissions[1] != 'w') {
+    // Must be readable, not executable. This admits [heap], anonymous rw-p
+    // mappings (typical heap allocators), and file-backed r--p mappings such
+    // as .rodata. It rejects code pages, which return addresses on the stack
+    // would otherwise pull in, and rwx JIT pages (rare and risky).
+    if (m->permissions[0] != 'r') {
         return false;
     }
     if (m->permissions[2] == 'x') {
         return false;
+    }
+    if (m->permissions[1] != 'w') {
+        return m->name[0] == '/';
     }
     // Reject kernel-private/special regions: [stack...], [vdso], [vvar],
     // [vsyscall]. Stacks are already in MemoryListStream via thread_stacks
@@ -2164,7 +2168,7 @@ capture_indirect_memory(
     minidump_writer_t *writer, sentry_indirect_accumulator_t *acc)
 {
     sentry_indirect_ops_t ops = {
-        .is_writable_heap = linux_indirect_is_writable_heap,
+        .is_capturable = linux_indirect_is_capturable,
         .read_memory = linux_indirect_read_memory,
         .ctx = writer,
     };
@@ -2304,19 +2308,6 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     uint64_t crash_addr
         = (uint64_t)(uintptr_t)writer->crash_ctx->platform.siginfo.si_addr;
 
-    // SMART mode: scan registers + stack words for pointers into writable
-    // heap mappings and capture a chunk around each. Has to run BEFORE the
-    // memory_list allocation below so we know the final region count. The
-    // bytes are written into the dump file as we go; we only collect the
-    // descriptors here and merge them into the unified list at the end.
-    sentry_indirect_accumulator_t indirect_acc;
-    sentry__indirect_init(&indirect_acc);
-    if (writer->crash_ctx->minidump_mode == SENTRY_MINIDUMP_MODE_SMART) {
-        capture_indirect_memory(writer, &indirect_acc);
-        SENTRY_DEBUGF("indirect memory: captured %zu regions, %zu bytes",
-            indirect_acc.region_count, indirect_acc.total_bytes);
-    }
-
     // Count regions to include based on mode
     size_t region_count = 0;
     for (size_t i = 0; i < writer->mapping_count; i++) {
@@ -2330,8 +2321,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // (written by the thread-list writer) so we just emit descriptors
     // pointing at the same RVA. This is what lets LLDB resolve memory at
     // stack addresses and walk the FP chain.
-    size_t total_count
-        = region_count + writer->thread_stack_count + indirect_acc.region_count;
+    size_t total_count = region_count + writer->thread_stack_count
+        + SENTRY_INDIRECT_MAX_REGIONS;
 
     // Allocate memory list
     size_t list_size = sizeof(uint32_t)
@@ -2341,22 +2332,11 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         return -1;
     }
 
-    memory_list->count = total_count;
-
     size_t mem_idx = 0;
     // Replay thread stacks first so they appear in deterministic order. Each
     // descriptor was already validated (size>0, rva!=0) by record_thread_stack.
     for (size_t s = 0; s < writer->thread_stack_count; s++) {
         memory_list->ranges[mem_idx++] = writer->thread_stacks[s];
-    }
-
-    // Append indirectly-referenced regions (heap chunks pointed to by
-    // registers/stack contents). Already deduped + capped by the walker.
-    for (size_t s = 0; s < indirect_acc.region_count; s++) {
-        minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
-        mem->start_address = indirect_acc.regions[s].start;
-        mem->memory.rva = indirect_acc.regions[s].rva;
-        mem->memory.size = indirect_acc.regions[s].size;
     }
 
     // Write memory regions
@@ -2418,6 +2398,32 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         sentry_free(region_buffer);
     }
+
+    // SMART mode: scan registers + stack words for pointers into writable
+    // heap mappings and capture a chunk around each. Runs after the regions
+    // above are in the list so that it skips memory the dump already holds.
+    sentry_indirect_accumulator_t indirect_acc;
+    sentry__indirect_init(&indirect_acc);
+    indirect_acc.dumped = memory_list->ranges;
+    indirect_acc.dumped_count = mem_idx;
+    if (writer->crash_ctx->minidump_mode == SENTRY_MINIDUMP_MODE_SMART) {
+        capture_indirect_memory(writer, &indirect_acc);
+        SENTRY_DEBUGF("indirect memory: captured %zu regions, %zu bytes",
+            indirect_acc.region_count, indirect_acc.total_bytes);
+    }
+
+    // Append indirectly-referenced regions (heap chunks pointed to by
+    // registers/stack contents). Already deduped + capped by the walker.
+    for (size_t s = 0; s < indirect_acc.region_count; s++) {
+        minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
+        mem->start_address = indirect_acc.regions[s].start;
+        mem->memory.rva = indirect_acc.regions[s].rva;
+        mem->memory.size = indirect_acc.regions[s].size;
+    }
+
+    memory_list->count = mem_idx;
+    list_size
+        = sizeof(uint32_t) + (mem_idx * sizeof(minidump_memory_descriptor_t));
 
     dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
     dir->rva = write_data(writer, memory_list, list_size);

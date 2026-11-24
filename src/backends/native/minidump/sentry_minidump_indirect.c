@@ -14,6 +14,8 @@ sentry__indirect_init(sentry_indirect_accumulator_t *acc)
 {
     acc->region_count = 0;
     acc->total_bytes = 0;
+    acc->dumped = NULL;
+    acc->dumped_count = 0;
 }
 
 /**
@@ -57,6 +59,23 @@ overlaps_existing(
 }
 
 /**
+ * Returns true if [start, end) overlaps memory the dump already holds.
+ */
+static bool
+overlaps_dumped(
+    const sentry_indirect_accumulator_t *acc, uint64_t start, uint64_t end)
+{
+    for (size_t i = 0; i < acc->dumped_count; i++) {
+        const minidump_memory_descriptor_t *d = &acc->dumped[i];
+        if (d->start_address < end
+            && start < d->start_address + d->memory.size) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * Insert a new region at the sorted position. Caller must have verified
  * via overlaps_existing() that no overlap exists, and via the cap checks
  * that there's room.
@@ -89,7 +108,7 @@ sentry__indirect_consider(sentry_indirect_accumulator_t *acc,
         return;
     }
 
-    // Cheap rejects before paying for is_writable_heap.
+    // Cheap rejects before paying for is_capturable.
     // - 0/low values: NULLs and small ints
     // - very high bits set: kernel addresses (canonical AArch64/x86_64 user
     //   space tops out below this)
@@ -100,16 +119,13 @@ sentry__indirect_consider(sentry_indirect_accumulator_t *acc,
         return;
     }
 
-    if (!ops->is_writable_heap(ops->ctx, addr)) {
+    if (!ops->is_capturable(ops->ctx, addr)) {
         return;
     }
 
     // Page-align down so the captured region covers the page containing the
     // pointee (and we can dedup multiple pointers landing in the same page).
-    // Capture is roughly centered on the pointer but always starts on a page
-    // boundary so adjacent allocations get covered too.
-    uint64_t centered = addr - (SENTRY_INDIRECT_PER_POINTER_BYTES / 2);
-    uint64_t start = centered & ~((uint64_t)SENTRY_INDIRECT_PAGE_SIZE - 1);
+    uint64_t start = addr & ~((uint64_t)SENTRY_INDIRECT_PAGE_SIZE - 1);
     uint64_t end = start + SENTRY_INDIRECT_PER_POINTER_BYTES;
     // Round end up to page boundary too — small bump but keeps reads aligned.
     end = (end + SENTRY_INDIRECT_PAGE_SIZE - 1)
@@ -127,7 +143,8 @@ sentry__indirect_consider(sentry_indirect_accumulator_t *acc,
         want = (size_t)(end - start);
     }
 
-    if (overlaps_existing(acc, start, end)) {
+    if (overlaps_existing(acc, start, end)
+        || overlaps_dumped(acc, start, end)) {
         return;
     }
 

@@ -994,6 +994,15 @@ def _parse_minidump(path):
     }
 
 
+def _assert_no_overlapping_regions(dump):
+    # Breakpad's processor rejects a memory list with overlapping regions.
+    regions = sorted(dump["memory_regions"])
+    for (start, size), (next_start, _) in zip(regions, regions[1:]):
+        assert (
+            start + size <= next_start
+        ), f"memory region {start:#x}+{size:#x} overlaps {next_start:#x}"
+
+
 def test_native_minidump_streams(cmake, httpserver):
     """
     Test that minidump contains required streams *and* that each
@@ -1316,6 +1325,70 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
         f"either module or stack ranges, which means the indirect-memory "
         f"scan didn't fire (typically because task_for_pid failed on "
         f"macOS without cs.debugger / get-task-allow entitlements)."
+    )
+    _assert_no_overlapping_regions(dump)
+
+
+@pytest.mark.skipif(
+    is_wine,
+    reason="Wine does not capture indirectly referenced minidump memory",
+)
+@pytest.mark.parametrize(
+    "task_port",
+    [
+        True,
+        pytest.param(
+            False,
+            marks=pytest.mark.skipif(
+                sys.platform != "darwin",
+                reason="Only macOS writes minidumps without a task port",
+            ),
+        ),
+    ],
+)
+def test_native_smart_mode_captures_rodata(cmake, httpserver, task_port):
+    """SMART mode captures string literals referenced from the stack."""
+    # Static build so the hardened-runtime process can load itself without
+    # tripping the dyld "different team IDs" check on ad-hoc-signed dylibs.
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {"SENTRY_BACKEND": "native", "BUILD_SHARED_LIBS": "OFF"},
+    )
+
+    if sys.platform == "darwin" and task_port:
+        _codesign_for_task_for_pid(
+            str(tmp_path / "sentry_test_integration"),
+            str(tmp_path / "sentry-crash"),
+        )
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=15) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "stdout", "crash-rodata"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    db_dir = tmp_path / ".sentry-native"
+    assert wait_for_file(db_dir / "*.run/__sentry-crash.dmp")
+    minidump_files = list(db_dir.glob("*.run/__sentry-crash.dmp"))
+    assert len(minidump_files) > 0
+
+    dump = _parse_minidump(minidump_files[0])
+    assert b"sentry-rodata-marker" in dump["data"]
+    _assert_no_overlapping_regions(dump)
+
+    # The pointer to the string lives on the stack, which consumers read
+    # through the memory list.
+    thread = next(
+        t for t in dump["threads"] if t["thread_id"] == dump["crashing_thread_id"]
+    )
+    assert any(
+        start <= thread["stack_start"] < start + size
+        for start, size in dump["memory_regions"]
     )
 
 

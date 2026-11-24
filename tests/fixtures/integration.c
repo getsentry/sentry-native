@@ -685,6 +685,15 @@ trigger_null_call(void)
     func();
 }
 
+static void
+trigger_rodata_crash(void)
+{
+    // keep a string literal pointer on the stack
+    const char *volatile marker = "sentry-rodata-marker";
+    (void)marker;
+    sentry_crash();
+}
+
 static sentry_value_t
 create_debug_crumb(const char *message)
 {
@@ -1491,6 +1500,9 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "crash-null")) {
         trigger_null_call();
+    }
+    if (has_arg(argc, argv, "crash-rodata")) {
+        trigger_rodata_crash();
     }
 #ifdef SENTRY_PLATFORM_LINUX
     if (has_arg(argc, argv, "crash-high-address")) {

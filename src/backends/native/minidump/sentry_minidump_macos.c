@@ -5,7 +5,9 @@
 
 #    include <errno.h>
 #    include <fcntl.h>
+#    include <libkern/OSByteOrder.h>
 #    include <mach-o/dyld.h>
+#    include <mach-o/fat.h>
 #    include <mach-o/loader.h>
 #    include <mach/mach.h>
 #    include <mach/mach_vm.h>
@@ -50,6 +52,15 @@ typedef struct {
     vm_prot_t protection;
 } memory_region_t;
 
+typedef struct {
+    uint64_t start;
+    uint64_t end;
+    // Module file and the file offset of `start`, set when the section is
+    // read from disk without a task port.
+    const char *path;
+    uint64_t file_offset;
+} rodata_range_t;
+
 /**
  * Minidump writer context for macOS
  * Note: fd and current_offset must be first to match minidump_writer_base_t
@@ -83,6 +94,12 @@ typedef struct {
     minidump_memory_descriptor_t thread_stacks[SENTRY_CRASH_MAX_THREADS];
     uint64_t thread_stack_tids[SENTRY_CRASH_MAX_THREADS];
     size_t thread_stack_count;
+
+    // __TEXT,__cstring and __TEXT,__const of modules outside the shared
+    // region. They share r-x pages with code, so the SMART-mode walker
+    // matches them by address instead of by protection.
+    rodata_range_t *rodata;
+    size_t rodata_count;
 } minidump_writer_t;
 
 // Use common minidump functions (cast writer to base type)
@@ -1397,25 +1414,265 @@ find_region_for_addr(const minidump_writer_t *writer, uint64_t addr)
 }
 
 static bool
-macos_indirect_is_writable_heap(void *ctx, uint64_t addr)
+is_shared_region(uint64_t addr)
+{
+    return addr >= SHARED_REGION_BASE
+        && addr < SHARED_REGION_BASE + SHARED_REGION_SIZE;
+}
+
+static void
+add_rodata_sections(minidump_writer_t *writer, uint64_t base,
+    const struct segment_command_64 *seg, size_t capacity, const char *path,
+    uint64_t slice_offset)
+{
+    if (strncmp(seg->segname, SEG_TEXT, sizeof(seg->segname)) != 0
+        || seg->nsects
+            > (seg->cmdsize - sizeof(*seg)) / sizeof(struct section_64)) {
+        return;
+    }
+    uint64_t slide = base - seg->vmaddr;
+    const struct section_64 *sects = (const struct section_64 *)(seg + 1);
+    const size_t len = sizeof(sects->sectname);
+    for (uint32_t i = 0; i < seg->nsects && writer->rodata_count < capacity;
+        i++) {
+        if (strncmp(sects[i].sectname, "__cstring", len) == 0
+            || strncmp(sects[i].sectname, "__const", len) == 0) {
+            rodata_range_t *range = &writer->rodata[writer->rodata_count++];
+            range->start = sects[i].addr + slide;
+            range->end = range->start + sects[i].size;
+            range->path = path;
+            range->file_offset = slice_offset + sects[i].offset;
+        }
+    }
+}
+
+/**
+ * Return the next load command at `*pos` and advance past it, or NULL at the
+ * end of the commands or on a malformed command.
+ */
+static const struct load_command *
+next_load_command(
+    const struct mach_header_64 *mh, const uint8_t *cmds, uint32_t *pos)
+{
+    if (*pos + sizeof(struct load_command) > mh->sizeofcmds) {
+        return NULL;
+    }
+    const struct load_command *lc = (const struct load_command *)(cmds + *pos);
+    if (lc->cmdsize < sizeof(struct load_command)
+        || lc->cmdsize > mh->sizeofcmds - *pos) {
+        return NULL;
+    }
+    *pos += lc->cmdsize;
+    return lc;
+}
+
+static bool
+is_module_header(
+    const struct mach_header_64 *mh, const sentry_module_info_t *module)
+{
+    return mh->magic == MH_MAGIC_64 && mh->sizeofcmds != 0
+        && sizeof(*mh) + mh->sizeofcmds <= module->size;
+}
+
+static bool
+has_module_uuid(const struct mach_header_64 *mh, const uint8_t *cmds,
+    const sentry_module_info_t *module)
+{
+    uint32_t pos = 0;
+    const struct load_command *lc;
+    for (uint32_t c = 0;
+        c < mh->ncmds && (lc = next_load_command(mh, cmds, &pos)); c++) {
+        if (lc->cmd == LC_UUID && lc->cmdsize >= sizeof(struct uuid_command)) {
+            const struct uuid_command *uc = (const struct uuid_command *)lc;
+            return memcmp(uc->uuid, module->uuid, sizeof(uc->uuid)) == 0;
+        }
+    }
+    return false;
+}
+
+/**
+ * Read the load commands of a module from the crashed process.
+ */
+static uint8_t *
+read_task_load_commands(minidump_writer_t *writer,
+    const sentry_module_info_t *module, struct mach_header_64 *mh)
+{
+    uint64_t base = module->base_address;
+    if (read_task_memory(writer->task, base, mh, sizeof(*mh)) != KERN_SUCCESS
+        || !is_module_header(mh, module)) {
+        return NULL;
+    }
+    uint8_t *cmds = sentry_malloc(mh->sizeofcmds);
+    if (cmds
+        && read_task_memory(
+               writer->task, base + sizeof(*mh), cmds, mh->sizeofcmds)
+            != KERN_SUCCESS) {
+        sentry_free(cmds);
+        return NULL;
+    }
+    return cmds;
+}
+
+/**
+ * Read the load commands of the Mach-O slice at `offset` in a module file,
+ * if the slice is the loaded module.
+ */
+static uint8_t *
+read_slice_load_commands(int fd, uint64_t offset,
+    const sentry_module_info_t *module, struct mach_header_64 *mh)
+{
+    if (pread(fd, mh, sizeof(*mh), (off_t)offset) != (ssize_t)sizeof(*mh)
+        || !is_module_header(mh, module)) {
+        return NULL;
+    }
+    uint8_t *cmds = sentry_malloc(mh->sizeofcmds);
+    if (!cmds) {
+        return NULL;
+    }
+    if (pread(fd, cmds, mh->sizeofcmds, (off_t)(offset + sizeof(*mh)))
+            != (ssize_t)mh->sizeofcmds
+        || !has_module_uuid(mh, cmds, module)) {
+        sentry_free(cmds);
+        return NULL;
+    }
+    return cmds;
+}
+
+/**
+ * Read the load commands of a module from its file on disk. A universal
+ * binary holds one slice per architecture, and the slice whose LC_UUID
+ * matches the loaded module is used.
+ */
+static uint8_t *
+read_file_load_commands(const sentry_module_info_t *module,
+    struct mach_header_64 *mh, uint64_t *slice_offset)
+{
+    int fd = open(module->name, O_RDONLY);
+    if (fd < 0) {
+        return NULL;
+    }
+    uint8_t *cmds = NULL;
+    struct fat_header fat;
+    uint32_t magic = 0;
+    if (pread(fd, &fat, sizeof(fat), 0) == (ssize_t)sizeof(fat)) {
+        magic = OSSwapBigToHostInt32(fat.magic);
+    }
+    if (magic == FAT_MAGIC || magic == FAT_MAGIC_64) {
+        uint32_t count = OSSwapBigToHostInt32(fat.nfat_arch);
+        for (uint32_t i = 0; i < count && !cmds; i++) {
+            if (magic == FAT_MAGIC_64) {
+                struct fat_arch_64 arch;
+                off_t pos = (off_t)sizeof(fat) + (off_t)i * (off_t)sizeof(arch);
+                if (pread(fd, &arch, sizeof(arch), pos)
+                    != (ssize_t)sizeof(arch)) {
+                    break;
+                }
+                *slice_offset = OSSwapBigToHostInt64(arch.offset);
+            } else {
+                struct fat_arch arch;
+                off_t pos = (off_t)sizeof(fat) + (off_t)i * (off_t)sizeof(arch);
+                if (pread(fd, &arch, sizeof(arch), pos)
+                    != (ssize_t)sizeof(arch)) {
+                    break;
+                }
+                *slice_offset = OSSwapBigToHostInt32(arch.offset);
+            }
+            cmds = read_slice_load_commands(fd, *slice_offset, module, mh);
+        }
+    } else {
+        *slice_offset = 0;
+        cmds = read_slice_load_commands(fd, 0, module, mh);
+    }
+    close(fd);
+    return cmds;
+}
+
+/**
+ * Collect the __TEXT,__cstring and __TEXT,__const sections of modules outside
+ * the shared region from their Mach-O load commands. Without a task port, the
+ * load commands come from the module files on disk.
+ */
+static void
+collect_rodata_ranges(minidump_writer_t *writer)
+{
+    uint32_t mod_count = writer->crash_ctx->module_count;
+    if (mod_count > SENTRY_CRASH_MAX_MODULES) {
+        mod_count = SENTRY_CRASH_MAX_MODULES;
+    }
+    size_t capacity = (size_t)mod_count * 2;
+    writer->rodata = sentry_malloc(sizeof(rodata_range_t) * capacity);
+    if (!writer->rodata) {
+        return;
+    }
+
+    for (uint32_t i = 0; i < mod_count; i++) {
+        const sentry_module_info_t *module = &writer->crash_ctx->modules[i];
+        uint64_t base = module->base_address;
+        if (is_shared_region(base)) {
+            continue;
+        }
+        struct mach_header_64 mh;
+        const char *path = NULL;
+        uint64_t slice_offset = 0;
+        uint8_t *cmds;
+        if (writer->task != MACH_PORT_NULL) {
+            cmds = read_task_load_commands(writer, module, &mh);
+        } else {
+            path = module->name;
+            cmds = read_file_load_commands(module, &mh, &slice_offset);
+        }
+        if (!cmds) {
+            continue;
+        }
+
+        uint32_t pos = 0;
+        const struct load_command *lc;
+        for (uint32_t c = 0;
+            c < mh.ncmds && (lc = next_load_command(&mh, cmds, &pos)); c++) {
+            if (lc->cmd == LC_SEGMENT_64
+                && lc->cmdsize >= sizeof(struct segment_command_64)) {
+                add_rodata_sections(writer, base,
+                    (const struct segment_command_64 *)lc, capacity, path,
+                    slice_offset);
+            }
+        }
+        sentry_free(cmds);
+    }
+}
+
+static bool
+is_module_rodata(const minidump_writer_t *writer, uint64_t addr)
+{
+    for (size_t i = 0; i < writer->rodata_count; i++) {
+        if (addr >= writer->rodata[i].start && addr < writer->rodata[i].end) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
+macos_indirect_is_capturable(void *ctx, uint64_t addr)
 {
     const minidump_writer_t *writer = (const minidump_writer_t *)ctx;
     const memory_region_t *r = find_region_for_addr(writer, addr);
     if (!r) {
         return false;
     }
-    // Must be readable+writable, not executable. macOS regions don't carry
-    // names, so we can't reject thread stacks here cheaply — but the
-    // accumulator's overlap-check against thread stacks already in the
-    // memory list keeps duplicate captures bounded.
+    // Must be readable. macOS regions don't carry names, so we can't reject
+    // thread stacks here cheaply — but the accumulator's overlap-check
+    // against thread stacks already in the memory list keeps duplicate
+    // captures bounded.
     if ((r->protection & VM_PROT_READ) == 0) {
         return false;
     }
-    if ((r->protection & VM_PROT_WRITE) == 0) {
-        return false;
-    }
+    // __TEXT,__cstring and __TEXT,__const share r-x pages with code.
     if ((r->protection & VM_PROT_EXECUTE) != 0) {
-        return false;
+        return is_module_rodata(writer, addr);
+    }
+    // Read-only data such as __DATA_CONST, outside the dyld shared cache.
+    if ((r->protection & VM_PROT_WRITE) == 0) {
+        return !is_shared_region(addr);
     }
     return true;
 }
@@ -1427,6 +1684,37 @@ macos_indirect_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
     kern_return_t kr = read_task_memory(
         writer->task, (mach_vm_address_t)addr, buf, (mach_vm_size_t)len);
     return kr == KERN_SUCCESS ? (ssize_t)len : -1;
+}
+
+static bool
+macos_file_is_capturable(void *ctx, uint64_t addr)
+{
+    return is_module_rodata((const minidump_writer_t *)ctx, addr);
+}
+
+/**
+ * Read module rodata from the module file on disk. The page around a section
+ * lies within __TEXT, which maps linearly to the file.
+ */
+static ssize_t
+macos_file_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
+{
+    const minidump_writer_t *writer = (const minidump_writer_t *)ctx;
+    for (size_t i = 0; i < writer->rodata_count; i++) {
+        const rodata_range_t *range = &writer->rodata[i];
+        if (!range->path || addr >= range->end || addr + len <= range->start) {
+            continue;
+        }
+        int fd = open(range->path, O_RDONLY);
+        if (fd < 0) {
+            return -1;
+        }
+        off_t offset = (off_t)(range->file_offset + addr - range->start);
+        ssize_t rv = pread(fd, buf, len, offset);
+        close(fd);
+        return rv;
+    }
+    return -1;
 }
 
 /**
@@ -1497,11 +1785,17 @@ capture_indirect_memory_macos(
     minidump_writer_t *writer, sentry_indirect_accumulator_t *acc)
 {
     sentry_indirect_ops_t ops = {
-        .is_writable_heap = macos_indirect_is_writable_heap,
+        .is_capturable = macos_indirect_is_capturable,
         .read_memory = macos_indirect_read_memory,
         .ctx = writer,
     };
+    // Without a task port, only module rodata is captured, from disk.
+    if (writer->task == MACH_PORT_NULL) {
+        ops.is_capturable = macos_file_is_capturable;
+        ops.read_memory = macos_file_read_memory;
+    }
     minidump_writer_base_t *base = (minidump_writer_base_t *)writer;
+    collect_rodata_ranges(writer);
 
     for (size_t i = 0; i < writer->thread_stack_count; i++) {
         const minidump_memory_descriptor_t *desc = &writer->thread_stacks[i];
@@ -1529,6 +1823,43 @@ capture_indirect_memory_macos(
             break;
         }
     }
+
+    sentry_free(writer->rodata);
+    writer->rodata = NULL;
+    writer->rodata_count = 0;
+}
+
+/**
+ * SMART mode: scan registers + stack words for pointers into writable heap
+ * regions and module rodata, and capture a chunk around each. Appends them
+ * after the `count` ranges already in `ranges`, which must have room for
+ * SENTRY_INDIRECT_MAX_REGIONS more, and returns the new count.
+ */
+static size_t
+append_indirect_memory(minidump_writer_t *writer,
+    minidump_memory_descriptor_t *ranges, size_t count)
+{
+    if (writer->crash_ctx->minidump_mode != SENTRY_MINIDUMP_MODE_SMART) {
+        return count;
+    }
+
+    sentry_indirect_accumulator_t indirect_acc;
+    sentry__indirect_init(&indirect_acc);
+    indirect_acc.dumped = ranges;
+    indirect_acc.dumped_count = count;
+    capture_indirect_memory_macos(writer, &indirect_acc);
+    SENTRY_DEBUGF("indirect memory: captured %zu regions, %zu bytes",
+        indirect_acc.region_count, indirect_acc.total_bytes);
+
+    // Append indirectly-referenced regions. Already deduped + capped
+    // by the walker.
+    for (size_t s = 0; s < indirect_acc.region_count; s++) {
+        minidump_memory_descriptor_t *mem = &ranges[count++];
+        mem->start_address = indirect_acc.regions[s].start;
+        mem->memory.rva = indirect_acc.regions[s].rva;
+        mem->memory.size = indirect_acc.regions[s].size;
+    }
+    return count;
 }
 
 /**
@@ -1659,18 +1990,6 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             return rv;
         }
 
-        // SMART mode: scan registers + stack words for pointers into
-        // writable heap regions and capture a chunk around each. Has to
-        // run before the memory_list allocation below so we know the
-        // final region count.
-        sentry_indirect_accumulator_t indirect_acc;
-        sentry__indirect_init(&indirect_acc);
-        if (mode == SENTRY_MINIDUMP_MODE_SMART) {
-            capture_indirect_memory_macos(writer, &indirect_acc);
-            SENTRY_DEBUGF("indirect memory: captured %zu regions, %zu bytes",
-                indirect_acc.region_count, indirect_acc.total_bytes);
-        }
-
         // Count regions to include
         size_t region_count = 0;
         for (size_t i = 0; i < writer->region_count; i++) {
@@ -1681,7 +2000,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         }
 
         size_t total_count = region_count + writer->thread_stack_count
-            + indirect_acc.region_count;
+            + SENTRY_INDIRECT_MAX_REGIONS;
 
         size_t list_size = sizeof(uint32_t)
             + (total_count * sizeof(minidump_memory_descriptor_t));
@@ -1689,8 +2008,6 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         if (!memory_list) {
             goto empty_list;
         }
-
-        memory_list->count = total_count;
 
         size_t mem_idx = 0;
 
@@ -1700,15 +2017,6 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         // and walk the FP chain.
         for (size_t s = 0; s < writer->thread_stack_count; s++) {
             memory_list->ranges[mem_idx++] = writer->thread_stacks[s];
-        }
-
-        // Append indirectly-referenced regions. Already deduped + capped
-        // by the walker.
-        for (size_t s = 0; s < indirect_acc.region_count; s++) {
-            minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
-            mem->start_address = indirect_acc.regions[s].start;
-            mem->memory.rva = indirect_acc.regions[s].rva;
-            mem->memory.size = indirect_acc.regions[s].size;
         }
 
         for (size_t i = 0; i < writer->region_count && mem_idx < total_count;
@@ -1772,6 +2080,14 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             sentry_free(region_buffer);
         }
 
+        // Runs after the regions above are in the list so that it skips
+        // memory the dump already holds.
+        mem_idx = append_indirect_memory(writer, memory_list->ranges, mem_idx);
+
+        memory_list->count = mem_idx;
+        list_size = sizeof(uint32_t)
+            + (mem_idx * sizeof(minidump_memory_descriptor_t));
+
         dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
         dir->rva = write_data(writer, memory_list, list_size);
         dir->data_size = list_size;
@@ -1787,23 +2103,38 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // Read module header pages from the file captured by the signal handler.
     // The signal handler saves the first 4096 bytes of each module's in-memory
     // Mach-O header (including dyld shared cache modules that don't exist as
-    // individual files on disk).
+    // individual files on disk). SMART mode adds the module rodata that stacks
+    // and registers reference, read from the module files.
     uint32_t mod_count = writer->crash_ctx->module_count;
     if (mod_count > SENTRY_CRASH_MAX_MODULES) {
         mod_count = SENTRY_CRASH_MAX_MODULES;
     }
 
-    size_t list_size
-        = sizeof(uint32_t) + (mod_count * sizeof(minidump_memory_descriptor_t));
+    size_t list_size = sizeof(uint32_t)
+        + ((writer->thread_stack_count + mod_count
+               + SENTRY_INDIRECT_MAX_REGIONS)
+            * sizeof(minidump_memory_descriptor_t));
     minidump_memory_list_t *memory_list = sentry_malloc(list_size);
     if (!memory_list) {
         goto empty_list;
     }
     memset(memory_list, 0, list_size);
 
-    memory_list->count = mod_count;
+    // Replay thread stacks like the full path, so that consumers can read
+    // stack variables by address.
+    size_t mem_idx = 0;
+    for (size_t s = 0; s < writer->thread_stack_count; s++) {
+        memory_list->ranges[mem_idx++] = writer->thread_stacks[s];
+    }
 
-    write_module_headers_from_capture(writer, memory_list->ranges, mod_count);
+    write_module_headers_from_capture(
+        writer, &memory_list->ranges[mem_idx], mod_count);
+    mem_idx += mod_count;
+
+    memory_list->count = (uint32_t)append_indirect_memory(
+        writer, memory_list->ranges, mem_idx);
+    list_size = sizeof(uint32_t)
+        + (memory_list->count * sizeof(minidump_memory_descriptor_t));
 
     dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
     dir->rva = write_data(writer, memory_list, list_size);
