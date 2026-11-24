@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795525712308,
+  "lastUpdate": 1795525799844,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -209872,6 +209872,300 @@ window.BENCHMARK_DATA = {
             "range": "logarithmic",
             "unit": "ms",
             "extra": "Min 0.021ms\nMax 0.021ms\nMean 0.021ms\nMedian 0.021ms\nCPU 0.021ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sebastianmunozp@gmail.com",
+            "name": "Sebastian Munoz",
+            "username": "Sebassmaster"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6619e2786be4097ae8ef860337645dd94111280c",
+          "message": "feat: Add offline mode to pause uploads (#2339)\n\n* feat: Add offline mode to pause uploads\n\nAdd sentry_offline_mode_enable/disable/is_enabled. While offline mode\nis enabled, nothing is uploaded: envelopes are cached when http_retry\nis enabled and discarded otherwise. Disabling it sends the cached\nenvelopes immediately.\n\nLike user consent, the setting is persisted in the database directory\nand loaded by sentry_init before envelopes from previous runs are sent,\nso an app that starts while still offline does not try to upload them.\nThe Crashpad handler and the native crash daemon follow it as well.\n\nLogs and metrics are still discarded while offline, as they are today\nwhile consent is revoked.\n\nRefs #929\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n* ref: Rename offline mode API to sentry_set_offline/sentry_is_offline\n\nReplace sentry_offline_mode_enable/disable with sentry_set_offline(int)\nand sentry_offline_mode_is_enabled with sentry_is_offline.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n* fix(transport): Don't send queued envelopes while uploads are blocked\n\nOffline mode and user consent are checked when an envelope is\nsubmitted, but envelopes already queued in the HTTP transport were\nstill sent afterwards. Without connectivity, each of them waited for a\nnetwork timeout, so sentry_close() could still hit the shutdown\ntimeout after sentry_set_offline(1).\n\nCheck the upload gate in http_send_task right before sending, and\nhandle a blocked envelope like a network failure, so the existing\nfailure path caches it for retry when http_retry is enabled.\n\nRefs #929\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n* fix(native): Apply offline mode before the daemon sends dumped envelopes\n\nThe crash daemon submitted the logs, sessions and transactions dumped by\nthe crashing app before copying user consent and offline mode from\nshared memory into its run. With offline mode enabled, those envelopes\nwere still uploaded (or timed out without connectivity), and with user\nconsent given, they were held back as if consent was missing.\n\nCopy both values before anything is submitted.\n\nRefs #929\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-24T13:56:29+01:00",
+          "tree_id": "81b2709ec21942e90aca54daa31ccf674709cd24",
+          "url": "https://github.com/getsentry/sentry-native/commit/6619e2786be4097ae8ef860337645dd94111280c"
+        },
+        "date": 1795525754877,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.7969999999963875,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 3.516ms\nMax 7.200ms\nMean 5.066ms\nStdDev 1.424ms\nMedian 4.797ms\nCPU 3.112ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.055332999982511,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 6.276ms\nMax 8.868ms\nMean 7.327ms\nStdDev 1.004ms\nMedian 7.055ms\nCPU 4.190ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 27.243832999999995,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 17.861ms\nMax 51.018ms\nMean 30.047ms\nStdDev 12.437ms\nMedian 27.244ms\nCPU 7.584ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 15.625,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 11.293ms\nMax 36.832ms\nMean 20.254ms\nStdDev 10.379ms\nMedian 15.625ms\nCPU 5.744ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13274999997747727,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.058ms\nMax 0.159ms\nMean 0.120ms\nStdDev 0.038ms\nMedian 0.133ms\nCPU 0.079ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.29612499997710984,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.248ms\nMax 0.509ms\nMean 0.337ms\nStdDev 0.102ms\nMedian 0.296ms\nCPU 0.337ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.973874999990585,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 8.394ms\nMax 14.493ms\nMean 11.169ms\nStdDev 2.443ms\nMedian 10.974ms\nCPU 1.482ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 11.210917000028076,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 5.361ms\nMax 16.481ms\nMean 11.092ms\nStdDev 4.005ms\nMedian 11.211ms\nCPU 1.069ms"
+          },
+          {
+            "name": "Tags (inproc)",
+            "value": 0.005547083999999813,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Tags (breakpad)",
+            "value": 0.00332033400002274,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Tags (crashpad)",
+            "value": 0.24159025000000156,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.242ms\nMax 0.242ms\nMean 0.242ms\nMedian 0.242ms\nCPU 0.192ms"
+          },
+          {
+            "name": "Tags (native)",
+            "value": 0.006539499999973941,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Breadcrumbs (inproc)",
+            "value": 0.0013485409999702824,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Breadcrumbs (breakpad)",
+            "value": 0.0014411669999958576,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Breadcrumbs (crashpad)",
+            "value": 0.13156062500002008,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.132ms\nMax 0.132ms\nMean 0.132ms\nMedian 0.132ms\nCPU 0.072ms"
+          },
+          {
+            "name": "Breadcrumbs (native)",
+            "value": 0.003693292000036763,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.005985687499432402,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.008205890625223589,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.05910448828105874,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.059ms\nMax 0.059ms\nMean 0.059ms\nMedian 0.059ms\nCPU 0.021ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.0760072392577138,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.076ms\nMax 0.076ms\nMean 0.076ms\nMedian 0.076ms\nCPU 0.021ms"
+          },
+          {
+            "name": "Metrics (1 thread)",
+            "value": 0.005485656249248905,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Metrics (8 threads)",
+            "value": 0.023333499999722562,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.023ms\nMax 0.023ms\nMean 0.023ms\nMedian 0.023ms\nCPU 0.013ms"
+          },
+          {
+            "name": "Metrics (16 threads)",
+            "value": 0.04391349414056833,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.044ms\nMax 0.044ms\nMean 0.044ms\nMedian 0.044ms\nCPU 0.014ms"
+          },
+          {
+            "name": "Metrics (32 threads)",
+            "value": 0.035809283203125375,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.036ms\nMax 0.036ms\nMean 0.036ms\nMedian 0.036ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 430192,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 430192b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 531264,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 531264b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 848528,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 848528b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 466736,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 466736b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 9096,
+            "unit": "bytes",
+            "extra": "Peak 9096b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 7992,
+            "unit": "bytes",
+            "extra": "Peak 7992b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 8296,
+            "unit": "bytes",
+            "extra": "Peak 8296b, Segments 1"
+          },
+          {
+            "name": "Contexts (inproc)",
+            "value": 0.0042435410000507545,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Contexts (breakpad)",
+            "value": 0.0030997089999118543,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Contexts (crashpad)",
+            "value": 0.41224545900001885,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.412ms\nMax 0.412ms\nMean 0.412ms\nMedian 0.412ms\nCPU 0.366ms"
+          },
+          {
+            "name": "Contexts (native)",
+            "value": 0.012890374999983578,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.013ms\nMean 0.013ms\nMedian 0.013ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Scope apply (event, 10 frames)",
+            "value": 0.021978327000397258,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.022ms\nMean 0.022ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Scope apply (event, 256 frames)",
+            "value": 0.035189834996913305,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.035ms\nMax 0.035ms\nMean 0.035ms\nMedian 0.035ms\nCPU 0.034ms"
+          },
+          {
+            "name": "Scope apply (transaction, 100 spans)",
+            "value": 0.025311176999935014,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.025ms\nMax 0.025ms\nMean 0.025ms\nMedian 0.025ms\nCPU 0.024ms"
+          },
+          {
+            "name": "Scope apply (transaction, 1000 spans)",
+            "value": 0.02752944499422938,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.028ms\nMean 0.028ms\nMedian 0.028ms\nCPU 0.027ms"
           }
         ]
       }
