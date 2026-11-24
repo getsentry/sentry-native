@@ -623,9 +623,10 @@ sentry_user_consent_is_required(void)
     return required;
 }
 
-static void
-set_offline_mode(bool enabled)
+void
+sentry_set_offline(int mode)
 {
+    const bool enabled = mode != 0;
     long new_val = enabled ? 1 : 0;
     SENTRY_WITH_OPTIONS (options) {
         // the store returns the previous value: only act on actual changes
@@ -656,20 +657,8 @@ set_offline_mode(bool enabled)
     }
 }
 
-void
-sentry_offline_mode_enable(void)
-{
-    set_offline_mode(true);
-}
-
-void
-sentry_offline_mode_disable(void)
-{
-    set_offline_mode(false);
-}
-
 int
-sentry_offline_mode_is_enabled(void)
+sentry_is_offline(void)
 {
     int enabled = 0;
     SENTRY_WITH_OPTIONS (options) {

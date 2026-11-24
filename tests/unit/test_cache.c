@@ -956,7 +956,7 @@ SENTRY_TEST(cache_offline_mode)
     TEST_ASSERT(!!cache_path);
     sentry__path_remove_all(cache_path);
 
-    sentry_offline_mode_enable();
+    sentry_set_offline(1);
 
     sentry_capture_event(
         sentry_value_new_message_event(SENTRY_LEVEL_INFO, "test", "offline"));
@@ -965,7 +965,7 @@ SENTRY_TEST(cache_offline_mode)
     TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, &retry_format), 1);
     TEST_CHECK_INT_EQUAL(retry_format, 1);
 
-    sentry_offline_mode_disable();
+    sentry_set_offline(0);
     sentry__path_free(cache_path);
     sentry_close();
 }
@@ -985,7 +985,7 @@ SENTRY_TEST(cache_offline_mode_nocache)
     TEST_ASSERT(!!cache_path);
     sentry__path_remove_all(cache_path);
 
-    sentry_offline_mode_enable();
+    sentry_set_offline(1);
 
     sentry_capture_event(
         sentry_value_new_message_event(SENTRY_LEVEL_INFO, "test", "offline"));
@@ -993,7 +993,7 @@ SENTRY_TEST(cache_offline_mode_nocache)
     // without http_retry, envelopes are discarded while offline
     TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, NULL), 0);
 
-    sentry_offline_mode_disable();
+    sentry_set_offline(0);
     sentry__path_free(cache_path);
     sentry_close();
 }
@@ -1004,8 +1004,8 @@ SENTRY_TEST(cache_offline_mode_toggle)
     SKIP_TEST();
 #endif
     // before init, the API has no effect
-    sentry_offline_mode_enable();
-    TEST_CHECK_INT_EQUAL(sentry_offline_mode_is_enabled(), 0);
+    sentry_set_offline(1);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 0);
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -1015,21 +1015,21 @@ SENTRY_TEST(cache_offline_mode_toggle)
         = sentry__path_join_str(options->database_path, "offline-mode");
     TEST_ASSERT(!!offline_path);
 
-    TEST_CHECK_INT_EQUAL(sentry_offline_mode_is_enabled(), 0);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 0);
     TEST_CHECK(!sentry__path_is_file(offline_path));
 
     // enabling persists the setting in the database directory
-    sentry_offline_mode_enable();
-    TEST_CHECK_INT_EQUAL(sentry_offline_mode_is_enabled(), 1);
+    sentry_set_offline(1);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 1);
     TEST_CHECK(sentry__path_is_file(offline_path));
 
-    // enabling twice is a no-op
-    sentry_offline_mode_enable();
-    TEST_CHECK_INT_EQUAL(sentry_offline_mode_is_enabled(), 1);
+    // enabling twice is a no-op, and any non-zero value enables it
+    sentry_set_offline(42);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 1);
 
     // disabling removes the persisted setting
-    sentry_offline_mode_disable();
-    TEST_CHECK_INT_EQUAL(sentry_offline_mode_is_enabled(), 0);
+    sentry_set_offline(0);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 0);
     TEST_CHECK(!sentry__path_is_file(offline_path));
 
     sentry__path_free(offline_path);
@@ -1044,22 +1044,22 @@ SENTRY_TEST(cache_offline_mode_persisted)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_init(options);
-    sentry_offline_mode_enable();
+    sentry_set_offline(1);
     sentry_close();
 
     // the next init restores offline mode from the database directory
     SENTRY_TEST_OPTIONS_NEW(options2);
     sentry_options_set_dsn(options2, "https://foo@sentry.invalid/42");
     sentry_init(options2);
-    TEST_CHECK_INT_EQUAL(sentry_offline_mode_is_enabled(), 1);
-    sentry_offline_mode_disable();
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 1);
+    sentry_set_offline(0);
     sentry_close();
 
     // once disabled, it stays disabled across inits
     SENTRY_TEST_OPTIONS_NEW(options3);
     sentry_options_set_dsn(options3, "https://foo@sentry.invalid/42");
     sentry_init(options3);
-    TEST_CHECK_INT_EQUAL(sentry_offline_mode_is_enabled(), 0);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 0);
     sentry_close();
 }
 
@@ -1086,7 +1086,7 @@ SENTRY_TEST(cache_offline_mode_flush)
     sentry__path_remove_all(cache_path);
     sent = 0;
 
-    sentry_offline_mode_enable();
+    sentry_set_offline(1);
     sentry_capture_event(
         sentry_value_new_message_event(SENTRY_LEVEL_INFO, "test", "offline"));
     sentry_flush(5000);
@@ -1096,7 +1096,7 @@ SENTRY_TEST(cache_offline_mode_flush)
     TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, NULL), 1);
 
     // disabling offline mode immediately retries the cached envelope
-    sentry_offline_mode_disable();
+    sentry_set_offline(0);
     sentry_flush(5000);
 
     TEST_CHECK_INT_EQUAL(sent, 1);

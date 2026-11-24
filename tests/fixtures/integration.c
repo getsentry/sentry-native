@@ -1102,7 +1102,7 @@ main(int argc, char **argv)
         sentry_user_consent_revoke();
     }
     if (has_arg(argc, argv, "offline-mode-enable")) {
-        sentry_offline_mode_enable();
+        sentry_set_offline(1);
     }
 
     if (has_arg(argc, argv, "set-global-attribute")) {
@@ -1572,7 +1572,7 @@ main(int argc, char **argv)
         sentry_flush(10000);
     }
     if (has_arg(argc, argv, "offline-mode-disable")) {
-        sentry_offline_mode_disable();
+        sentry_set_offline(0);
         sentry_flush(10000);
     }
     if (has_arg(argc, argv, "capture-exception")) {

@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add offline mode (`sentry_offline_mode_enable`/`sentry_offline_mode_disable`) to stop uploads while the device is known to be offline. With `http_retry`, envelopes are cached and sent once offline mode is disabled. ([#2339](https://github.com/getsentry/sentry-native/pull/2339))
+- Add offline mode (`sentry_set_offline`/`sentry_is_offline`) to stop uploads while the device is known to be offline. With `http_retry`, envelopes are cached and sent once offline mode is disabled. ([#2339](https://github.com/getsentry/sentry-native/pull/2339))
 
 **Fixes**:
 
