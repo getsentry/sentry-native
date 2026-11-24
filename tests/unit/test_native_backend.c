@@ -1673,6 +1673,7 @@ SENTRY_TEST(crash_ipc_awaiting_ready)
     while (!sentry__crash_ipc_flush(ipc)) {
         sentry__crash_ipc_receive(ipc, 0);
     }
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
     sentry_value_t snapshot = scope_snapshot();
     TEST_CHECK(sentry__crash_ipc_send(
         ipc, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, snapshot));
