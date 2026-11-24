@@ -95,6 +95,7 @@ struct sentry_options_s {
     void *before_send_metric_data;
     bool enable_app_hang_tracking;
     uint64_t app_hang_timeout;
+    int app_hang_thread_stackwalk_mode; // sentry_thread_stackwalk_mode_t
     bool http_retry;
     bool send_client_reports;
     bool enable_large_attachments;
