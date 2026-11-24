@@ -109,7 +109,7 @@ extern "C" {
  * checks, or `sentry_sdk_version()` for the runtime version.
  */
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "1.0.0-beta.1"
+#    define SENTRY_SDK_VERSION "1.0.0-beta.2"
 #endif
 
 /**
