@@ -1323,6 +1323,47 @@ def test_crashpad_cache_consent(cmake, httpserver):
     assert waiting.result
 
 
+def test_crashpad_cache_offline_mode(cmake, httpserver):
+    """Crash while offline mode is enabled + http_retry: the minidump stays in
+    crashpad's pending queue. Once offline mode is disabled, RequestRetry()
+    wakes the handler and the minidump is uploaded."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    db_path = tmp_path.joinpath(".sentry-native")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # 1) Crash while offline. No upload should happen.
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "offline-mode-enable", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    # Give the (out-of-process) handler a moment to write the report.
+    time.sleep(1)
+    assert len(httpserver.log) == 0
+
+    if sys.platform != "win32":
+        pending_dir = db_path.joinpath("pending")
+        completed_dir = db_path.joinpath("completed")
+        assert pending_dir.exists()
+        assert len(list(pending_dir.glob("*.dmp"))) >= 1
+        assert not completed_dir.exists() or not any(completed_dir.glob("*.dmp"))
+
+    # 2) Restart (offline mode is restored from disk) and disable it. The
+    #    handler should wake via RequestRetry() and upload.
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "http-retry", "offline-mode-disable", "no-setup"],
+            env=env,
+        )
+    assert waiting.result
+
+
 def test_crashpad_cache_max_size(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")

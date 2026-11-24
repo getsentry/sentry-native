@@ -68,6 +68,7 @@ run_new(const sentry_path_t *database_path, sentry_path_t *run_path,
 
     run->refcount = 1;
     run->require_user_consent = 0;
+    run->offline_mode = 0;
     run->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     run->run_path = run_path;
     run->session_path = session_path;
@@ -128,9 +129,10 @@ sentry__run_adopt(
 bool
 sentry__run_should_skip_upload(sentry_run_t *run)
 {
-    return sentry__atomic_fetch(&run->require_user_consent)
-        && (sentry__atomic_fetch(&run->user_consent)
-            != SENTRY_USER_CONSENT_GIVEN);
+    return (sentry__atomic_fetch(&run->require_user_consent)
+               && (sentry__atomic_fetch(&run->user_consent)
+                   != SENTRY_USER_CONSENT_GIVEN))
+        || sentry__atomic_fetch(&run->offline_mode);
 }
 
 void
@@ -152,6 +154,18 @@ sentry__run_load_user_consent(
         sentry__atomic_store(&run->user_consent, SENTRY_USER_CONSENT_UNKNOWN);
         break;
     }
+    sentry_free(contents);
+}
+
+void
+sentry__run_load_offline_mode(
+    sentry_run_t *run, const sentry_path_t *database_path)
+{
+    sentry_path_t *offline_mode_path
+        = sentry__path_join_str(database_path, "offline-mode");
+    char *contents = sentry__path_read_to_buffer(offline_mode_path, NULL);
+    sentry__path_free(offline_mode_path);
+    sentry__atomic_store(&run->offline_mode, contents && contents[0] == '1');
     sentry_free(contents);
 }
 

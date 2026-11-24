@@ -2579,6 +2579,42 @@ SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 SENTRY_API int sentry_user_consent_is_required(void);
 
 /**
+ * Enables offline mode.
+ *
+ * While offline mode is enabled, the SDK does not upload anything to Sentry.
+ * Envelopes are written to the cache instead when `http_retry` is enabled;
+ * otherwise they are discarded. The cache is subject to the configured cache
+ * limits (`cache_max_items`, `cache_max_size`, `cache_max_age`).
+ *
+ * Logs and metrics are not cached: they are discarded while offline mode is
+ * enabled.
+ *
+ * The setting is persisted in the database directory and restored by the next
+ * `sentry_init`, so an application that starts while still offline does not
+ * attempt to upload envelopes from previous runs.
+ *
+ * This function has no effect before `sentry_init` has been called.
+ */
+SENTRY_API void sentry_offline_mode_enable(void);
+
+/**
+ * Disables offline mode.
+ *
+ * Schedules a retry of any envelopes cached while offline mode was enabled,
+ * provided that `http_retry` is enabled.
+ *
+ * This function has no effect before `sentry_init` has been called.
+ */
+SENTRY_API void sentry_offline_mode_disable(void);
+
+/**
+ * Checks whether offline mode is enabled.
+ *
+ * Returns 1 if offline mode is enabled, 0 otherwise.
+ */
+SENTRY_API int sentry_offline_mode_is_enabled(void);
+
+/**
  * Acquires the isolation scope used by top-level scope functions.
  *
  * Returns an owned reference that must be released with `sentry_scope_release`.

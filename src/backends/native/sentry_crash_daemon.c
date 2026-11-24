@@ -4524,6 +4524,8 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     if (options->run) {
         sentry__atomic_store(&options->run->user_consent,
             sentry__atomic_fetch(&ctx->user_consent));
+        sentry__atomic_store(&options->run->offline_mode,
+            sentry__atomic_fetch(&ctx->offline_mode));
     }
 
     sentry_path_t *env_path = sentry__path_from_str(envelope_path);
