@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795518511915,
+  "lastUpdate": 1795521486817,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -104884,6 +104884,306 @@ window.BENCHMARK_DATA = {
             "range": "logarithmic",
             "unit": "ms",
             "extra": "Min 0.017ms\nMax 0.017ms\nMean 0.017ms\nMedian 0.017ms\nCPU 0.017ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f7d9010d58b1165ba30b7098f40d33f85da347e1",
+          "message": "fix(android): support out-of-process crash handling on API 21+ (#2301)\n\n* fix(native): Recover interrupted crash reports\n\nIf the crash daemon is killed abruptly, or has not attached yet, the\ncrash is lost: the next launch deletes its `__sentry-event` with the\nold run folder. This is more likely on Android, where the daemon runs\nin a service process that the system can kill independently of the\napp, for example under memory pressure, and that may not have connected\nyet when the app crashes. Recover the event instead. The daemon removes\nthe file once it has sent the crash or kept its own envelope.\n\n* Update CHANGELOG.md\n\n* fix(native): Recover the crash envelope of an interrupted daemon\n\nA daemon killed after writing `__sentry-crash.envelope` but before\nremoving `__sentry-event` left both files, and the next launch invoked\n`on_crashed_last_run` for each. Send the daemon's envelope instead and\nremove the event.\n\n* fix(android): Fall back to a file for crash IPC without memfd\n\n`memfd_create` needs Linux 3.17, so creating the crash service's\nshared memory failed on older kernels, and the SDK disabled native\ncrash reporting.\n\nWhen `memfd_create` fails, create an unlinked file in the database\ndirectory instead. Preallocate it with `posix_fallocate()`, because a\nsparse file raises `SIGBUS` on write when the disk is full. Java passes\nthe directory to the new `SentryNdk.createCrashShm(String)` overload,\nand `createCrashShm()` keeps using memfd only.\n\n* docs(android): Say that createCrashShm() needs memfd\n\nThe overload without a database directory has no file fallback, so it\nneeds a kernel with memfd rather than a specific API level.\n\n* ci(android): Run the e2e tests on API 21, 26, 31 and 35\n\nMatch the Android API levels and NDK versions in `ci.yml`. The crash\nIPC now works without memfd, so drop the fixture's API 30 `minSdk`\nand the tests' API 30 skips.\n\n* ci(android): Check out the sentry-java API 21 branch for e2e tests\n\nThe API 21 and 26 e2e jobs need the sentry-java side of running the\ncrash service below API 30.\n\n* Update CHANGELOG.md\n\n* test(android): Fix the e2e tests on API 31 and 36\n\nAPI 31 tombstones leave dex frames unnamed, so the merged event has no\nJava method names. Check them only on later API levels.\n\nThe fixture crashed 1 s after setting the scope, but sentry-java syncs\nthe scope to native on its single-threaded executor, behind the startup\nwork of the tombstone integration. Now that the crash service starts\nwithout waiting, that work can still run when the crash fires, and the\nevent misses the `test.id` tag. Queue the crash on the executor, so\nthat it follows the scope sync.\n\nPrint logcat when an Android e2e test fails.\n\n* test(android): Run the native backend tests on API 21\n\n`has_native` was false below API 23, so the API 21 e2e job skipped\nall Android tests and never exercised the file fallback for crash IPC.\nAPI 21 is the minimum, so drop the Android clause.\n\n* test(android): Replace undecodable bytes in the logcat dump\n\nA non-UTF-8 byte in `adb logcat` output raised `UnicodeDecodeError`\nin the fixture teardown and lost the logcat dump of a failed test.\n\n* test(android): Run the native backend integration test on API 21\n\nThe API 23 skip blamed `process_vm_readv`, but below API 23\n`sentry__process_vm_readv()` calls the raw syscall.\n\n* ci(android): Use the default emulator image for e2e tests\n\nThe e2e tests do not use Google Play services. Use the smaller AOSP\nimages, like the regular Android CI jobs.\n\n* fix(android): Don't wait for the crash service on a crashed main thread\n\nBelow API 29, the app receives the crash service connection on its main\nthread. A native crash on the main thread before the daemon attached\nfroze the app for 10 s, waiting for a daemon that couldn't attach, and\nthen chained. Don't notify it in that case, so the crash chains at once.\nA crash on another thread still waits, since the main thread is free to\nattach the daemon.\n\n* fix(android): Don't consume the crash service ready signal\n\nA crash on the main thread checks whether the crash service attached\nwithout the writer lock. A concurrent send could read the ready signal\nbetween the crash handler's poll and read, and the handler then blocked\non the drained pipe. Poll without reading, so that every caller sees the\nsignal. A reattach replaces the pipe, which drops the old signal.\n\n* test(android): Crash right after init in the e2e test\n\nThe e2e fixture crashed 1 s after `SentryAndroid.init`, so no test\ncovered a crash on the main thread before the crash service connects.\nAdd an early variant that crashes as soon as the scope is synced. It\nruns on API 29 and later, where the service connects on a binder thread\nwhile the crash handler waits.\n\n* test(android): Report an early main-thread crash below API 29\n\nCrash synchronously right after init, so that below API 29 the main\nlooper cannot connect the crash service first, and relaunch the app\nto send the crash.",
+          "timestamp": "2026-11-24T12:49:56+01:00",
+          "tree_id": "21cf7c835a49054c3a771841f5142eeae1b40d81",
+          "url": "https://github.com/getsentry/sentry-native/commit/f7d9010d58b1165ba30b7098f40d33f85da347e1"
+        },
+        "date": 1795521447308,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.1883239999974649,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 1.162ms\nMax 1.227ms\nMean 1.192ms\nStdDev 0.024ms\nMedian 1.188ms\nCPU 1.136ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 1.1433859999954166,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 1.112ms\nMax 1.179ms\nMean 1.141ms\nStdDev 0.027ms\nMedian 1.143ms\nCPU 1.139ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.7756840000042757,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 3.667ms\nMax 4.624ms\nMean 3.933ms\nStdDev 0.398ms\nMedian 3.776ms\nCPU 2.008ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 2.9109969999581153,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 2.844ms\nMax 2.987ms\nMean 2.909ms\nStdDev 0.052ms\nMedian 2.911ms\nCPU 1.840ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1341910000292046,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.130ms\nMax 0.139ms\nMean 0.134ms\nStdDev 0.003ms\nMedian 0.134ms\nCPU 0.085ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03551300000026458,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.034ms\nMax 0.047ms\nMean 0.037ms\nStdDev 0.005ms\nMedian 0.036ms\nCPU 0.036ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.317666999999801,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 2.257ms\nMax 2.555ms\nMean 2.378ms\nStdDev 0.121ms\nMedian 2.318ms\nCPU 0.778ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 1.8401109999786058,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 1.751ms\nMax 1.907ms\nMean 1.823ms\nStdDev 0.069ms\nMedian 1.840ms\nCPU 0.767ms"
+          },
+          {
+            "name": "Tags (inproc)",
+            "value": 0.005065559999991365,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Tags (breakpad)",
+            "value": 0.005103766999980053,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Tags (crashpad)",
+            "value": 0.005243267000025753,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Tags (native)",
+            "value": 0.007261594999988574,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Breadcrumbs (inproc)",
+            "value": 0.0005450569999538857,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Breadcrumbs (breakpad)",
+            "value": 0.0005236659999923177,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Breadcrumbs (crashpad)",
+            "value": 0.008863007999991623,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nMedian 0.009ms\nCPU 0.009ms"
+          },
+          {
+            "name": "Breadcrumbs (native)",
+            "value": 0.004712600999994265,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.010621250000397708,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.011ms\nMean 0.011ms\nMedian 0.011ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.010504785156628671,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.011ms\nMean 0.011ms\nMedian 0.011ms\nCPU 0.010ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.010141259765839017,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.010ms\nMean 0.010ms\nMedian 0.010ms\nCPU 0.010ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.011208011718999433,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.011ms\nMean 0.011ms\nMedian 0.011ms\nCPU 0.009ms"
+          },
+          {
+            "name": "Metrics (1 thread)",
+            "value": 0.007191093748915023,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Metrics (8 threads)",
+            "value": 0.008012406250479387,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Metrics (16 threads)",
+            "value": 0.007561267578171105,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Metrics (32 threads)",
+            "value": 0.009789036132912265,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.010ms\nMean 0.010ms\nMedian 0.010ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 655696,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 655696b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 781528,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 781528b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 1075240,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 1075240b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 683208,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 683208b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 4720,
+            "unit": "bytes",
+            "extra": "Peak 4720b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 3136,
+            "unit": "bytes",
+            "extra": "Peak 3136b, Segments 1"
+          },
+          {
+            "name": "Stack usage (crashpad)",
+            "value": 2088,
+            "unit": "bytes",
+            "extra": "Peak 2088b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 3488,
+            "unit": "bytes",
+            "extra": "Peak 3488b, Segments 1"
+          },
+          {
+            "name": "Contexts (inproc)",
+            "value": 0.0055516779999607024,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Contexts (breakpad)",
+            "value": 0.005351297000061095,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Contexts (crashpad)",
+            "value": 0.005507901999976639,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Contexts (native)",
+            "value": 0.009166299000071376,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nMedian 0.009ms\nCPU 0.009ms"
+          },
+          {
+            "name": "Scope apply (event, 10 frames)",
+            "value": 0.023324933999560926,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.023ms\nMax 0.023ms\nMean 0.023ms\nMedian 0.023ms\nCPU 0.023ms"
+          },
+          {
+            "name": "Scope apply (event, 256 frames)",
+            "value": 0.03280264200077454,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.033ms\nMax 0.033ms\nMean 0.033ms\nMedian 0.033ms\nCPU 0.033ms"
+          },
+          {
+            "name": "Scope apply (transaction, 100 spans)",
+            "value": 0.023419070000841202,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.023ms\nMax 0.023ms\nMean 0.023ms\nMedian 0.023ms\nCPU 0.023ms"
+          },
+          {
+            "name": "Scope apply (transaction, 1000 spans)",
+            "value": 0.023354232002589015,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.023ms\nMax 0.023ms\nMean 0.023ms\nMedian 0.023ms\nCPU 0.023ms"
           }
         ]
       }
