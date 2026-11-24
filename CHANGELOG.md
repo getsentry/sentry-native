@@ -4,8 +4,10 @@
 
 **Fixes**:
 
+- Native/Android: support API 21+ (previously API 30+) with a file fallback for kernels without memfd. ([#2301](https://github.com/getsentry/sentry-native/pull/2301))
 - Native: retain crash envelopes on OOM in the crash daemon. ([#2320](https://github.com/getsentry/sentry-native/pull/2320))
 - Native: omit crash metadata in minidump-only mode. ([#2324](https://github.com/getsentry/sentry-native/pull/2324))
+- Native: recover interrupted crash reports. ([#2330](https://github.com/getsentry/sentry-native/pull/2330))
 - Native: prevent malloc deadlocks in signal handling. ([#2336](https://github.com/getsentry/sentry-native/pull/2336))
 
 ## 1.0.0-beta.1
@@ -63,11 +65,12 @@
 
 - [nmandelblit](https://github.com/nmandelblit)
 
-## Unreleased
+## 0.17.7
 
 **Features**:
 
 - Session replay: add user input events (such as mouse clicks and touches) provided in the replay sidecar to the replay recording. ([#2288](https://github.com/getsentry/sentry-native/pull/2288))
+- Add `sentry_options_set_app_hang_thread_stackwalk_mode` to attach the stack traces of all threads to app-hang events. ([#2327](https://github.com/getsentry/sentry-native/pull/2327))
 
 **Fixes**:
 

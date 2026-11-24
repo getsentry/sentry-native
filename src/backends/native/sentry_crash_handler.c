@@ -1028,6 +1028,7 @@ install_signal_handlers(sentry_crash_ipc_t *ipc, bool preload,
         if (!preload) {
             g_crash_ipc = ipc;
             g_handler_strategy = strategy;
+            g_crash_callback = callback;
         }
         return 0;
     }
@@ -1159,6 +1160,7 @@ sentry__crash_handler_shutdown(void)
 {
     if (sentry__atomic_fetch(&g_preloaded)) {
         g_crash_ipc = NULL;
+        g_crash_callback = NULL;
         SENTRY_DEBUG("crash handler deactivated, keeping preloaded handlers");
         return;
     }

@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 #include "sentry_crash_context.h"
+#include "sentry_path.h"
 #include "sentry_ringbuffer.h"
 
 #include <stddef.h>
@@ -98,6 +99,8 @@ void sentry__crash_scope_free(sentry_crash_scope_t *scope);
 bool sentry__crash_scope_apply(
     sentry_crash_scope_t *scope, const sentry_crash_ipc_message_t *message);
 sentry_value_t sentry__crash_scope_event(const sentry_crash_scope_t *scope);
+sentry_value_t sentry__crash_event_read(const sentry_path_t *run_folder);
+bool sentry__crash_event_remove(const sentry_path_t *run_folder);
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
 typedef HANDLE sentry_process_handle_t;
@@ -119,6 +122,8 @@ typedef struct {
     volatile long stalled;
     // set until a daemon that attaches later signals ready
     volatile long awaiting_ready;
+    // a daemon that attaches later does so through the app's main thread
+    bool attach_on_main_thread;
     uint64_t sequence;
     // frame with an unsent tail, owned by the writer guard
     char *torn_frame;
@@ -210,6 +215,14 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
  * /dev/shm. Returns -1 on failure.
  */
 int sentry__crash_ipc_create_memfd(void);
+#endif
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+/**
+ * Creates shared memory backed by an unlinked, preallocated file in `dir`, for
+ * kernels without memfd. Returns -1 on failure.
+ */
+int sentry__crash_ipc_create_shm_file(const char *dir);
 #endif
 
 /**

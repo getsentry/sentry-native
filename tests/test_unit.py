@@ -9,9 +9,12 @@ def _skip_if_unsupported(unittest):
     # unwinds a signal frame inside the handler. qemu-user does not emulate
     # thread-targeted signal delivery/unwinding faithfully, so the sample never
     # produces frames. It runs natively (incl. native arm64); skip only on qemu.
-    if unittest == "app_hang_end_to_end" and os.environ.get("TEST_QEMU"):
+    if unittest in (
+        "app_hang_end_to_end",
+        "app_hang_with_all_threads",
+    ) and os.environ.get("TEST_QEMU"):
         pytest.skip(
-            "app_hang_end_to_end requires real signal delivery (unsupported under qemu-user)"
+            f"{unittest} requires real signal delivery (unsupported under qemu-user)"
         )
 
 

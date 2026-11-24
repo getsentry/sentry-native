@@ -3,6 +3,7 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_logger.h"
+#include "sentry_path.h"
 #include "sentry_random.h"
 #include "sentry_sync.h"
 #include "sentry_utils.h"
@@ -162,11 +163,16 @@ sentry__crash_ipc_message_decode(
 #    include <fcntl.h>
 #    include <pthread.h>
 #    include <sched.h>
+#    include <stdlib.h>
 #    include <sys/file.h>
 #    include <sys/socket.h>
 #    include <sys/stat.h>
 #    include <sys/syscall.h>
 #    include <unistd.h>
+
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include <android/api-level.h>
+#    endif
 
 #    ifndef MFD_CLOEXEC
 #        define MFD_CLOEXEC 0x0001U
@@ -219,6 +225,28 @@ init_unlock(sentry_crash_ipc_t *ipc)
     if (ipc->init_mutex) {
         sentry__mutex_unlock(ipc->init_mutex);
     }
+}
+
+int
+sentry__crash_ipc_create_shm_file(const char *dir)
+{
+    char path[SENTRY_CRASH_MAX_PATH];
+    int len = snprintf(path, sizeof(path), "%s/.sentry-shm-XXXXXX", dir);
+    if (len < 0 || (size_t)len >= sizeof(path)) {
+        return -1;
+    }
+    int fd = mkstemp(path);
+    if (fd < 0) {
+        return -1;
+    }
+    unlink(path);
+    // a sparse file raises SIGBUS on write when the disk is full
+    if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0
+        || posix_fallocate(fd, 0, SENTRY_CRASH_SHM_SIZE) != 0) {
+        close(fd);
+        return -1;
+    }
+    return fd;
 }
 #    else
 static int
@@ -442,6 +470,8 @@ sentry__crash_ipc_init_app_with_fds(int shm_fd, int notify_fd, int ready_fd,
     ipc->init_mutex = init_mutex;
     // the crash service attaches after the app has started
     ipc->awaiting_ready = 1;
+    // below API 29, the app receives the service connection on its main thread
+    ipc->attach_on_main_thread = android_get_device_api_level() < 29;
 
     return init_app(ipc, shm_fd, notify_fd, ready_fd, message_fd);
 }
@@ -1677,6 +1707,37 @@ sentry__crash_scope_event(const sentry_crash_scope_t *scope)
     return event;
 }
 
+sentry_value_t
+sentry__crash_event_read(const sentry_path_t *run_folder)
+{
+    sentry_path_t *path = sentry__path_join_str(run_folder, "__sentry-event");
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    size_t len = 0;
+    char *buf = sentry__path_read_to_buffer(path, &len);
+    sentry__path_free(path);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t event = sentry_value_from_json(buf, len);
+    sentry_free(buf);
+    if (sentry_value_get_type(event) != SENTRY_VALUE_TYPE_OBJECT) {
+        sentry_value_decref(event);
+        return sentry_value_new_null();
+    }
+    return event;
+}
+
+bool
+sentry__crash_event_remove(const sentry_path_t *run_folder)
+{
+    sentry_path_t *path = sentry__path_join_str(run_folder, "__sentry-event");
+    int rv = path ? sentry__path_remove(path) : 1;
+    sentry__path_free(path);
+    return rv == 0;
+}
+
 // returns false on a hard error, and `sent < len` if the daemon stopped reading
 #if defined(SENTRY_PLATFORM_WINDOWS)
 static bool
@@ -1775,10 +1836,9 @@ daemon_ready(sentry_crash_ipc_t *ipc)
 {
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     if (sentry__atomic_fetch(&ipc->awaiting_ready)) {
+        // no read, so that concurrent callers all see the signal
         struct pollfd pfd = { ipc->ready_fd, POLLIN, 0 };
-        uint64_t val;
-        if (poll(&pfd, 1, 0) != 1 || !(pfd.revents & POLLIN)
-            || read(ipc->ready_fd, &val, sizeof(val)) != sizeof(val)) {
+        if (poll(&pfd, 1, 0) != 1 || !(pfd.revents & POLLIN)) {
             return false;
         }
         sentry__atomic_store(&ipc->awaiting_ready, 0);
@@ -1878,6 +1938,13 @@ sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
     if (!ipc) {
         return false;
     }
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // a crashed main thread can't attach the daemon
+    if (ipc->attach_on_main_thread && syscall(SYS_gettid) == getpid()
+        && !daemon_ready(ipc)) {
+        return false;
+    }
+#endif
     if (sentry__atomic_fetch(&ipc->shmem->state)
         == SENTRY_CRASH_STATE_CRASHING) {
         return notify_fallback(ipc);
