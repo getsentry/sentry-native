@@ -1,0 +1,55 @@
+# getsentry/sentry-native 5eba64ff776253b93e36056e8ed5dec271af2388
+
+rubric = "sdk"
+
+# .gitmodules names the vendored crashpad, breakpad, libunwindstack and lss sources under external/.
+[[area]]
+paths = [
+  "src/**", "include/**", "external/**", "vendor/**", "cmake/**", "toolchains/**", "CMakeLists.txt",
+  "sentry-config.cmake.in", "sentry.rc.in", ".gitmodules",
+]
+families = ["native", "mobile-native"]
+
+[[area]]
+paths = ["src/*", "src/path/**", "src/transports/**", "include/**", "vendor/*", "CMakeLists.txt"]
+families = ["native", "mobile-native"]
+shared_core = true
+
+[[area]]
+paths = ["ndk/**"]
+families = ["mobile-native", "native", "hybrid"]
+
+[[kind]]
+paths = ["include/sentry.h", "src/exports.map", "ndk/lib/api/**"]
+kind = "public-api-record"
+
+[[kind]]
+paths = ["external/**", "vendor/**"]
+kind = "dependencies"
+
+[[kind]]
+paths = [
+  "CMakeLists.txt", "src/CMakeLists.txt", "external/CMakeLists.txt", "cmake/**", "toolchains/**",
+  "sentry-config.cmake.in", "sentry.rc.in", "src/*.in", "scripts/**", ".mvn/**",
+  "ndk/**/*.gradle.kts", "ndk/*.gradle", "ndk/gradle.properties", "ndk/gradle/**", "ndk/gradlew",
+  "ndk/gradlew.bat", "ndk/debug.keystore", "ndk/**/proguard-rules.pro", "ndk/**/CMakeLists.txt",
+  "ndk/lib/src/main/AndroidManifest.xml",
+  # A standalone build defaults SENTRY_BUILD_TESTS and SENTRY_BUILD_EXAMPLES to on and
+  # add_subdirectory()s these, so they run at configure time on whoever builds the SDK.
+  "tests/**/CMakeLists.txt", "tests/**/*.cmake", "examples/**/CMakeLists.txt", "examples/**/*.cmake",
+]
+kind = "build-release"
+
+[[kind]]
+paths = ["tests/**", "fuzzing-examples/**", "ndk/lib/src/test/**", "ndk/lib/src/androidTest/**", "vendor/acutest.h"]
+kind = "tests"
+
+[[kind]]
+paths = ["examples/**", "ndk/sample/**"]
+kind = "samples"
+
+[[kind]]
+paths = [
+  ".clang-format", ".codechecker-ignore", ".codechecker-suppress", ".codecov.yml",
+]
+kind = "dev-tooling"
