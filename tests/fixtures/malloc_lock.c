@@ -10,10 +10,7 @@
 #    endif
 #endif
 
-#if defined(SENTRY_PLATFORM_WINDOWS)
-#    include <windows.h>
-#    define HAS_MALLOC_LOCK
-#elif defined(SENTRY_PLATFORM_DARWIN)
+#if defined(SENTRY_PLATFORM_DARWIN)
 #    include <malloc/malloc.h>
 #    include <pthread.h>
 #    define HAS_MALLOC_LOCK
@@ -77,9 +74,7 @@ typedef void (*crash_func_t)(void);
 static void
 lock_malloc(void)
 {
-#    if defined(SENTRY_PLATFORM_WINDOWS)
-    HeapLock(GetProcessHeap());
-#    elif defined(SENTRY_PLATFORM_DARWIN)
+#    if defined(SENTRY_PLATFORM_DARWIN)
     malloc_zone_t *zone = malloc_default_zone();
     zone->introspect->force_lock(zone);
 #    else
@@ -87,15 +82,6 @@ lock_malloc(void)
 #    endif
 }
 
-#    ifdef SENTRY_PLATFORM_WINDOWS
-static DWORD WINAPI
-crash_thread_func(LPVOID lpParam)
-{
-    lock_malloc();
-    (*(crash_func_t *)lpParam)();
-    return 0;
-}
-#    else
 static void *
 crash_thread_func(void *arg)
 {
@@ -103,18 +89,13 @@ crash_thread_func(void *arg)
     (*(crash_func_t *)arg)();
     return NULL;
 }
-#    endif
 #endif
 
 void
 crash_malloc_locked(crash_func_t crash)
 {
     // crash on a fresh thread that has not touched sentry's thread-locals
-#if defined(SENTRY_PLATFORM_WINDOWS)
-    HANDLE thread = CreateThread(NULL, 0, crash_thread_func, &crash, 0, NULL);
-    WaitForSingleObject(thread, INFINITE);
-    CloseHandle(thread);
-#elif defined(HAS_MALLOC_LOCK)
+#ifdef HAS_MALLOC_LOCK
     pthread_t thread;
     pthread_create(&thread, NULL, crash_thread_func, &crash);
     pthread_join(thread, NULL);

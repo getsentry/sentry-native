@@ -2289,6 +2289,7 @@ def test_native_full_mode(cmake, httpserver, args, embedded, uploaded):
 
 
 @pytest.mark.skipif(is_valgrind, reason="valgrind replaces malloc")
+@pytest.mark.skipif(sys.platform == "win32", reason="the heap lock is recursive")
 def test_native_crash_malloc_locked(cmake, httpserver):
     tmp_path = cmake(["sentry_test_malloc_lock"], {"SENTRY_BACKEND": "native"})
 
