@@ -17,8 +17,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      skip: ${{ steps.skip-ci.outputs.skip }}
+    steps:
+      - id: skip-ci
+        uses: getsentry/github-workflows/skip-ci@bce11fe6eaa86dbb9d360ab45a96e659828877f0 # TODO: release getsentry/github-workflows#187
+        with:
+          paths: |
+            **/*.md
+
   lint:
     name: Lint
+    needs: [changes]
+    if: ${{ needs.changes.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -26,6 +42,8 @@ jobs:
 
   build-ios-inproc:
     name: Xcode Build for inproc on iOS
+    needs: [changes]
+    if: ${{ needs.changes.outputs.skip != 'true' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,6 +55,8 @@ jobs:
 
   build-ios-breakpad:
     name: Xcode Build for breakpad on iOS
+    needs: [changes]
+    if: ${{ needs.changes.outputs.skip != 'true' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,6 +67,8 @@ jobs:
           xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
   test:
+    needs: [changes]
+    if: ${{ needs.changes.outputs.skip != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -572,6 +594,8 @@ jobs:
 
   codechecker:
     name: CodeChecker
+    needs: [changes]
+    if: ${{ needs.changes.outputs.skip != 'true' }}
     runs-on: ubuntu-24.04
     env:
       CC: gcc-13
@@ -643,6 +667,8 @@ jobs:
 
   check-aar:
     name: Check NDK AARs
+    needs: [changes]
+    if: ${{ needs.changes.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

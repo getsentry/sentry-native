@@ -22,8 +22,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      skip: ${{ steps.skip-ci.outputs.skip }}
+    steps:
+      - id: skip-ci
+        uses: getsentry/github-workflows/skip-ci@bce11fe6eaa86dbb9d360ab45a96e659828877f0 # TODO: release getsentry/github-workflows#187
+        with:
+          paths: |
+            **/*.md
+
   trigger-console-builds:
-    if: github.actor != 'dependabot[bot]' && (github.event.pull_request.head.repo.fork == false || github.event_name == 'push') # secrets unavailable for fork/dependabot PRs
+    needs: [changes]
+    if: needs.changes.outputs.skip != 'true' && github.actor != 'dependabot[bot]' && (github.event.pull_request.head.repo.fork == false || github.event_name == 'push') # secrets unavailable for fork/dependabot PRs
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
