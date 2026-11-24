@@ -4332,6 +4332,15 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     ensure_device_arch(base);
 #endif
 
+    // Apply the app's current upload gate (user consent, offline mode) before
+    // submitting anything below, including the dumped run envelopes.
+    if (options->run) {
+        sentry__atomic_store(&options->run->user_consent,
+            sentry__atomic_fetch(&ctx->user_consent));
+        sentry__atomic_store(&options->run->offline_mode,
+            sentry__atomic_fetch(&ctx->offline_mode));
+    }
+
     // The crashing process dumps its pending logs, sessions, and transactions
     // before notifying the daemon. Queue those before writing the crash
     // envelope so an attachment-ref prewrite is not captured a second time.
@@ -4503,11 +4512,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         SENTRY_WARNF("Envelope file stat failed: %s", strerror(errno));
     }
 #endif
-
-    if (options->run) {
-        sentry__atomic_store(&options->run->user_consent,
-            sentry__atomic_fetch(&ctx->user_consent));
-    }
 
     sentry_path_t *env_path = sentry__path_from_str(envelope_path);
     if (!env_path) {

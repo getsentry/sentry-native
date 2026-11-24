@@ -1103,7 +1103,16 @@ http_send_task(void *_envelope, void *_state)
     // Capture cached sibling paths before resolving attachment-refs. Dropped
     // attachment-refs no longer carry local paths afterwards.
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
-    int status_code = http_send_envelope(envelope, state);
+    int status_code;
+    if (sentry__run_should_skip_upload(state->run)) {
+        // Uploads were blocked (offline mode or revoked consent) after this
+        // envelope was queued: handle it like a network failure, which caches
+        // it for retry when enabled, instead of waiting for a send to time out.
+        SENTRY_DEBUG("not sending queued envelope: uploads are blocked");
+        status_code = RESULT_ERROR;
+    } else {
+        status_code = http_send_envelope(envelope, state);
+    }
 
     const sentry_envelope_t *ref_owner = NULL;
     if (status_code < 0) {

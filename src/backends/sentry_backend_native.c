@@ -1001,6 +1001,8 @@ native_backend_startup(
 #endif
     sentry__atomic_store(
         &ctx->user_consent, sentry__atomic_fetch(&options->run->user_consent));
+    sentry__atomic_store(
+        &ctx->offline_mode, sentry__atomic_fetch(&options->run->offline_mode));
 
     // Set up event and breadcrumb paths
     sentry_path_t *run_path = options->run->run_path;
@@ -1447,6 +1449,8 @@ native_backend_user_consent_changed(sentry_backend_t *backend)
         if (options->run) {
             sentry__atomic_store(&state->ipc->shmem->user_consent,
                 sentry__atomic_fetch(&options->run->user_consent));
+            sentry__atomic_store(&state->ipc->shmem->offline_mode,
+                sentry__atomic_fetch(&options->run->offline_mode));
         }
     }
 }

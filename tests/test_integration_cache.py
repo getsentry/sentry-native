@@ -1,4 +1,5 @@
 import os
+import subprocess
 import time
 import pytest
 
@@ -467,6 +468,174 @@ def test_cache_consent_flush(cmake, httpserver):
 
     assert len(httpserver.log) >= 1
     assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+def test_cache_offline_mode(cmake, httpserver):
+    """In offline mode with http_retry, envelopes are cached, not uploaded."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "offline-mode-enable", "capture-event", "flush"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 0
+    assert len(list(cache_dir.glob("*.envelope"))) == 1
+
+
+def test_cache_offline_mode_discard(cmake, httpserver):
+    """In offline mode without http_retry, envelopes are discarded."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    output = run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "offline-mode-enable", "capture-event", "flush"],
+        env=env,
+        stderr=subprocess.PIPE,
+    ).stderr
+
+    assert b"offline mode is enabled without `http_retry`" in output
+    assert len(httpserver.log) == 0
+    assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+def test_cache_offline_mode_flush(cmake, httpserver):
+    """Disabling offline mode flushes cached envelopes immediately."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        [
+            "log",
+            "http-retry",
+            "offline-mode-enable",
+            "capture-event",
+            "offline-mode-disable",
+        ],
+        env=env,
+    )
+
+    assert len(httpserver.log) >= 1
+    assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+def test_cache_offline_mode_persisted(cmake, httpserver):
+    """Offline mode survives restarts: a later run starts offline, so it does
+    not upload, until offline mode is disabled."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # 1) enable offline mode and capture an event: cached
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "offline-mode-enable", "capture-event", "flush"],
+        env=env,
+    )
+    assert tmp_path.joinpath(".sentry-native/offline-mode").exists()
+
+    # 2) restart without enabling it again: still offline, nothing uploaded,
+    #    and the new event is cached as well
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "capture-event", "flush"],
+        env=env,
+    )
+    assert len(httpserver.log) == 0
+    assert len(list(cache_dir.glob("*.envelope"))) == 2
+
+    # 3) disable offline mode: both cached envelopes are uploaded
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "offline-mode-disable"],
+        env=env,
+    )
+    assert len(httpserver.log) == 2
+    assert len(list(cache_dir.glob("*.envelope"))) == 0
+    assert not tmp_path.joinpath(".sentry-native/offline-mode").exists()
+
+
+@pytest.mark.skipif(
+    not has_native or is_qemu,
+    reason="native backend not available",
+)
+def test_cache_offline_mode_native(cmake, httpserver):
+    """The crash daemon honors offline mode for crash envelopes."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run_crash(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "stdout", "http-retry", "offline-mode-enable", "crash"],
+        env=env,
+    )
+
+    assert wait_for_file(cache_dir / "*.envelope")
+    assert len(list(cache_dir.glob("*.envelope"))) == 1
+    assert len(httpserver.log) == 0
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "http-retry", "offline-mode-disable"],
+            env=env,
+        )
+    assert waiting.result
+    assert len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+@pytest.mark.skipif(
+    not has_native or is_qemu,
+    reason="native backend not available",
+)
+def test_cache_offline_mode_native_dumped(cmake, httpserver):
+    """The crash daemon applies offline mode before it submits the envelopes
+    the crashing app dumped (here: a pending log), not only the crash."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run_crash(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "stdout", "http-retry", "offline-mode-enable", "capture-log", "crash"],
+        env=env,
+        wait_for_daemon=True,
+    )
+
+    # the crash and the dumped log are both cached, nothing was uploaded
+    assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) >= 2)
+    assert len(httpserver.log) == 0
+
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "offline-mode-disable"],
+        env=env,
+    )
+    assert len(httpserver.log) >= 2
+    assert len(list(cache_dir.glob("*.envelope"))) == 0
 
 
 @pytest.mark.skipif(
