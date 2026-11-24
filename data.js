@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795508715171,
+  "lastUpdate": 1795509061762,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -188788,6 +188788,300 @@ window.BENCHMARK_DATA = {
             "range": "logarithmic",
             "unit": "ms",
             "extra": "Min 0.029ms\nMax 0.029ms\nMean 0.029ms\nMedian 0.029ms\nCPU 0.029ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3ed421af03cd865abeec85ec49f8072cf9bf9346",
+          "message": "feat: attach all threads to app-hang events (#2327)\n\n* Attach all threads to app-hang events\n\nAdd sentry_options_set_app_hang_attach_all_threads (experimental, off by\ndefault). When enabled, the app-hang watchdog lists and walks every other\nthread and adds it to the event. The hung thread is marked as crashed and\nlinked to the exception through thread_id. The walk is limited to 256\nthreads and a 1 s budget.\n\nWindows x64 now unwinds suspended threads without dbghelp and without\nRtlLookupFunctionEntry, which takes the loader function table lock that a\nsuspended thread can hold. Linux ignores late signals from timed-out samples\nthat arrive while another thread is sampled. Logging no longer happens while\na thread is suspended.\n\n* Stress app-hang thread walks during C++ exceptions on macOS\n\nAdd app_hang_all_threads_during_exceptions: one thread keeps throwing and\ncatching C++ exceptions, another keeps allocating and freeing, while the\nwatchdog captures 50 hangs with all threads attached.\n\nOn macOS the module loading stress test opened libz.so.1, which does not\nexist there, so dyld never loaded or unloaded an image. It now loads a test\nmodule built outside the dyld shared cache, so that dlclose() unmaps it.\n\n* Align app-hang thread listing with daemon code and trim tests\n\nGuard the ToolHelp32 thread listing for Xbox, where it is not available.\nRead thread names the same way as the native crash daemon. Reuse the hung\nthread's id for the exception's thread_id.\n\nKeep two tests: one checks the event shape with the real stackwalker, the\nother is the regression test for the Windows loader lock deadlock. Remove\nthe remaining stress tests, the macOS test module and the pytest test.\n\n* Add PR number to changelog entries\n\n* Skip all-threads app-hang tests where they cannot run\n\nSkip both tests under qemu-user, which does not deliver thread-targeted\nsignals faithfully. Run the module loading test only on Windows and Linux,\nwhere the loaded module really loads and unloads. Other platforms have no\ndlfcn.h (PlayStation) or keep libz loaded.\n\n* Run the module loading test only with the lock-free Windows unwinder\n\nWindows x86, ARM64 and MinGW still unwind with dbghelp, which can block on\nthe loader lock that the suspended thread holds. Move the unwinder switch\nto the stackwalk header so the test can use the same condition.\n\n* Limit all-threads app-hang walks to safe platforms and short waits\n\nLinux and Android skip threads that block the sampling signal, and wait at\nmost 100 ms for other threads instead of 1 s, so one thread that does not\nrespond cannot use up the walk budget. The hung thread keeps the 1 s wait.\n\nAttaching all threads now needs the lock-free unwinder on Windows. Builds\nthat still unwind with dbghelp (x86, ARM64, MinGW) ignore the option and\nlog a warning, like Xbox.\n\n* Wait for a late signal handler before the next app-hang sample\n\nA handler that already passed its checks can still run after its sample\ntimed out. It writes the shared sample state, so the next sample could\noverlap with it. With the shorter wait for other threads this happened on\nArm64 under TSan. Count running handlers and let a new sample wait until\nnone are left.\n\n* Read the signal mask without stdio before each app-hang sample\n\nis_signal_blocked runs before every sample, including the hung thread's,\nso read /proc/self/task/<tid>/status with open/read into a stack buffer\ninstead of fopen, which allocates.\n\n* Keep each app-hang sample within one timeout and test module loading on Windows only\n\nThe wait for a late handler now counts against the sample's timeout, so a\nsample no longer waits up to twice as long.\n\nThe module loading test covers the Windows loader lock. On Linux it only\nadded dlopen traffic, and under TSan on Arm64 the test process died\nintermittently without a report.\n\n* Give each Linux app-hang sample its own slot\n\nThe watchdog sends the signal with rt_tgsigqueueinfo and the address of a\nper-sample slot, as Unreal Engine does for its own thread stack walks. The\nhandler writes only to that slot, so a handler that runs after its sample\ntimed out can no longer mix its stack into the next sample. A slot is\nreused only when no handler runs in it, and only the first handler on the\ntarget thread claims a sample.\n\nThis replaces the shared sample buffers, the target check and the count of\nrunning handlers.\n\n* Publish the app-hang sample target with release and read it with acquire\n\nThe handler checks the target thread before it claims a sample, so it has\nto read the target with acquire to see the slot fields the watchdog wrote\nbefore it. The watchdog still sets active last, so a late handler for the\nslot's previous thread cannot claim the new sample.\n\n* Claim an app-hang sample with one compare-and-swap on the thread id\n\nThe slot now stores the id of the thread whose handler may claim it. The\nhandler checks the id and claims the sample with a single\ncompare-and-swap, which always works on the latest value, so it can no\nlonger read a stale target before the claim.\n\n* Skip threads with a pending app-hang signal instead of a blocked one\n\nValgrind blocks all signals of every thread in the kernel, so the SigBlk\ncheck skipped every thread, including the hung one, and no hang event was\ncreated. Skip a thread only when the signal of an earlier sample is still\npending on it. A thread that blocks the signal then costs one short wait in\nits first sample, and no further signals queue on it.\n\nThe handler now finds its slot by thread id instead of a value carried with\nthe signal, so the sample is sent with tgkill again.\n\n* Build the module list before the module loading test starts unloading\n\nThe module finder reads the headers of every loaded module when it builds\nthe list for the first event. The loader thread could unload winmm.dll\nbetween the snapshot and the read, which crashed the test on Windows.\n\n* Do not require other thread stacks in the all-threads test under valgrind\n\nValgrind runs one thread at a time and delivers signals late, so the test\nrunner thread can miss the short wait for threads other than the hung one.\nThe test still runs under valgrind to check for memory errors.\n\n* Check for valgrind only on Linux in the all-threads test\n\ngetenv was used without stdlib.h, which broke the PlayStation build.\nValgrind only runs on Linux, so the check and its includes are Linux only.\n\n* Fix the app-hang unwinder build with clang-cl\n\nclang-cl builds with -Werror and reported -Wcast-align on the casts from\nthe image base to the PE headers and the function table, and\n-Wlanguage-extension-token on __try. Cast through const void * and silence\nthe extension warning around the SEH block, as sentry_sync.c does.\n\n* Walk Windows threads with dbghelp again and trim unrelated changes\n\nRestore the original dbghelp walk on Windows. A stress run with all\nthreads walked while another thread loaded and unloaded modules, allocated\nand called dbghelp did not hang, so the custom unwinder is not needed. This\nalso keeps walking through JIT code registered with RtlAddFunctionTable.\n\nAttaching all threads stays limited to Windows x64, where the cross-thread\ndbghelp walk is validated, and is off on Xbox and ARM64EC. Remove the module\nloading test, the moved debug logs and the reworked qemu skip list.\n\n* Use the thread stackwalk mode enum for app-hang thread walks\n\nReplace sentry_options_set_app_hang_attach_all_threads with\nsentry_options_set_app_hang_thread_stackwalk_mode, which takes the existing\nsentry_thread_stackwalk_mode_t. CRASHED_ONLY is the default and keeps the\ncurrent app-hang event, with only the hung thread. ALL attaches the stack\ntraces of all threads.\n\n* Add a HUNG_ONLY alias to the thread stackwalk mode\n\nSENTRY_THREAD_STACKWALK_MODE_HUNG_ONLY has the same value as CRASHED_ONLY\nand reads better for the app-hang option, where no thread crashed. The\napp-hang option defaults to it.\n\n* Log a failed thread list and harden app-hang thread names and status reads\n\nLog when the thread list cannot be built, instead of sending the event\nwithout threads silently. Drop a Windows thread name that does not fit in\nthe buffer, since WideCharToMultiByte leaves a partial, possibly invalid\nUTF-8 string. Read up to 4 KB of /proc/self/task/<tid>/status, so a long\nGroups line cannot push SigPnd out of the buffer.\n\n* Pass app-hang test results through before_send user data\n\n* Enable attaching all threads to app-hang events on Windows ARM64",
+          "timestamp": "2026-11-24T10:14:48+02:00",
+          "tree_id": "a1481a9cbb3de70ab0e163b5d33195af676d9753",
+          "url": "https://github.com/getsentry/sentry-native/commit/3ed421af03cd865abeec85ec49f8072cf9bf9346"
+        },
+        "date": 1795509011234,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.790957999986858,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 5.905ms\nMax 14.917ms\nMean 10.143ms\nStdDev 4.167ms\nMedian 7.791ms\nCPU 5.295ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 8.004834000018946,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 5.309ms\nMax 13.938ms\nMean 8.664ms\nStdDev 3.264ms\nMedian 8.005ms\nCPU 5.329ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 45.01749999997173,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 33.919ms\nMax 62.357ms\nMean 47.393ms\nStdDev 11.205ms\nMedian 45.017ms\nCPU 14.576ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 36.54983399997036,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 23.219ms\nMax 50.069ms\nMean 38.339ms\nStdDev 11.351ms\nMedian 36.550ms\nCPU 11.279ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.09062499998435669,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.055ms\nMax 0.403ms\nMean 0.197ms\nStdDev 0.172ms\nMedian 0.091ms\nCPU 0.109ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.6504159999849435,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.319ms\nMax 0.792ms\nMean 0.561ms\nStdDev 0.215ms\nMedian 0.650ms\nCPU 0.560ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 20.905624999954853,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 15.573ms\nMax 40.972ms\nMean 27.239ms\nStdDev 12.374ms\nMedian 20.906ms\nCPU 2.676ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 14.67195800000809,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 12.380ms\nMax 68.410ms\nMean 25.044ms\nStdDev 24.272ms\nMedian 14.672ms\nCPU 2.519ms"
+          },
+          {
+            "name": "Tags (inproc)",
+            "value": 0.0039962500000001455,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Tags (breakpad)",
+            "value": 0.005635125000026164,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Tags (crashpad)",
+            "value": 0.7813622500000292,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.781ms\nMax 0.781ms\nMean 0.781ms\nMedian 0.781ms\nCPU 0.357ms"
+          },
+          {
+            "name": "Tags (native)",
+            "value": 0.5404272499999934,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.540ms\nMax 0.540ms\nMean 0.540ms\nMedian 0.540ms\nCPU 0.344ms"
+          },
+          {
+            "name": "Breadcrumbs (inproc)",
+            "value": 0.0024997079999593552,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Breadcrumbs (breakpad)",
+            "value": 0.0023307920000661397,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Breadcrumbs (crashpad)",
+            "value": 0.20218433399998048,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.202ms\nMax 0.202ms\nMean 0.202ms\nMedian 0.202ms\nCPU 0.087ms"
+          },
+          {
+            "name": "Breadcrumbs (native)",
+            "value": 0.1708782919999976,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.171ms\nMax 0.171ms\nMean 0.171ms\nMedian 0.171ms\nCPU 0.107ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.018669281249827918,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.019ms\nMax 0.019ms\nMean 0.019ms\nMedian 0.019ms\nCPU 0.019ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.02296419140579431,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.023ms\nMax 0.023ms\nMean 0.023ms\nMedian 0.023ms\nCPU 0.018ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.024762779297082815,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.025ms\nMax 0.025ms\nMean 0.025ms\nMedian 0.025ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.03329712109345628,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.033ms\nMax 0.033ms\nMean 0.033ms\nMedian 0.033ms\nCPU 0.013ms"
+          },
+          {
+            "name": "Metrics (1 thread)",
+            "value": 0.010204437497662866,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.010ms\nMean 0.010ms\nMedian 0.010ms\nCPU 0.010ms"
+          },
+          {
+            "name": "Metrics (8 threads)",
+            "value": 0.006353515624724082,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Metrics (16 threads)",
+            "value": 0.056035318359626274,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.056ms\nMax 0.056ms\nMean 0.056ms\nMedian 0.056ms\nCPU 0.015ms"
+          },
+          {
+            "name": "Metrics (32 threads)",
+            "value": 0.05204662695335038,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.052ms\nMax 0.052ms\nMean 0.052ms\nMedian 0.052ms\nCPU 0.016ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 412320,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 412320b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 513328,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 513328b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 830544,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 830544b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 430768,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 430768b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 9272,
+            "unit": "bytes",
+            "extra": "Peak 9272b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 8120,
+            "unit": "bytes",
+            "extra": "Peak 8120b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 5320,
+            "unit": "bytes",
+            "extra": "Peak 5320b, Segments 1"
+          },
+          {
+            "name": "Contexts (inproc)",
+            "value": 0.006243749999953252,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Contexts (breakpad)",
+            "value": 0.003028041000106896,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Contexts (crashpad)",
+            "value": 0.3675169579998965,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.368ms\nMax 0.368ms\nMean 0.368ms\nMedian 0.368ms\nCPU 0.335ms"
+          },
+          {
+            "name": "Contexts (native)",
+            "value": 0.28768524999998135,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.288ms\nMax 0.288ms\nMean 0.288ms\nMedian 0.288ms\nCPU 0.266ms"
+          },
+          {
+            "name": "Scope apply (event, 10 frames)",
+            "value": 0.034896681001669094,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.035ms\nMax 0.035ms\nMean 0.035ms\nMedian 0.035ms\nCPU 0.035ms"
+          },
+          {
+            "name": "Scope apply (event, 256 frames)",
+            "value": 0.05693024200138552,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.057ms\nMax 0.057ms\nMean 0.057ms\nMedian 0.057ms\nCPU 0.057ms"
+          },
+          {
+            "name": "Scope apply (transaction, 100 spans)",
+            "value": 0.024816189000034683,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.025ms\nMax 0.025ms\nMean 0.025ms\nMedian 0.025ms\nCPU 0.025ms"
+          },
+          {
+            "name": "Scope apply (transaction, 1000 spans)",
+            "value": 0.027283276998900874,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.027ms\nMean 0.027ms\nMedian 0.027ms\nCPU 0.027ms"
           }
         ]
       }
