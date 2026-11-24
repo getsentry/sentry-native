@@ -330,7 +330,7 @@ def run_crash(tmp_path, exe, args, env, **kwargs):
     When running under ASAN, we configure it to not intercept crash signals
     so that our native crash handler can run and capture the crash.
     """
-    run(tmp_path, exe, args, expect_failure=True, env=crash_env(env), **kwargs)
+    return run(tmp_path, exe, args, expect_failure=True, env=crash_env(env), **kwargs)
 
 
 def check_output(*args, **kwargs):

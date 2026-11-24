@@ -488,8 +488,8 @@ if (NOT SENTRY_SDK_VERSION STREQUAL "")
 	target_compile_definitions(sentry PRIVATE SENTRY_SDK_VERSION="${SENTRY_SDK_VERSION}")
 endif()
 
-# we do not need this on android, only linux
-if(LINUX)
+# we do not need this on android, only linux and apple
+if(LINUX OR APPLE)
 	target_sources(sentry PRIVATE
 		"${PROJECT_SOURCE_DIR}/vendor/stb_sprintf.c"
 		"${PROJECT_SOURCE_DIR}/vendor/stb_sprintf.h"
@@ -1238,6 +1238,11 @@ if(SENTRY_BUILD_TESTS)
 
 	add_custom_command(TARGET sentry_test_integration POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "${SENTRY_FIXTURE_OUTPUT_DIR}/view-hierarchy.json")
+
+	sentry_add_executable(sentry_test_malloc_lock tests/fixtures/integration.c)
+	target_sources(sentry_test_malloc_lock PRIVATE tests/fixtures/malloc_lock.c)
+	target_compile_definitions(sentry_test_malloc_lock PRIVATE SENTRY_TEST_MALLOC_LOCK)
+	target_compile_options(sentry_test_malloc_lock PRIVATE $<TARGET_PROPERTY:sentry_test_integration,COMPILE_OPTIONS>)
 endif()
 
 # Limit the exported symbols when sentry is built as a shared library to those with a "sentry_" prefix:
