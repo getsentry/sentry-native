@@ -4,7 +4,7 @@
 
 **Breaking / Important behavior changes**:
 
-- Rename `SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY` and `SENTRY_THREAD_STACKWALK_MODE_HUNG_ONLY` to `SENTRY_THREAD_STACKWALK_MODE_SINGLE`. ([#TBD](https://github.com/getsentry/sentry-native/pull/TBD))
+- Rename `SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY` and `SENTRY_THREAD_STACKWALK_MODE_HUNG_ONLY` to `SENTRY_THREAD_STACKWALK_MODE_SINGLE`. ([#2345](https://github.com/getsentry/sentry-native/pull/2345))
 
 ## 1.0.0-beta.2
 
