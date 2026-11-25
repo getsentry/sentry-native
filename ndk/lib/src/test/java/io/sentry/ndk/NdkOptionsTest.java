@@ -1,6 +1,8 @@
 package io.sentry.ndk;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -41,5 +43,39 @@ public class NdkOptionsTest {
 
     // default tracesSampleRate should be 0
     assertEquals(0.0f, options.getTracesSampleRate(), 0.0f);
+  }
+
+  @Test
+  public void appHangAttachAllThreads() {
+    final NdkOptions options =
+        new NdkOptions(
+            "https://key@sentry.io/proj",
+            true,
+            "out",
+            "1.0.0",
+            "production",
+            "dist",
+            100,
+            "io.sentry.ndk");
+    options.setAppHangAttachAllThreads(true);
+
+    assertTrue(options.isAppHangAttachAllThreads());
+  }
+
+  @Test
+  public void appHangAttachAllThreadsDefaultsToFalse() {
+    final NdkOptions options =
+        new NdkOptions(
+            "https://key@sentry.io/proj",
+            true,
+            "out",
+            "1.0.0",
+            "production",
+            "dist",
+            100,
+            "io.sentry.ndk");
+
+    // by default only the hung thread is attached to app-hang events
+    assertFalse(options.isAppHangAttachAllThreads());
   }
 }

@@ -99,8 +99,10 @@ public final class io/sentry/ndk/NdkOptions {
 	public fun getRelease ()Ljava/lang/String;
 	public fun getSdkName ()Ljava/lang/String;
 	public fun getTracesSampleRate ()F
+	public fun isAppHangAttachAllThreads ()Z
 	public fun isDebug ()Z
 	public fun isEnableAppHangTracking ()Z
+	public fun setAppHangAttachAllThreads (Z)V
 	public fun setAppHangTimeoutMillis (J)V
 	public fun setEnableAppHangTracking (Z)V
 	public fun setNdkHandlerStrategy (Lio/sentry/ndk/NdkHandlerStrategy;)V

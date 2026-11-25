@@ -417,6 +417,9 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     jmethodID app_hang_timeout_mid = (*env)->GetMethodID(
         env, options_cls, "getAppHangTimeoutMillis", "()J");
 
+    jmethodID app_hang_attach_all_threads_mid = (*env)->GetMethodID(
+        env, options_cls, "isAppHangAttachAllThreads", "()Z");
+
     (*env)->DeleteLocalRef(env, options_cls);
 
     char *outbox_path = NULL;
@@ -525,6 +528,13 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
         app_hang_timeout = 0;
     }
     sentry_options_set_app_hang_timeout(options, (uint64_t)app_hang_timeout);
+
+    jboolean app_hang_attach_all_threads = (jboolean)(*env)->CallBooleanMethod(
+        env, sentry_ndk_options, app_hang_attach_all_threads_mid);
+    if (app_hang_attach_all_threads) {
+        sentry_options_set_app_hang_thread_stackwalk_mode(
+            options, SENTRY_THREAD_STACKWALK_MODE_ALL);
+    }
 
     int rv = sentry_init(options);
     return (jint)rv;
