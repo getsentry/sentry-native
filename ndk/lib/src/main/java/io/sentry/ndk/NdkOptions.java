@@ -17,6 +17,7 @@ public final class NdkOptions {
   private float tracesSampleRate = 0;
   private boolean enableAppHangTracking = false;
   private long appHangTimeoutMillis = 5000;
+  private boolean appHangAttachAllThreads = false;
 
   public NdkOptions(
       @NotNull String dsn,
@@ -105,5 +106,17 @@ public final class NdkOptions {
 
   public long getAppHangTimeoutMillis() {
     return appHangTimeoutMillis;
+  }
+
+  /**
+   * Attach the stack traces of all threads to app-hang events, not only the hung thread's.
+   * Off by default.
+   */
+  public void setAppHangAttachAllThreads(final boolean appHangAttachAllThreads) {
+    this.appHangAttachAllThreads = appHangAttachAllThreads;
+  }
+
+  public boolean isAppHangAttachAllThreads() {
+    return appHangAttachAllThreads;
   }
 }

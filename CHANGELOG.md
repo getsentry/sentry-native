@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Android: Attach the stack traces of all threads to app-hang events through the NDK bindings via `NdkOptions.setAppHangAttachAllThreads()`. ([#2344](https://github.com/getsentry/sentry-native/pull/2344))
+
 ## 0.17.7
 
 **Features**:

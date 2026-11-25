@@ -119,6 +119,34 @@ public class SentryNdkTest {
   }
 
   @Test
+  public void initWithAppHangAttachAllThreadsDoesNotFail() throws IOException {
+    final TemporaryFolder temporaryFolder = TemporaryFolder.builder().build();
+    temporaryFolder.create();
+    final File outboxPath = temporaryFolder.newFolder("outboxPath");
+
+    final NdkOptions options =
+        new NdkOptions(
+            "https://key@sentry.io/proj",
+            true,
+            outboxPath.getAbsolutePath(),
+            "1.0.0",
+            "production",
+            "dist",
+            100,
+            "io.sentry.ndk");
+    options.setEnableAppHangTracking(true);
+    options.setAppHangAttachAllThreads(true);
+
+    // when initialized with app-hang tracking that attaches all threads
+    SentryNdk.init(options);
+
+    // and then closed, which stops the app-hang watchdog
+    SentryNdk.close();
+
+    // then it does not crash
+  }
+
+  @Test
   public void shutdownDoesNotFail() throws IOException {
     final TemporaryFolder temporaryFolder = TemporaryFolder.builder().build();
     temporaryFolder.create();
