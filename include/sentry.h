@@ -1415,34 +1415,28 @@ typedef enum {
 } sentry_crash_reporting_mode_t;
 
 /**
- * Thread stackwalk mode for the native backend.
- * Controls which threads have their stack walked when a crash is reported.
+ * Thread stackwalk mode.
+ * Controls which threads have their stack walked when a crash or an app hang
+ * is reported. See `sentry_options_set_thread_stackwalk_mode` and
+ * `sentry_options_set_app_hang_thread_stackwalk_mode`.
  *
  * The values start at 1, `0` is reserved.
  */
 typedef enum {
     /**
-     * Walk the crashed thread only.
-     * The remaining threads are still reported with their id and name, but
-     * without a stacktrace. Considerably faster on processes with a high
-     * thread count, at the cost of losing the state of the threads that did
-     * not crash.
+     * Walk a single thread only: the crashed thread for crashes, the hung
+     * thread for app hangs.
+     * Considerably faster on processes with a high thread count, at the cost
+     * of losing the state of the other threads.
      */
-    SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY = 1,
+    SENTRY_THREAD_STACKWALK_MODE_SINGLE = 1,
 
     /**
-     * Walk every thread of the crashed process (default).
-     * Provides the most context, but the time needed to collect a crash grows
-     * with the thread count.
+     * Walk every thread of the process.
+     * Provides the most context, but the time needed to collect the event
+     * grows with the thread count.
      */
     SENTRY_THREAD_STACKWALK_MODE_ALL = 2,
-
-    /**
-     * Walk the hung thread only. Alias of `CRASHED_ONLY` for
-     * `sentry_options_set_app_hang_thread_stackwalk_mode`.
-     */
-    SENTRY_THREAD_STACKWALK_MODE_HUNG_ONLY
-    = SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY,
 } sentry_thread_stackwalk_mode_t;
 
 /**
@@ -2330,9 +2324,9 @@ sentry_options_get_crash_reporting_mode(const sentry_options_t *opts);
  * Sets the thread stackwalk mode for the native backend.
  *
  * This controls which threads the crash daemon walks and symbolicates:
- * - CRASHED_ONLY: only the crashed thread gets a stacktrace, the remaining
- *   threads are still listed with their id and name
- * - ALL: every thread gets a stacktrace
+ * - SINGLE: only the crashed thread gets a stacktrace, the remaining threads
+ *   are still listed with their id and name
+ * - ALL (default): every thread gets a stacktrace
  *
  * Walking every thread of a process with a high thread count (such as an
  * editor or tooling build) can add a noticeable delay to crash collection.
@@ -3443,7 +3437,7 @@ SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout(
 /**
  * Sets which threads the app-hang watchdog walks.
  *
- * - HUNG_ONLY (default): the event only contains the stack trace of the
+ * - SINGLE (default): the event only contains the stack trace of the
  *   hung thread. Unlike crash reports, no other threads are listed.
  * - ALL: the watchdog also walks every other thread of the process, so the
  *   event shows what the hung thread is waiting on (for example, a worker

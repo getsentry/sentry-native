@@ -3428,8 +3428,8 @@ build_native_event(const sentry_crash_context_t *ctx, sentry_value_t base,
         // non-crashed ones also get a stacktrace depends on the configured
         // stackwalk mode - walking every thread of a process with a high
         // thread count can add a noticeable delay to crash collection.
-        const bool walk_all_threads = ctx->thread_stackwalk_mode
-            != SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY;
+        const bool walk_all_threads
+            = ctx->thread_stackwalk_mode != SENTRY_THREAD_STACKWALK_MODE_SINGLE;
         if (!walk_all_threads) {
             SENTRY_DEBUG("Stackwalk limited to the crashed thread");
         }
