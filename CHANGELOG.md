@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Native/Linux: support sandboxed apps that restrict `/dev/shm` or `ptrace`, such as snaps and Flatpaks. ([#2347](https://github.com/getsentry/sentry-native/pull/2347))
+
 ## 1.0.0-beta.2
 
 **Features**:
