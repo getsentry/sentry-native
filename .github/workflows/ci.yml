@@ -559,7 +559,7 @@ jobs:
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
-          pytest --capture=no -vv ${{ runner.os == 'Windows' && '--with_wer' || '' }} tests
+          pytest --capture=no -vv --with_wer tests
 
       - name: Check NDK
         if: ${{ env['ANDROID_API'] }}
