@@ -520,7 +520,7 @@ def wait_for_no_werfault(timeout=30.0, poll_interval=0.5):
 
 
 @pytest.mark.skipif(
-    sys.platform != "win32",
+    sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
     reason="Test covers Windows-specific crashes which can only be covered via the Crashpad WER module",
 )
 # this test currently can't run on CI because the Windows-image doesn't properly support WER, if you want to run the
@@ -1191,7 +1191,7 @@ def test_crashpad_external_crash_reporter_consent_flush(cmake, httpserver):
 
 
 @pytest.mark.skipif(
-    sys.platform != "win32",
+    sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
     reason="Test covers Windows-specific crashes which can only be covered via the Crashpad WER module",
 )
 # this test currently can't run on CI because the Windows-image doesn't properly support WER, if you want to run the
