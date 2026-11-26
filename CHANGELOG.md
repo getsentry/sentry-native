@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Native/Linux: detect daemon startup failure to avoid a 10s stall in `sentry_init`. ([#2349](https://github.com/getsentry/sentry-native/pull/2349))
+
 ## 1.0.0-beta.2
 
 **Features**:
