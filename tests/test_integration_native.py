@@ -7,6 +7,7 @@ multi-thread capture, and FPU/SIMD register capture on all platforms.
 
 import os
 import queue
+import shutil
 import signal
 import subprocess
 import sys
@@ -19,6 +20,7 @@ import pytest
 
 from . import (
     crash_env,
+    exe_name,
     is_feedback_envelope,
     is_replay_envelope,
     lib_name,
@@ -52,6 +54,7 @@ from .assertions import (
 )
 from .conditions import has_files, has_http, has_system_proxy, is_arm64e, is_kcov
 from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine, is_x86
+from .conditions import is_android
 from .conditions import is_valgrind
 from .proxy import proxy_test_finally, start_proxy, system_proxy
 
@@ -2312,3 +2315,54 @@ def test_native_crash_malloc_locked(cmake, httpserver):
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_native_crash(envelope)
     assert_attachment(envelope)
+
+
+@pytest.mark.skipif(bool(is_android), reason="executables run on the device")
+@pytest.mark.parametrize(
+    "daemon",
+    [
+        "missing",
+        pytest.param(
+            "not-executable",
+            marks=pytest.mark.skipif(
+                sys.platform == "win32" or is_wine, reason="POSIX only"
+            ),
+        ),
+        pytest.param(
+            "exits",
+            marks=pytest.mark.skipif(
+                sys.platform == "win32" or is_wine, reason="POSIX only"
+            ),
+        ),
+    ],
+)
+def test_native_daemon_start_failure(cmake, tmp_path_factory, daemon):
+    build_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+
+    # the build is shared, so replace the daemon next to a copy of the executable
+    tmp_path = tmp_path_factory.mktemp("daemon")
+    shutil.copy2(build_path / exe_name("sentry_test_integration"), tmp_path)
+    for dll in build_path.glob("*.dll"):
+        shutil.copy2(dll, tmp_path)
+
+    daemon_path = tmp_path / "sentry-crash"
+    if daemon == "not-executable":
+        shutil.copy2(build_path / "sentry-crash", daemon_path)
+        daemon_path.chmod(0o644)
+    elif daemon == "exits":
+        daemon_path.write_text("#!/bin/sh\nexit 1\n")
+        daemon_path.chmod(0o755)
+
+    result = run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "no-setup"],
+        expect_failure=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    # Linux logs the exit, and other platforms never log a ready timeout
+    assert (
+        b"crash daemon exited before signaling ready" in result.stderr
+        or b"did not signal ready" not in result.stderr
+    )

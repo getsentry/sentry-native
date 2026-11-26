@@ -1453,15 +1453,27 @@ sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
     fd_set readfds;
     FD_ZERO(&readfds);
     FD_SET(ipc->ready_fd, &readfds);
+    int max_fd = ipc->ready_fd;
+    // the message socket hangs up when the daemon exits
+    if (ipc->message_fd[0] >= 0) {
+        FD_SET(ipc->message_fd[0], &readfds);
+        if (ipc->message_fd[0] > max_fd) {
+            max_fd = ipc->message_fd[0];
+        }
+    }
 
     struct timeval timeout;
     timeout.tv_sec = timeout_ms / 1000;
     timeout.tv_usec = (timeout_ms % 1000) * 1000;
 
-    int result = select(ipc->ready_fd + 1, &readfds, NULL, NULL,
-        timeout_ms >= 0 ? &timeout : NULL);
+    int result = select(
+        max_fd + 1, &readfds, NULL, NULL, timeout_ms >= 0 ? &timeout : NULL);
 
     if (result > 0) {
+        if (!FD_ISSET(ipc->ready_fd, &readfds)) {
+            SENTRY_WARN("crash daemon exited before signaling ready");
+            return false;
+        }
         // Read the eventfd value
         uint64_t val;
         if (read(ipc->ready_fd, &val, sizeof(val)) < 0) {

@@ -1240,7 +1240,7 @@ native_backend_startup(
         SENTRY_DEBUG("not waiting for the crash service to signal ready");
     } else if (!sentry__crash_ipc_wait_for_ready(
                    state->ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS)) {
-        SENTRY_WARN("Daemon did not signal ready in time, proceeding anyway");
+        SENTRY_WARN("Daemon did not signal ready, proceeding anyway");
     } else {
         SENTRY_DEBUG("Daemon signaled ready");
     }
