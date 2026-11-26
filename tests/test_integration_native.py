@@ -480,13 +480,16 @@ def test_native_scope_updates_without_snapshot(cmake, httpserver, mode, scoped_t
     )
     if scoped_trace:
         env["SENTRY_TEST_NATIVE_SCOPE_SPAN"] = "1"
-    with httpserver.wait(timeout=15) as waiting:
+    with httpserver.wait(timeout=15, raise_assertions=False) as waiting:
         run_crash(
             tmp_path,
             "sentry_test_unit",
             ["--no-exec", "native_scope_updates"],
             env=env,
         )
+    if not waiting.result:
+        for path in (tmp_path / ".sentry-native").glob("*.run/sentry-daemon.log"):
+            print(path.read_text(encoding="utf-8", errors="replace"))
     assert waiting.result
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     event = envelope.get_event()
