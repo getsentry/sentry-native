@@ -429,7 +429,6 @@ def test_sandbox_macos_native_stacktrace(cmake, httpserver):
 
 
 @linux_only
-@pytest.mark.xfail(strict=True, reason="named init semaphore")
 def test_sandbox_linux_ro_shm_init_succeeds(cmake):
     """
     Verify that sentry_init() succeeds with a read-only /dev/shm, as in
@@ -449,7 +448,6 @@ def test_sandbox_linux_ro_shm_init_succeeds(cmake):
 
 
 @linux_only
-@pytest.mark.xfail(strict=True, reason="named init semaphore")
 def test_sandbox_linux_ro_shm_crash_capture(cmake, httpserver):
     """
     Full end-to-end with a read-only /dev/shm: crash -> daemon captures
@@ -503,7 +501,6 @@ def test_sandbox_linux_no_ptrace_crash_capture(cmake, httpserver):
 
 
 @linux_only
-@pytest.mark.xfail(strict=True, reason="named init semaphore")
 def test_sandbox_linux_no_shm_leak(cmake):
     """
     Verify that a normal run leaves no named semaphore behind in /dev/shm.

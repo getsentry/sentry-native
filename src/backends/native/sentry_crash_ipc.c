@@ -189,9 +189,25 @@ sentry__crash_ipc_create_memfd(void)
 #    endif
 }
 
+static void
+init_lock(sentry_crash_ipc_t *ipc)
+{
+    if (ipc->init_mutex) {
+        sentry__mutex_lock(ipc->init_mutex);
+    }
+}
+
+static void
+init_unlock(sentry_crash_ipc_t *ipc)
+{
+    if (ipc->init_mutex) {
+        sentry__mutex_unlock(ipc->init_mutex);
+    }
+}
+
 #    if defined(SENTRY_PLATFORM_ANDROID)
 // Bionic implements neither shm_open() nor sem_open(). Map a file in the
-// database directory instead, and lock initialization with a mutex.
+// database directory instead.
 static int
 shm_create(sentry_crash_ipc_t *ipc)
 {
@@ -208,23 +224,6 @@ static void
 shm_remove(sentry_crash_ipc_t *ipc)
 {
     unlink(ipc->shm_name);
-}
-
-static bool
-init_lock(sentry_crash_ipc_t *ipc)
-{
-    if (ipc->init_mutex) {
-        sentry__mutex_lock(ipc->init_mutex);
-    }
-    return true;
-}
-
-static void
-init_unlock(sentry_crash_ipc_t *ipc)
-{
-    if (ipc->init_mutex) {
-        sentry__mutex_unlock(ipc->init_mutex);
-    }
 }
 
 int
@@ -272,20 +271,6 @@ shm_remove(sentry_crash_ipc_t *ipc)
 {
     shm_unlink(ipc->shm_name);
 }
-
-static bool
-init_lock(sentry_crash_ipc_t *ipc)
-{
-    return !ipc->init_sem || sem_wait(ipc->init_sem) == 0;
-}
-
-static void
-init_unlock(sentry_crash_ipc_t *ipc)
-{
-    if (ipc->init_sem) {
-        sem_post(ipc->init_sem);
-    }
-}
 #    endif
 
 /**
@@ -304,12 +289,7 @@ init_app(sentry_crash_ipc_t *ipc, int shm_fd, int notify_fd, int ready_fd,
     ipc->message_fd[1] = -1;
 
     // Acquire exclusive access during initialization
-    if (!init_lock(ipc)) {
-        SENTRY_WARNF(
-            "failed to acquire initialization semaphore: %s", strerror(errno));
-        sentry_free(ipc);
-        return NULL;
-    }
+    init_lock(ipc);
 
     // Try to create or open shared memory
     bool shm_exists = false;
@@ -515,13 +495,13 @@ sentry__crash_ipc_reattach(
 }
 #    else
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_app(sem_t *init_sem)
+sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
-    ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
+    ipc->init_mutex = init_mutex; // Use provided mutex (managed by backend)
 
     // Create shared memory with unique name based on PID and thread ID
     // macOS has a 31-character limit for POSIX shared memory names (PSEMNAMLEN)
