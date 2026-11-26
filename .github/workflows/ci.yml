@@ -549,12 +549,24 @@ jobs:
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with: *android-options
 
+      - name: Configure WER
+        if: ${{ runner.os == 'Windows' }}
+        shell: powershell
+        run: |
+          Add-Type -Namespace Win32 -Name Kernel32 -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint GetErrorMode();'
+          "Error mode: 0x{0:X}" -f [Win32.Kernel32]::GetErrorMode()
+          Get-Service WerSvc | Format-List Name, Status, StartType
+          Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting' -ErrorAction SilentlyContinue
+          Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting' -ErrorAction SilentlyContinue
+          New-Item -Force 'HKCU:\Software\Microsoft\Windows\Windows Error Reporting' | Out-Null
+          Set-ItemProperty 'HKCU:\Software\Microsoft\Windows\Windows Error Reporting' -Name DontShowUI -Value 1 -Type DWord
+
       - name: Test
         if: ${{ !env['ANDROID_API'] }}
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
-          pytest --capture=no -vv tests
+          pytest --capture=no -vv ${{ runner.os == 'Windows' && '--with_wer' || '' }} tests
 
       - name: Check NDK
         if: ${{ env['ANDROID_API'] }}
