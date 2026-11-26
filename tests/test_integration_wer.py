@@ -343,7 +343,7 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
                 ),
                 pytest.mark.xfail(
                     reason="breakpad swallows SEH exceptions",
-                    strict=True,
+                    run=False,  # save CI time
                 ),
             ],
         ),
@@ -355,7 +355,7 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
                 ),
                 pytest.mark.xfail(
                     reason="crashpad terminates the process",
-                    strict=True,
+                    run=False,  # save CI time
                 ),
             ],
         ),
@@ -398,7 +398,7 @@ def test_wer_custom_metadata(cmake, backend):
                 ),
                 pytest.mark.xfail(
                     reason="breakpad swallows SEH exceptions",
-                    strict=True,
+                    run=False,  # save CI time
                 ),
             ],
         ),
@@ -411,7 +411,7 @@ def test_wer_custom_metadata(cmake, backend):
                 ),
                 pytest.mark.xfail(
                     reason="breakpad does not capture WER exceptions",
-                    strict=True,
+                    run=False,  # save CI time
                 ),
             ],
         ),
@@ -424,7 +424,7 @@ def test_wer_custom_metadata(cmake, backend):
                 ),
                 pytest.mark.xfail(
                     reason="crashpad terminates the process",
-                    strict=True,
+                    run=False,  # save CI time
                 ),
             ],
         ),
@@ -437,7 +437,7 @@ def test_wer_custom_metadata(cmake, backend):
                 ),
                 pytest.mark.xfail(
                     reason="crashpad terminates the process",
-                    strict=True,
+                    run=False,  # save CI time
                 ),
             ],
         ),
