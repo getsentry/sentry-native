@@ -128,8 +128,6 @@ def test_capture_screenshot_crashpad(cmake, httpserver, run_args):
     bool(os.environ.get("TEST_MINGW")),
     reason="fast-fail is only available in MSVC Windows builds",
 )
-# this test currently can't run on CI because the Windows-image doesn't properly support WER, if you want to run the
-# test locally, invoke pytest with the --with_wer option which is matched with this marker in the runtest setup
 @pytest.mark.with_wer
 @pytest.mark.parametrize(
     "run_args",
