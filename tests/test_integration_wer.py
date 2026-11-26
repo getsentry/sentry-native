@@ -2,7 +2,9 @@ import ctypes
 from ctypes import wintypes
 import base64
 import os
+import platform
 import re
+import shutil
 import subprocess
 import sys
 
@@ -20,7 +22,7 @@ from .assertions import (
     assert_native_crash,
     wait_for,
 )
-from .conditions import has_breakpad, has_crashpad, has_native, is_qemu
+from .conditions import has_breakpad, has_crashpad, has_native, is_qemu, is_x86
 
 pytestmark = [
     pytest.mark.skipif(
@@ -132,7 +134,7 @@ def wait_for_wer_report(store, test_id):
     )
 
 
-def assert_sentry_event(httpserver, backend, crash_arg):
+def assert_sentry_event(httpserver, backend, crash_arg, exception_code=None):
     assert len(httpserver.log) >= 1
 
     if backend == "crashpad":
@@ -157,7 +159,7 @@ def assert_sentry_event(httpserver, backend, crash_arg):
         assert_minidump(envelope)
         assert_breakpad_crash(envelope)
     elif backend == "native":
-        assert_native_crash(envelope)
+        assert_native_crash(envelope, exception_code=exception_code)
 
     return event
 
@@ -230,7 +232,15 @@ def register_appx_package(tmp_path):
         )
 
 
-def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
+def run_wer_crash(
+    cmake,
+    backend,
+    crash_arg,
+    httpserver=None,
+    appx=False,
+    winui=False,
+    exception_code=None,
+):
     build_options = {
         "SENTRY_BACKEND": backend,
         "SENTRY_INTEGRATION_WER": "ON",
@@ -238,14 +248,21 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
     if httpserver is None:
         build_options["SENTRY_TRANSPORT"] = "none"
 
-    target = "sentry_test_appx" if appx else "sentry_test_integration"
+    if appx:
+        target = "sentry_test_appx"
+    elif winui:
+        target = "sentry_test_winui"
+    else:
+        target = "sentry_test_integration"
     tmp_path = cmake(
-        [target],
+        ["sentry"] if winui else [target],
         build_options,
     )
 
     if appx:
         register_appx_package(tmp_path)
+    if winui:
+        build_winui(tmp_path)
 
     try:
         env = None
@@ -298,7 +315,9 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
                     run(tmp_path, target, ["no-setup"], env=env)
 
             assert waiting.result
-            sentry_event = assert_sentry_event(httpserver, backend, crash_arg)
+            sentry_event = assert_sentry_event(
+                httpserver, backend, crash_arg, exception_code
+            )
             if backend == "native":
                 sentry_wer_report_id = sentry_event["contexts"]["wer"]["report_id"]
                 assert sentry_wer_report_id
@@ -469,3 +488,100 @@ def test_wer_appx(cmake, httpserver, crash_arg):
     report = run_wer_crash(cmake, "native", crash_arg, httpserver, appx=True)
 
     assert "test.id" in report.lower()
+
+
+STATUS_ACCESS_VIOLATION = 0xC0000005
+STATUS_STOWED_EXCEPTION = 0xC000027B
+
+winui_fixture_path = Path(__file__).parent / "fixtures" / "winui"
+
+
+def find_msbuild():
+    vswhere = (
+        Path(os.environ.get("ProgramFiles(x86)", ""))
+        / "Microsoft Visual Studio"
+        / "Installer"
+        / "vswhere.exe"
+    )
+    if not vswhere.exists():
+        return None
+    output = subprocess.run(
+        [
+            vswhere,
+            "-latest",
+            "-requires",
+            "Microsoft.Component.MSBuild",
+            "-find",
+            r"MSBuild\**\Bin\MSBuild.exe",
+        ],
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    return output[0] if output else None
+
+
+def build_winui(tmp_path):
+    msbuild = find_msbuild()
+    if msbuild is None:
+        pytest.skip("MSBuild is not installed")
+
+    project_path = tmp_path / "winui"
+    shutil.copytree(winui_fixture_path, project_path, dirs_exist_ok=True)
+    subprocess.run(
+        [
+            msbuild,
+            project_path / "sentry_test_winui.vcxproj",
+            "-restore",
+            "-nologo",
+            "-nodeReuse:false",
+            "-verbosity:minimal",
+            "-p:Configuration=Debug",
+            "-p:Platform=x64",
+            "-p:IgnoreWarnIntDirInTempDetected=true",
+            f"-p:OutDir={tmp_path}\\",
+            f"-p:SentryIncludeDir={Path(__file__).parent.parent / 'include'}",
+            f"-p:SentryLib={tmp_path / 'sentry.lib'}",
+        ],
+        env=dict(os.environ, MSBUILDDISABLENODEREUSE="1"),
+        check=True,
+    )
+
+
+@pytest.mark.skipif(not has_native or is_qemu, reason="native backend not available")
+@pytest.mark.skipif(
+    is_x86 or platform.machine() != "AMD64",
+    reason="the WinUI fixture is only built for x64",
+)
+@pytest.mark.parametrize(
+    "crash_arg,exception_code",
+    [
+        pytest.param(
+            "dispatcher-crash", STATUS_ACCESS_VIOLATION, id="dispatcher-crash"
+        ),
+        pytest.param(
+            "dispatcher-exception",
+            STATUS_STOWED_EXCEPTION,
+            id="dispatcher-exception",
+        ),
+        pytest.param("loaded-crash", STATUS_ACCESS_VIOLATION, id="loaded-crash"),
+        pytest.param(
+            "loaded-exception", STATUS_STOWED_EXCEPTION, id="loaded-exception"
+        ),
+    ],
+)
+def test_wer_winui(cmake, httpserver, crash_arg, exception_code):
+    report = run_wer_crash(
+        cmake,
+        "native",
+        crash_arg,
+        httpserver,
+        winui=True,
+        exception_code=exception_code,
+    )
+
+    assert len(httpserver.log) == 1
+    assert "test.initial-tag" in report
+    assert "initial-value" in report
+    assert "expected-tag" in report
+    assert "some value" in report
+    assert "not-expected-tag" not in report

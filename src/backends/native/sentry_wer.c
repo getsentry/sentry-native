@@ -16,18 +16,6 @@
 #endif
 #include <windows.h>
 
-#ifndef STATUS_FAIL_FAST_EXCEPTION
-#    define STATUS_FAIL_FAST_EXCEPTION ((DWORD)0xC0000602)
-#endif
-
-#ifndef STATUS_STACK_BUFFER_OVERRUN
-#    define STATUS_STACK_BUFFER_OVERRUN ((DWORD)0xC0000409)
-#endif
-
-#ifndef STATUS_HEAP_CORRUPTION
-#    define STATUS_HEAP_CORRUPTION ((DWORD)0xC0000374)
-#endif
-
 static BOOL
 is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 {
@@ -50,14 +38,6 @@ is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
     }
 
     return ((const WER_RUNTIME_EXCEPTION_INFORMATION_19041 *)info)->bIsFatal;
-}
-
-static BOOL
-is_native_wer_exception(DWORD code)
-{
-    return code == STATUS_FAIL_FAST_EXCEPTION
-        || code == STATUS_STACK_BUFFER_OVERRUN
-        || code == STATUS_HEAP_CORRUPTION;
 }
 
 static BOOL
@@ -154,11 +134,8 @@ process_wer_exception(
     }
     InterlockedExchange(&ctx->platform.wer_done, TRUE);
 
-    if (!is_native_wer_exception(
-            exception_info->exceptionRecord.ExceptionCode)) {
-        goto cleanup;
-    }
-
+    // claim any fatal exception that bypassed the unhandled exception filter,
+    // e.g. fast-fails, or exceptions that the WinUI dispatcher fails fast on
     if (InterlockedCompareExchange(&ctx->state, SENTRY_CRASH_STATE_PROCESSING,
             SENTRY_CRASH_STATE_READY)
         == SENTRY_CRASH_STATE_READY) {
@@ -192,7 +169,6 @@ process_wer_exception(
         }
     }
 
-cleanup:
     CloseHandle(event);
     UnmapViewOfFile(ctx);
     CloseHandle(mapping);
