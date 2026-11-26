@@ -344,10 +344,6 @@ static ssize_t
 read_process_memory(
     minidump_writer_t *writer, uint64_t addr, void *buf, size_t len)
 {
-    if (!ptrace_attach_process(writer)) {
-        return -1;
-    }
-
     // Use crashed_tid for ptrace ops (we attached to this thread).
     // process_vm_readv works with any TID in the thread group.
     pid_t tid = writer->crash_ctx->crashed_tid;
@@ -369,6 +365,9 @@ read_process_memory(
     SENTRY_DEBUGF("process_vm_readv failed for tid %d at 0x%llx: %s, falling "
                   "back to ptrace",
         tid, (unsigned long long)addr, strerror(errno));
+    if (!ptrace_attach_process(writer)) {
+        return -1;
+    }
 
     size_t bytes_read = 0;
     uint8_t *byte_buf = (uint8_t *)buf;
@@ -2065,9 +2064,6 @@ linux_indirect_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
     // latency. If the fast path can't read, just drop the candidate; the
     // walker treats failed reads as "not capturable" and moves on.
     minidump_writer_t *writer = (minidump_writer_t *)ctx;
-    if (!ptrace_attach_process(writer)) {
-        return -1;
-    }
     pid_t tid = writer->crash_ctx->crashed_tid;
     struct iovec local_iov = { .iov_base = buf, .iov_len = len };
     struct iovec remote_iov

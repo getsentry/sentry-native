@@ -286,6 +286,23 @@ def _run_linux(cmd, cwd, env, expect_failure=False, **kwargs):
     return result
 
 
+def _crashed_thread_stack_size(minidump):
+    count, directory = struct.unpack_from("<II", minidump, 8)
+    streams = {
+        stream_type: rva
+        for stream_type, _size, rva in struct.iter_unpack(
+            "<III", minidump[directory : directory + count * 12]
+        )
+    }
+    crashed_tid = struct.unpack_from("<I", minidump, streams[6])[0]  # Exception
+    threads = streams[3]  # ThreadList
+    for i in range(struct.unpack_from("<I", minidump, threads)[0]):
+        thread = threads + 4 + i * 48
+        if struct.unpack_from("<I", minidump, thread)[0] == crashed_tid:
+            return struct.unpack_from("<I", minidump, thread + 32)[0]
+    return 0
+
+
 @macos_only
 def test_sandbox_macos_init_succeeds(cmake):
     """
@@ -476,7 +493,7 @@ def test_sandbox_linux_ro_shm_crash_capture(cmake, httpserver):
 def test_sandbox_linux_no_ptrace_crash_capture(cmake, httpserver):
     """
     Crash with ptrace blocked, as in Flatpak without --devel: the daemon
-    cannot attach to the crashed threads.
+    cannot attach to the crashed threads, but still reads their stacks.
     """
     block_ptrace = _block_ptrace()
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
@@ -498,6 +515,12 @@ def test_sandbox_linux_no_ptrace_crash_capture(cmake, httpserver):
     assert_native_crash(envelope)
     assert_crash_stack(envelope.get_event())
     assert_minidump(envelope)
+    minidump = next(
+        item.payload.bytes
+        for item in envelope
+        if item.headers.get("attachment_type") == "event.minidump"
+    )
+    assert _crashed_thread_stack_size(minidump) > 0
 
 
 @linux_only
