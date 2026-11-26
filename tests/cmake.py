@@ -40,16 +40,7 @@ def format_build_stats(verbose=False):
         build_stats.items(),
         key=lambda row: (len(row[1]["tests"]), -row[1]["seconds"]),
     )
-    single = [stats for _, stats in rows if len(stats["tests"]) == 1]
-    tests = set().union(*(stats["tests"] for _, stats in rows))
-    seconds = sum(stats["seconds"] for _, stats in rows)
-    lines = [
-        f"configurations: {len(rows)}, tests: {len(tests)}, time: {seconds:.1f}s",
-        f"single-test configurations: {len(single)}, "
-        f"time: {sum(stats['seconds'] for stats in single):.1f}s",
-        "",
-        f"{'tests':>5}  {'time':>7}  configuration [targets]",
-    ]
+    lines = [f"{'tests':>5}  {'time':>7}  configuration [targets]"]
     for (source_dir, config), stats in rows:
         label = f"{config} ({source_dir})" if source_dir else config
         targets = ", ".join(sorted(stats["targets"]))
