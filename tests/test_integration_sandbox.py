@@ -28,7 +28,7 @@ from .assertions import (
     assert_native_crash,
     wait_for_file,
 )
-from .conditions import has_native, is_android, is_qemu
+from .conditions import has_native, is_android, is_qemu, is_wine
 
 macos_only = pytest.mark.skipif(
     not (has_native and sys.platform == "darwin" and not is_android),
@@ -36,7 +36,13 @@ macos_only = pytest.mark.skipif(
 )
 
 linux_only = pytest.mark.skipif(
-    not (has_native and sys.platform == "linux" and not is_android and not is_qemu),
+    not (
+        has_native
+        and sys.platform == "linux"
+        and not is_android
+        and not is_qemu
+        and not is_wine
+    ),
     reason="Linux sandbox tests require native backend on Linux",
 )
 
