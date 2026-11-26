@@ -249,7 +249,16 @@ def test_native_on_crashed_last_run(cmake, httpserver):
             STATUS_STACK_BUFFER_OVERRUN,
             id="invalid-parameter",
         ),
-        pytest.param("heap-corruption", STATUS_HEAP_CORRUPTION, id="heap-corruption"),
+        pytest.param(
+            "heap-corruption",
+            # ARM64 fails fast with FAST_FAIL_UNEXPECTED_HEAP_EXCEPTION
+            (
+                STATUS_STACK_BUFFER_OVERRUN
+                if os.environ.get("PROCESSOR_ARCHITECTURE") == "ARM64"
+                else STATUS_HEAP_CORRUPTION
+            ),
+            id="heap-corruption",
+        ),
         pytest.param(
             "stack-buffer-overrun",
             STATUS_STACK_BUFFER_OVERRUN,
