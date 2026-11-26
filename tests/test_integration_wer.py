@@ -278,7 +278,8 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
                 expect_failure=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
             )
         else:
             with httpserver.wait(timeout=10) as waiting:
@@ -290,7 +291,8 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
                     env=env,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
                 )
                 if backend in ("breakpad", "inproc"):
                     run(tmp_path, target, ["no-setup"], env=env)
