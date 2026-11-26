@@ -11,7 +11,7 @@ pytest -s -v tests/test_e2e_sentry.py
 
 Run these commands from the sentry-native root. Testing needs a running emulator
 or device, `ANDROID_API`, and the `SENTRY_E2E_*` credentials documented in the test
-module. The crash service needs API 30+; tombstone merging needs API 31+.
+module. Tombstone merging needs API 31+.
 
 The setup script builds this checkout's native NDK package and the Java SDK
 into an isolated Maven repository, overriding the Java SDK's pinned NDK dependency.

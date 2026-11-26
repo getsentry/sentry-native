@@ -532,28 +532,6 @@ read_attachment_manifest(const sentry_path_t *run_folder)
     sentry__path_free(path);
     return attachments;
 }
-
-static sentry_value_t
-read_crash_event(const sentry_path_t *run_folder)
-{
-    sentry_path_t *path = sentry__path_join_str(run_folder, "__sentry-event");
-    if (!path) {
-        return sentry_value_new_null();
-    }
-    size_t len = 0;
-    char *buf = sentry__path_read_to_buffer(path, &len);
-    sentry__path_free(path);
-    if (!buf) {
-        return sentry_value_new_null();
-    }
-    sentry_value_t event = sentry_value_from_json(buf, len);
-    sentry_free(buf);
-    if (sentry_value_get_type(event) != SENTRY_VALUE_TYPE_OBJECT) {
-        sentry_value_decref(event);
-        return sentry_value_new_null();
-    }
-    return event;
-}
 #if defined(SENTRY_PLATFORM_ANDROID)
 static sentry_path_t *
 make_run_envelope_path(
@@ -605,6 +583,22 @@ add_attachment_refs(sentry_envelope_t *envelope,
             SENTRY_WARN("failed to cache attachment-ref");
         }
     }
+}
+
+// cache a large minidump as an attachment-ref item
+static void
+add_minidump_ref(sentry_envelope_t *envelope, const sentry_options_t *options,
+    const char *path, const sentry_path_t *run_folder)
+{
+    sentry_value_t attachment = sentry__attachment_from_file(path);
+    sentry_attachment_set_filename(attachment, "minidump.dmp");
+    sentry_attachment_set_type(attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+    if (!sentry__envelope_materialize(envelope)
+        || !sentry__cache_attachment_ref(
+            envelope, attachment, options->run->cache_path, run_folder)) {
+        SENTRY_WARN("failed to cache minidump attachment-ref");
+    }
+    sentry_value_decref(attachment);
 }
 
 /**
@@ -1035,7 +1029,8 @@ build_stacktrace_for_thread(
             struct iovec local_iov
                 = { .iov_base = stack_buf, .iov_len = stack_size };
             struct iovec remote_iov
-                = { .iov_base = (void *)stack_start, .iov_len = stack_size };
+                = { .iov_base = (void *)(uintptr_t)stack_start,
+                      .iov_len = stack_size };
             ssize_t bytes_read = sentry__process_vm_readv(
                 pid, &local_iov, 1, &remote_iov, 1, 0);
             if (bytes_read <= 0) {
@@ -3881,7 +3876,7 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         sentry_value_t filename_val
             = sentry_value_get_by_key(attach_info, "filename");
         sentry_value_t attachment_type_val
-            = sentry_value_get_by_key(attach_info, "attachment_type");
+            = sentry_value_get_by_key(attach_info, "type");
         sentry_value_t content_type_val
             = sentry_value_get_by_key(attach_info, "content_type");
 
@@ -3939,6 +3934,8 @@ write_envelope_with_minidump(const sentry_options_t *options,
     sentry_value_t attachments)
 {
     sentry_value_t event = sentry__value_clone(base);
+    // The minidump holds the exception. Drop the one built for `on_crash`.
+    sentry_value_remove_by_key(event, "exception");
 #if defined(SENTRY_PLATFORM_WINDOWS)
     apply_wer_context(event, ctx);
 #endif
@@ -4101,7 +4098,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
         sentry_value_t filename_val
             = sentry_value_get_by_key(attach_info, "filename");
         sentry_value_t attachment_type_val
-            = sentry_value_get_by_key(attach_info, "attachment_type");
+            = sentry_value_get_by_key(attach_info, "type");
         sentry_value_t content_type_val
             = sentry_value_get_by_key(attach_info, "content_type");
 
@@ -4165,14 +4162,18 @@ ensure_device_arch(sentry_value_t event)
     sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
     if (sentry_value_is_null(contexts)) {
         contexts = sentry_value_new_object();
-        sentry_value_set_by_key(event, "contexts", contexts);
+        if (sentry_value_set_by_key(event, "contexts", contexts) != 0) {
+            return;
+        }
     }
     sentry_value_t device = sentry_value_get_by_key(contexts, "device");
     if (sentry_value_is_null(device)) {
         device = sentry_value_new_object();
         sentry_value_set_by_key(
             device, "type", sentry_value_new_string("device"));
-        sentry_value_set_by_key(contexts, "device", device);
+        if (sentry_value_set_by_key(contexts, "device", device) != 0) {
+            return;
+        }
     }
     if (!sentry_value_is_null(sentry_value_get_by_key(device, "arch"))) {
         return;
@@ -4187,13 +4188,53 @@ ensure_device_arch(sentry_value_t event)
 }
 #endif
 
+/**
+ * Removes the crash envelope once the transport has sent or dumped the crash,
+ * or renames it for a later send. Either way, it also removes the crash event,
+ * which the next launch would otherwise send.
+ */
+static void
+retain_crash_envelope(const sentry_options_t *options,
+    const sentry_crash_context_t *ctx, sentry_uuid_t event_id)
+{
+    if (sentry_uuid_is_nil(&event_id) || !options->run) {
+        return;
+    }
+    char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    sentry_path_t *run_path = filename
+        ? sentry__path_join_str(options->run->run_path, filename)
+        : NULL;
+    sentry_free(filename);
+    sentry_path_t *path = sentry__path_from_str(ctx->envelope_path);
+    sentry_uuid_t last_event_id
+        = sentry__http_transport_get_last_event_id(options->transport);
+    if (path && run_path) {
+        if (sentry__uuid_eq(&last_event_id, &event_id)
+            || sentry__path_is_file(run_path)) {
+            // Keep it for the callback on the next launch.
+            if (!ctx->has_on_crashed_last_run) {
+                sentry__path_remove(path);
+            }
+            sentry__crash_event_remove(options->run->run_path);
+        } else if (sentry__path_rename(path, run_path) == 0) {
+            if (ctx->has_on_crashed_last_run) {
+                sentry__run_write_crash_marker(options->run, &event_id);
+            }
+            sentry__crash_event_remove(options->run->run_path);
+        }
+    }
+    sentry__path_free(path);
+    sentry__path_free(run_path);
+}
+
 bool
 sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
-    sentry_crash_daemon_t *daemon)
+    sentry_crash_daemon_t *daemon, sentry_uuid_t *event_id)
 {
     (void)daemon;
     SENTRY_DEBUG("Processing crash - START");
     bool crash_captured = false;
+    *event_id = sentry_uuid_nil();
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
@@ -4274,8 +4315,9 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
 
     sentry_value_t base = sentry__crash_scope_event(&ipc->scope);
     sentry_path_t *run_folder = sentry__path_from_str(ctx->run_path);
-    sentry_value_t crash_event
-        = run_folder ? read_crash_event(run_folder) : sentry_value_new_null();
+    sentry_value_t crash_event = run_folder
+        ? sentry__crash_event_read(run_folder)
+        : sentry_value_new_null();
     if (!sentry_value_is_null(crash_event)) {
         sentry_value_decref(base);
         base = crash_event;
@@ -4290,10 +4332,19 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     ensure_device_arch(base);
 #endif
 
+    // Apply the app's current upload gate (user consent, offline mode) before
+    // submitting anything below, including the dumped run envelopes.
+    if (options->run) {
+        sentry__atomic_store(&options->run->user_consent,
+            sentry__atomic_fetch(&ctx->user_consent));
+        sentry__atomic_store(&options->run->offline_mode,
+            sentry__atomic_fetch(&ctx->offline_mode));
+    }
+
     // The crashing process dumps its pending logs, sessions, and transactions
     // before notifying the daemon. Queue those before writing the crash
     // envelope so an attachment-ref prewrite is not captured a second time.
-    if (run_folder && options && options->transport && options->run) {
+    if (run_folder && options->transport && options->run) {
         sentry__process_run_envelopes(options, run_folder);
     } else {
         SENTRY_DEBUG("No run folder or transport for additional envelopes");
@@ -4402,6 +4453,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     }
 #endif
 
+    // Upload large minidumps separately, and keep them out of the envelope
+    bool minidump_ref = options->run && !sentry__string_empty(minidump_path)
+        && attachment_is_placeholder(options, minidump_path);
+    const char *embedded_minidump = minidump_ref ? "" : minidump_path;
+
     // Write envelope based on mode
     bool envelope_written = false;
     SENTRY_DEBUGF("Envelope decision: mode=%d, use_native_mode=%d, "
@@ -4412,15 +4468,15 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         // Mode 1 (NATIVE) or Mode 2 (NATIVE_WITH_MINIDUMP)
         SENTRY_DEBUGF("Writing envelope with native stacktrace, passing "
                       "minidump_path=%s",
-            minidump_path[0] ? minidump_path : "NULL");
-        envelope_written = write_envelope_with_native_stacktrace(options,
-            envelope_path, ctx, base, minidump_path[0] ? minidump_path : NULL,
-            run_folder, attachments);
+            embedded_minidump[0] ? embedded_minidump : "NULL");
+        envelope_written
+            = write_envelope_with_native_stacktrace(options, envelope_path, ctx,
+                base, embedded_minidump, run_folder, attachments);
     } else {
         // Mode 0 (MINIDUMP only)
         SENTRY_DEBUG("Writing envelope with minidump");
         envelope_written = write_envelope_with_minidump(options, ctx,
-            envelope_path, base, minidump_path, run_folder, attachments);
+            envelope_path, base, embedded_minidump, run_folder, attachments);
     }
 
     if (!envelope_written) {
@@ -4457,11 +4513,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     }
 #endif
 
-    if (options->run) {
-        sentry__atomic_store(&options->run->user_consent,
-            sentry__atomic_fetch(&ctx->user_consent));
-    }
-
     sentry_path_t *env_path = sentry__path_from_str(envelope_path);
     if (!env_path) {
         SENTRY_WARN("Failed to create envelope path");
@@ -4469,6 +4520,14 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     }
 
     sentry_envelope_t *envelope = sentry__envelope_from_path(env_path);
+    if (!envelope && embedded_minidump[0]) {
+        // Report the crash with a native stacktrace, which needs no minidump
+        SENTRY_WARN("Failed to read envelope file, retrying without minidump");
+        if (write_envelope_with_native_stacktrace(options, envelope_path, ctx,
+                base, NULL, run_folder, attachments)) {
+            envelope = sentry__envelope_from_path(env_path);
+        }
+    }
     sentry__path_free(env_path);
 
     if (!envelope) {
@@ -4477,10 +4536,13 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     }
 
     add_attachment_refs(envelope, options, attachments);
+    if (minidump_ref) {
+        add_minidump_ref(envelope, options, minidump_path, run_folder);
+    }
 
 #if defined(SENTRY_PLATFORM_ANDROID)
     sentry_path_t *android_native_envelope_path
-        = make_run_envelope_path(options ? options->run : NULL, envelope);
+        = make_run_envelope_path(options->run, envelope);
 #endif
 
     SENTRY_DEBUG("Envelope loaded, capturing");
@@ -4491,8 +4553,8 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         // Tombstone merging needs the sentry-java crash service. The
         // standalone daemon is only used in tests and is not supported in
         // apps, so it handles the envelope as on Linux.
-        if (daemon) {
-            if (!options || !options->run
+        if (daemon && android_native_envelope_path) {
+            if (!options->run
                 || !sentry__run_write_envelope(options->run, envelope)) {
                 SENTRY_WARN("Failed to dump crash envelope to run folder");
             } else {
@@ -4500,13 +4562,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
                     "Crash envelope written for Android tombstone merging");
                 sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_DONE);
                 SENTRY_DEBUG("Released crashed process for Android tombstone");
-                if (android_native_envelope_path) {
-                    strncpy(daemon->envelope_path,
-                        android_native_envelope_path->path,
-                        sizeof(daemon->envelope_path) - 1);
-                    daemon->envelope_path[sizeof(daemon->envelope_path) - 1]
-                        = '\0';
-                }
+                strncpy(daemon->envelope_path,
+                    android_native_envelope_path->path,
+                    sizeof(daemon->envelope_path) - 1);
+                daemon->envelope_path[sizeof(daemon->envelope_path) - 1] = '\0';
                 daemon->event = sentry_value_incref(base);
                 sentry_envelope_free(envelope);
                 envelope = NULL;
@@ -4514,8 +4573,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
         }
 #endif
         if (envelope) {
-            if (options && options->transport && options->run) {
+            if (options->transport && options->run) {
                 SENTRY_DEBUG("Capturing crash envelope");
+                if (!sentry__run_should_skip_upload(options->run)) {
+                    *event_id = sentry__envelope_get_event_id(envelope);
+                }
                 sentry__capture_envelope(options->transport, envelope, options);
                 crash_captured = true;
                 SENTRY_DEBUG("Crash envelope captured (queued)");
@@ -4532,8 +4594,14 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
     sentry__path_free(android_native_envelope_path);
 #endif
 
+    // A crash sent via transport keeps its event until the send has finished.
+    if (run_folder && sentry_uuid_is_nil(event_id)) {
+        sentry__crash_event_remove(run_folder);
+    }
+
     // Keep the original crash envelope for the callback on the next launch.
-    if (!ctx->has_on_crashed_last_run) {
+    // A crash sent via transport keeps it until the send has finished.
+    if (!ctx->has_on_crashed_last_run && sentry_uuid_is_nil(event_id)) {
 #if defined(SENTRY_PLATFORM_UNIX)
         unlink(envelope_path);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -4547,7 +4615,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc,
 
 cleanup:
     // flush replay only after the crash itself was captured
-    if (crash_captured && options && options->transport
+    if (crash_captured && options->transport
         && sentry__session_replay_has_pending(options)) {
         sentry__session_replay_flush_pending(options, options->transport, base);
     }
@@ -4592,6 +4660,7 @@ sentry_android_crash_daemon_send(
         // keep a failed upload in the run folder for the next launch
         sentry__http_transport_set_dump_failed(
             daemon->options->transport, true);
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
         // keep a copy for the next launch until the send has finished
         sentry_path_t *raw_path = sentry__path_from_str(daemon->envelope_path);
@@ -4606,6 +4675,7 @@ sentry_android_crash_daemon_send(
             sentry__path_free(merged_path);
         }
         bool pending = raw_path && pending_path
+            && !sentry__run_should_skip_upload(daemon->options->run)
             && sentry__path_rename(raw_path, pending_path) == 0;
         if (raw_path && !pending) {
             sentry__path_remove(raw_path);
@@ -4633,10 +4703,13 @@ sentry_android_crash_daemon_send(
             daemon->options->transport, false);
         sentry__http_transport_set_dump_failed(
             daemon->options->transport, false);
+        sentry_uuid_t last_event_id = sentry__http_transport_get_last_event_id(
+            daemon->options->transport);
         // the dump and a failed upload both write the raw envelope path
         if (raw_path && sentry__path_is_file(raw_path)) {
             result = SENTRY_ANDROID_SEND_KEPT;
-        } else if (rv == 0) {
+        } else if (!sentry_uuid_is_nil(&event_id)
+            && sentry__uuid_eq(&last_event_id, &event_id)) {
             result = SENTRY_ANDROID_SEND_SENT;
         }
         if (pending) {
@@ -5084,6 +5157,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     // Daemon main loop
     bool crash_processed = false;
+    sentry_uuid_t crash_event_id = sentry_uuid_nil();
     uint64_t crash_deadline = 0;
     while (true) {
         // Wait for crash notification (with timeout to check parent health)
@@ -5103,9 +5177,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         if (state == SENTRY_CRASH_STATE_CRASHED) {
             SENTRY_DEBUG("Crash notification received, processing");
 #if defined(SENTRY_PLATFORM_ANDROID)
-            bool crash_captured = sentry__process_crash(options, ipc, daemon);
+            bool crash_captured
+                = sentry__process_crash(options, ipc, daemon, &crash_event_id);
 #else
-            bool crash_captured = sentry__process_crash(options, ipc, NULL);
+            bool crash_captured
+                = sentry__process_crash(options, ipc, NULL, &crash_event_id);
 #endif
             crash_processed = true;
 
@@ -5205,6 +5281,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
                 // on. Don't cache it for retry as well if it fails before exit.
                 sentry__http_transport_set_retry_enabled(
                     options->transport, false);
+                retain_crash_envelope(options, ipc->shmem, crash_event_id);
             }
         }
     }

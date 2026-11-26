@@ -204,7 +204,8 @@ load_modules(void)
 #    endif
 
                 sentry_value_set_by_key(rv, "image_addr",
-                    sentry__value_new_addr((uint64_t)module.modBaseAddr));
+                    sentry__value_new_addr(
+                        (uint64_t)(uintptr_t)module.modBaseAddr));
                 sentry_value_set_by_key(rv, "image_size",
                     sentry_value_new_int32((int32_t)module.modBaseSize));
                 sentry_value_set_by_key(rv, "code_file",

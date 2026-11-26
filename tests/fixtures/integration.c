@@ -22,6 +22,10 @@
 
 #include <assert.h>
 
+#ifdef SENTRY_PLATFORM_LINUX
+#    include <sys/mman.h>
+#endif
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <malloc.h>
 #    include <process.h>
@@ -792,6 +796,10 @@ run_threads(thread_func_t func)
 }
 #endif
 
+#ifdef SENTRY_TEST_MALLOC_LOCK
+void crash_malloc_locked(void (*crash)(void));
+#endif
+
 int
 main(int argc, char **argv)
 {
@@ -1078,6 +1086,10 @@ main(int argc, char **argv)
         sentry_options_set_crash_upload_mode(
             options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     }
+    const char *minidump_mode = get_arg_value(argc, argv, "minidump-mode");
+    if (minidump_mode) {
+        sentry_options_set_minidump_mode(options, atoi(minidump_mode));
+    }
 
     // E2E test mode: generate unique test ID for event correlation
     char e2e_test_id[37] = { 0 };
@@ -1092,6 +1104,9 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "user-consent-revoke")) {
         sentry_user_consent_revoke();
+    }
+    if (has_arg(argc, argv, "offline-mode-enable")) {
+        sentry_set_offline(1);
     }
 
     if (has_arg(argc, argv, "set-global-attribute")) {
@@ -1467,12 +1482,41 @@ main(int argc, char **argv)
             sentry_span_start_child(ospan, "open.grand.span", NULL));
     }
 
+    const char *allocation_mib = get_arg_value(argc, argv, "large-allocation");
+    if (allocation_mib) {
+        const size_t size = strtoul(allocation_mib, NULL, 10) * 1024 * 1024;
+        char *allocation = malloc(size);
+        if (allocation) {
+            const size_t touched
+                = has_arg(argc, argv, "sparse-allocation") ? 32 : size;
+            memset(allocation + size - touched, 0xA5, touched);
+        }
+    }
+
     if (has_arg(argc, argv, "crash")) {
         sentry_crash();
     }
     if (has_arg(argc, argv, "crash-null")) {
         trigger_null_call();
     }
+#ifdef SENTRY_PLATFORM_LINUX
+    if (has_arg(argc, argv, "crash-high-address")) {
+#    ifdef MAP_FIXED_NOREPLACE
+        void *address = (void *)(uintptr_t)0xf1234000;
+        size_t page_size = (size_t)sysconf(_SC_PAGESIZE);
+        void *page = mmap(address, page_size, PROT_NONE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+        if (page == address) {
+            *(volatile char *)page = 1;
+        }
+        if (page != MAP_FAILED) {
+            munmap(page, page_size);
+        }
+#    endif
+        sentry_close();
+        return 77;
+    }
+#endif
     if (has_arg(argc, argv, "stack-overflow")) {
         trigger_stack_overflow();
     }
@@ -1515,6 +1559,14 @@ main(int argc, char **argv)
         kill(getpid(), SIGSEGV);
     }
 #endif
+#ifdef SENTRY_TEST_MALLOC_LOCK
+    if (has_arg(argc, argv, "crash-malloc-locked")) {
+        // returns only if the allocator cannot be locked
+        crash_malloc_locked(sentry_crash);
+        sentry_close();
+        return 77;
+    }
+#endif
 
     if (has_arg(argc, argv, "capture-event")) {
         sentry_value_t event = sentry_value_new_message_event(
@@ -1529,6 +1581,10 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "user-consent-give")) {
         sentry_user_consent_give();
+        sentry_flush(10000);
+    }
+    if (has_arg(argc, argv, "offline-mode-disable")) {
+        sentry_set_offline(0);
         sentry_flush(10000);
     }
     if (has_arg(argc, argv, "capture-exception")) {

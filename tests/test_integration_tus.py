@@ -8,6 +8,7 @@ from werkzeug.wrappers import Response
 from . import (
     make_dsn,
     run,
+    run_crash,
     Envelope,
     SENTRY_VERSION,
 )
@@ -384,10 +385,12 @@ def test_tus_resume_after_shutdown(cmake, httpserver, chunked):
                     "no-setup",
                     "large-attachment",
                     "capture-event",
+                    # extra time for sending the first PATCH
+                    "shutdown-timeout",
+                    "10000",
                     "sleep-after-shutdown",
                 ],
                 env=env,
-                timeout=30,
             )
         finally:
             release_upload.set()
@@ -533,7 +536,16 @@ def test_tus_resume_after_retry(cmake, httpserver, status):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "no-setup", "http-retry", "large-attachment", "capture-event"],
+        [
+            "log",
+            "no-setup",
+            "http-retry",
+            "large-attachment",
+            "capture-event",
+            # extra time for resuming 100 MiB upload
+            "shutdown-timeout",
+            "10000",
+        ],
         env=env,
     )
 
@@ -651,11 +663,10 @@ def test_tus_crash_restart(cmake, httpserver, backend):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     # First run: crash with large attachment (no server expectations needed)
-    run(
+    run_crash(
         tmp_path,
         "sentry_test_integration",
         ["log", "large-attachment", "crash"],
-        expect_failure=True,
         env=env,
     )
 
@@ -706,7 +717,13 @@ def test_tus_crash_restart(cmake, httpserver, backend):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "no-setup"],
+        [
+            "log",
+            "no-setup",
+            # extra time for uploading 100 MiB
+            "shutdown-timeout",
+            "10000",
+        ],
         env=env,
     )
 
@@ -791,7 +808,7 @@ def test_tus_crash_native(cmake, httpserver):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     with httpserver.wait(timeout=15) as waiting:
-        run(
+        run_crash(
             tmp_path,
             "sentry_test_integration",
             [
@@ -800,7 +817,6 @@ def test_tus_crash_native(cmake, httpserver):
                 "async-crash-upload",
                 "crash",
             ],
-            expect_failure=True,
             env=env,
             wait_for_daemon=True,
         )
@@ -844,6 +860,39 @@ def test_tus_crash_native(cmake, httpserver):
     assert len(run_dirs) == 1
     run_dir = os.path.join(db_dir, run_dirs[0])
     assert not [f for f in os.listdir(run_dir) if f.endswith(".envelope")]
+
+
+@pytest.mark.skipif(not has_native or is_qemu, reason="native backend not available")
+def test_tus_crash_native_retry(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/upload/").respond_with_data(
+        "", status=503
+    )
+
+    run_crash(
+        tmp_path,
+        "sentry_test_integration",
+        [
+            "log",
+            "http-retry",
+            "large-attachment",
+            "crash",
+            # extra time for slow sanitizer runners
+            "shutdown-timeout",
+            "10000",
+        ],
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        wait_for_daemon=True,
+    )
+
+    # the daemon keeps the envelope for retry instead of sending it without the
+    # attachment-ref
+    assert len(httpserver.log) == 1
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    envelopes = list(cache_dir.glob("*-00-*.envelope"))
+    assert len(envelopes) == 1
+    event_id = envelopes[0].stem[-36:]
+    assert list(cache_dir.glob(f"{event_id}-*"))
 
 
 @pytest.mark.parametrize("status", [404, 410])
@@ -948,7 +997,16 @@ def test_tus_invalid_offset(cmake, httpserver, offset):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "no-setup", "http-retry", "large-attachment", "capture-event"],
+        [
+            "log",
+            "no-setup",
+            "http-retry",
+            "large-attachment",
+            "capture-event",
+            # extra time for uploading 50 MiB
+            "shutdown-timeout",
+            "10000",
+        ],
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 

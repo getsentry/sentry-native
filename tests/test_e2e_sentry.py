@@ -28,6 +28,7 @@ import pytest
 import requests
 
 from . import adb, run, check_output, sourcedir, Envelope
+from .assertions import wait_for
 from .conditions import (
     has_breakpad,
     has_crashpad,
@@ -936,7 +937,7 @@ def test_e2e_tus(cmake):
                 "http-proxy",
                 "large-attachment",
                 "shutdown-timeout",
-                "10000",
+                "5000",
                 "crash",
             ],
             env=dict(env, SENTRY_TEST_PROXY_PORT=str(port)),
@@ -1049,7 +1050,21 @@ def android_e2e_app(request):
     adb("uninstall", package, check=False)
 
 
-def assert_android_native_event(event, test_id, tombstone, debuggable=True):
+@pytest.fixture
+def android_logcat(request):
+    adb("logcat", "-c", check=False)
+    failed = request.session.testsfailed
+    yield
+    if request.session.testsfailed > failed:
+        logcat = adb(
+            "logcat", "-d", capture_output=True, text=True, errors="replace"
+        ).stdout
+        print(f"\nlogcat:\n{logcat}")
+
+
+def assert_android_native_event(
+    event, test_id, tombstone, debuggable=True, daemon=True
+):
     assert event["platform"] == "native"
     assert event["release"]["version"] == "sentry-native-e2e"
     assert event["user"]["id"] == test_id
@@ -1067,20 +1082,23 @@ def assert_android_native_event(event, test_id, tombstone, debuggable=True):
     if tombstone:
         functions = [frame.get("function") or "" for frame in frames]
         assert {"e2e_segfault", "e2e_native_crash"}.issubset(functions)
-        assert any(
-            "io.sentry.e2e.MainActivity.triggerNativeCrash" in function
-            for function in functions
-        )
-        assert any(
-            "io.sentry.e2e.MainActivity.callNativeCrash" in function
-            for function in functions
-        )
+        # API 31 tombstones leave dex frames unnamed
+        if is_android > 31:
+            assert any(
+                "io.sentry.e2e.MainActivity.triggerNativeCrash" in function
+                for function in functions
+            )
+            assert any(
+                "io.sentry.e2e.MainActivity.callNativeCrash" in function
+                for function in functions
+            )
 
-    threads = get_threads_from_event(event)
-    # a single thread means the daemon could not read the app's /proc
-    assert len(threads["values"]) >= 2
-    assert any(thread["crashed"] for thread in threads["values"])
-    verify_no_thread_duplication(threads, "test_e2e_android_native")
+    if daemon:
+        threads = get_threads_from_event(event)
+        # a single thread means the daemon could not read the app's /proc
+        assert len(threads["values"]) >= 2
+        assert any(thread["crashed"] for thread in threads["values"])
+        verify_no_thread_duplication(threads, "test_e2e_android_native")
 
     images = get_debug_meta_from_event(event)["images"]
     # default packaging maps the libraries straight from the APK
@@ -1092,9 +1110,6 @@ def assert_android_native_event(event, test_id, tombstone, debuggable=True):
 @pytest.mark.skipif(
     not is_android or not has_native, reason="Tests need Android + native"
 )
-@pytest.mark.skipif(
-    is_android < 30, reason="The native crash service needs Android API 30+"
-)
 @pytest.mark.parametrize(
     "android_e2e_app, debuggable",
     [("debug", True), ("nondebuggable", False)],
@@ -1103,35 +1118,84 @@ def assert_android_native_event(event, test_id, tombstone, debuggable=True):
     scope="module",
 )
 @pytest.mark.parametrize("tombstone", [False, True], ids=["native", "tombstone"])
-def test_e2e_android_native(android_e2e_app, debuggable, tombstone):
+@pytest.mark.parametrize("delay", [1000, 0], ids=["late", "early"])
+def test_e2e_android_native(
+    android_e2e_app, android_logcat, debuggable, tombstone, delay
+):
     """The crash service sends native crashes, optionally merged with a tombstone."""
     if tombstone and is_android < 31:
         pytest.skip("Tombstone merging needs Android API 31+")
+    # below API 29, a crashed main thread can't connect the crash service, so
+    # the next launch sends the crash
+    relaunch = not delay and is_android < 29
     test_id = str(uuid.uuid4())
     package = android_e2e_app
     adb("shell", "pm", "clear", package, check=True, capture_output=True)
     try:
-        adb(
-            "shell",
-            "am",
-            "start",
-            "-n",
-            f"{package}/.MainActivity",
-            "--es",
-            "dsn",
-            os.environ["SENTRY_E2E_DSN"],
-            "--es",
-            "test_id",
-            test_id,
-            "--ez",
-            "tombstone",
-            str(tombstone).lower(),
-            check=True,
-            capture_output=True,
-        )
-        # no restart: delivery must happen from the surviving crash service
+        try:
+            adb(
+                "shell",
+                "am",
+                "start",
+                # the relaunch must not race with the start of the crashing process
+                *(["-W"] if relaunch else []),
+                "-n",
+                f"{package}/.MainActivity",
+                "--es",
+                "dsn",
+                os.environ["SENTRY_E2E_DSN"],
+                "--es",
+                "test_id",
+                test_id,
+                "--ez",
+                "tombstone",
+                str(tombstone).lower(),
+                "--ei",
+                "crash_delay",
+                str(delay),
+                check=True,
+                capture_output=True,
+                timeout=10 if relaunch else None,
+            )
+        except subprocess.TimeoutExpired:
+            # older Android waits forever for a launch that crashes in onCreate
+            pass
+        if relaunch:
+
+            def running():
+                # API 21 has no pidof, and API 26+ lists all processes only with -A
+                ps = adb(
+                    "shell",
+                    "ps",
+                    *(["-A"] if is_android >= 26 else []),
+                    capture_output=True,
+                    text=True,
+                ).stdout
+                return any(line.split()[-1:] == [package] for line in ps.splitlines())
+
+            # relaunch only once the crashed process has exited
+            assert wait_for(lambda: not running(), timeout=30)
+            adb(
+                "shell",
+                "am",
+                "start",
+                "-n",
+                f"{package}/.MainActivity",
+                "--es",
+                "dsn",
+                os.environ["SENTRY_E2E_DSN"],
+                "--es",
+                "test_id",
+                test_id,
+                "--ez",
+                "crash",
+                "false",
+                check=True,
+                capture_output=True,
+            )
+        # otherwise, no restart: delivery must happen from the surviving crash service
         event = poll_sentry_for_event(test_id)
-        assert_android_native_event(event, test_id, tombstone, debuggable)
+        assert_android_native_event(event, test_id, tombstone, debuggable, not relaunch)
     finally:
         adb("shell", "am", "force-stop", package, check=False)
 
@@ -1139,10 +1203,7 @@ def test_e2e_android_native(android_e2e_app, debuggable, tombstone):
 @pytest.mark.skipif(
     not is_android or not has_native, reason="Tests need Android + native"
 )
-@pytest.mark.skipif(
-    is_android < 30, reason="The native crash service needs Android API 30+"
-)
-def test_e2e_android_native_broadcast(android_e2e_app):
+def test_e2e_android_native_broadcast(android_e2e_app, android_logcat):
     """A process that a broadcast starts in the background gets the crash service."""
     test_id = str(uuid.uuid4())
     package = android_e2e_app
@@ -1173,10 +1234,7 @@ def test_e2e_android_native_broadcast(android_e2e_app):
 @pytest.mark.skipif(
     not is_android or not has_native, reason="Tests need Android + native"
 )
-@pytest.mark.skipif(
-    is_android < 30, reason="The native crash service needs Android API 30+"
-)
-def test_e2e_android_native_background(android_e2e_app):
+def test_e2e_android_native_background(android_e2e_app, android_logcat):
     """The crash service outlives the idle timeout of background services."""
     test_id = str(uuid.uuid4())
     package = android_e2e_app

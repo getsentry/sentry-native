@@ -392,14 +392,18 @@ SENTRY_TEST(scope_cleanup)
     while (!state.cleanup_started) {
         sentry__cond_wait(&state.cleanup_signal, &state.lock);
     }
-    sentry__cond_wait_timeout(&state.cleanup_signal, &state.lock, 250);
+    for (int i = 0; i < 100 && !state.cleanup_finished; i++) {
+        sentry__cond_wait_timeout(&state.cleanup_signal, &state.lock, 100);
+    }
     TEST_CHECK(state.cleanup_finished);
 
     sentry_threadid_t late_thread;
     sentry__thread_init(&late_thread);
     TEST_ASSERT_INT_EQUAL(
         sentry__thread_spawn(&late_thread, scope_access_thread, &state), 0);
-    sentry__cond_wait_timeout(&state.access_signal, &state.lock, 250);
+    for (int i = 0; i < 100 && state.accesses < 2; i++) {
+        sentry__cond_wait_timeout(&state.access_signal, &state.lock, 100);
+    }
     TEST_CHECK_INT_EQUAL(state.accesses, 2);
     state.release_access = true;
     sentry__cond_wake_all(&state.access_signal);

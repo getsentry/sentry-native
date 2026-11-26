@@ -48,7 +48,9 @@ class SentryHttpClient {
       throws IOException, GeneralSecurityException {
     this.timeout = timeout;
     this.userAgent = userAgent;
-    if (proxy != null) {
+    if (proxy != null && proxy.isEmpty()) {
+      this.proxy = Proxy.NO_PROXY;
+    } else if (proxy != null) {
       final URL url = new URL(proxy.contains("://") ? proxy : "http://" + proxy);
       if (!"http".equals(url.getProtocol()) || url.getUserInfo() != null) {
         throw new IOException("Only unauthenticated HTTP proxies are supported");

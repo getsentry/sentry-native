@@ -286,6 +286,7 @@ SENTRY_TEST(tus_upload_error)
 typedef struct {
     char *captured_body;
     size_t captured_body_len;
+    char *upload_length;
     int create_count;
     int patch_count;
 } tus_capture_state_t;
@@ -304,6 +305,13 @@ tus_capture_send(void *client, sentry_prepared_http_request_t *req,
     // TUS create: POST with no body
     if (strcmp(req->method, "POST") == 0 && !req->body && !req->body_path) {
         cap->create_count++;
+        for (size_t i = 0; i < req->headers_len; i++) {
+            if (strcmp(req->headers[i].key, "upload-length") == 0) {
+                sentry_free(cap->upload_length);
+                cap->upload_length
+                    = sentry__string_clone(req->headers[i].value);
+            }
+        }
         resp->status_code = 201;
         resp->location = sentry__string_clone(TUS_RELATIVE_LOCATION);
         return true;
@@ -313,7 +321,8 @@ tus_capture_send(void *client, sentry_prepared_http_request_t *req,
         cap->patch_count++;
         resp->status_code = 204;
         resp->location = sentry__string_clone(TUS_FINAL_LOCATION);
-        resp->upload_offset = sentry__string_clone("104857600");
+        // the single PATCH completes the upload
+        resp->upload_offset = sentry__string_clone(cap->upload_length);
         return true;
     }
     // Envelope POST: capture body
@@ -385,6 +394,7 @@ SENTRY_TEST(tus_placeholder_uses_raw_location)
 
     sentry_envelope_free(parsed);
     sentry_free(cap.captured_body);
+    sentry_free(cap.upload_length);
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
 #endif
@@ -412,6 +422,25 @@ capture_serialized_ref(const char *path)
     TEST_ASSERT(!!envelope);
     sentry_capture_envelope(envelope);
     TEST_CHECK_INT_EQUAL(sentry_flush(5000), 0);
+}
+
+static bool
+captured_final_location(const tus_capture_state_t *cap)
+{
+    sentry_envelope_t *envelope = sentry_envelope_deserialize(
+        cap->captured_body, cap->captured_body_len);
+    bool found = false;
+    size_t count = envelope ? sentry__envelope_get_item_count(envelope) : 0;
+    for (size_t i = 0; i < count; i++) {
+        sentry_attachment_ref_t ref;
+        if (sentry__envelope_item_get_attachment_ref(
+                sentry__envelope_get_item(envelope, i), &ref)) {
+            found = sentry__string_eq(ref.location, TUS_FINAL_LOCATION);
+            sentry__attachment_ref_cleanup(&ref);
+        }
+    }
+    sentry_envelope_free(envelope);
+    return found;
 }
 
 SENTRY_TEST(tus_attachment_ref_confinement)
@@ -465,6 +494,7 @@ SENTRY_TEST(tus_attachment_ref_confinement)
     capture_serialized_ref("safe.bin");
     TEST_CHECK_INT_EQUAL(cap.create_count, 1);
     TEST_CHECK_INT_EQUAL(cap.patch_count, 1);
+    TEST_CHECK(captured_final_location(&cap));
     TEST_CHECK(!sentry__path_is_file(inside));
     TEST_CHECK(sentry__path_is_file(outside));
 
@@ -482,6 +512,7 @@ SENTRY_TEST(tus_attachment_ref_confinement)
 
     sentry_close();
     sentry_free(cap.captured_body);
+    sentry_free(cap.upload_length);
     sentry__path_free(outside_abs);
     sentry__path_free(inside);
     TEST_CHECK_INT_EQUAL(sentry__path_remove(outside), 0);

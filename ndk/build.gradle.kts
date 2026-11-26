@@ -358,7 +358,7 @@ fun Project.configureNdkLibrary() {
             warningsAsErrors = true
             checkDependencies = true
             checkReleaseBuilds = true
-            disable.add("NewerVersionAvailable")
+            disable.addAll(listOf("NewerVersionAvailable", "GradleDependency", "AndroidGradlePluginVersion"))
         }
 
         packaging {

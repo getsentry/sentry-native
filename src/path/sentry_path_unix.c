@@ -440,6 +440,9 @@ sentry__path_create_dir_all(const sentry_path_t *path)
     } while (0)
 
     p = sentry__string_clone(path->path);
+    if (!p) {
+        return 1;
+    }
     for (ptr = p; *ptr; ptr++) {
         if (*ptr == '/' && ptr != p) {
             *ptr = 0;

@@ -11,6 +11,7 @@ from flaky import flaky
 from . import (
     make_dsn,
     run,
+    run_command,
     stage_replay,
     Envelope,
     split_log_request_cond,
@@ -22,7 +23,7 @@ from . import (
     is_replay_envelope,
     lib_name,
     REPLAY_ID,
-    SENTRY_VERSION,
+    SENTRY_VERSION_BASE,
 )
 from .conditions import (
     has_crashpad,
@@ -174,11 +175,11 @@ def test_crashpad_codeview(cmake, httpserver):
         for name, codeview in _minidump_modules(attachments.minidump)
     }
     library = lib_name("sentry")
-    major = SENTRY_VERSION.split(".", 1)[0]
+    major = SENTRY_VERSION_BASE.split(".", 1)[0]
     if sys.platform == "linux":
         library = f"{library}.{major}"
     elif sys.platform == "darwin":
-        library = library.replace(".dylib", f".{SENTRY_VERSION}.dylib")
+        library = library.replace(".dylib", f".{SENTRY_VERSION_BASE}.dylib")
     codeview = codeviews[library]
     signature = codeview[:4]
     if sys.platform == "linux":
@@ -1045,6 +1046,7 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
         ["sentry_test_integration", "sentry_crash_reporter"],
         {"SENTRY_BACKEND": "crashpad"},
     )
+    db_path = tmp_path / ".sentry-native"
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -1060,6 +1062,10 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
             env=env,
         )
     assert waiting.result
+
+    # the external reporter sends the crash, so crashpad must not keep the report
+    pending_dir = db_path / ("reports" if sys.platform == "win32" else "pending")
+    assert not any(pending_dir.glob("*.dmp"))
 
     assert len(httpserver.log) == 2
     feedback_request, crash_request = split_log_request_cond(
@@ -1312,6 +1318,47 @@ def test_crashpad_cache_consent(cmake, httpserver):
                 "cache-keep",
                 "no-setup",
             ],
+            env=env,
+        )
+    assert waiting.result
+
+
+def test_crashpad_cache_offline_mode(cmake, httpserver):
+    """Crash while offline mode is enabled + http_retry: the minidump stays in
+    crashpad's pending queue. Once offline mode is disabled, RequestRetry()
+    wakes the handler and the minidump is uploaded."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    db_path = tmp_path.joinpath(".sentry-native")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # 1) Crash while offline. No upload should happen.
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "offline-mode-enable", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    # Give the (out-of-process) handler a moment to write the report.
+    time.sleep(1)
+    assert len(httpserver.log) == 0
+
+    if sys.platform != "win32":
+        pending_dir = db_path.joinpath("pending")
+        completed_dir = db_path.joinpath("completed")
+        assert pending_dir.exists()
+        assert len(list(pending_dir.glob("*.dmp"))) >= 1
+        assert not completed_dir.exists() or not any(completed_dir.glob("*.dmp"))
+
+    # 2) Restart (offline mode is restored from disk) and disable it. The
+    #    handler should wake via RequestRetry() and upload.
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "http-retry", "offline-mode-disable", "no-setup"],
             env=env,
         )
     assert waiting.result
@@ -1602,3 +1649,94 @@ def test_crashpad_acquired_scope(cmake, httpserver, clear):
     ) == (not clear)
     if not clear:
         assert event["user"]["id"] == "scope-user"
+
+
+def start_until_handler(tmp_path, args, env=None):
+    # sentry_init flushes the scope to the handler before it processes old
+    # runs. With no-setup, nothing else reaches the handler until the fixture's
+    # sleep ends, which leaves the test time to stall it before the scope
+    # updates that follow. The handler inherits stdout, so the output goes to a
+    # file instead of a pipe.
+    log_path = tmp_path / "stalled-handler.log"
+    with open(log_path, "w") as log:
+        child = subprocess.Popen(
+            [
+                *run_command(str(tmp_path / "sentry_test_integration")),
+                "log",
+                "no-setup",
+                "sleep",
+            ]
+            + args,
+            cwd=tmp_path,
+            env=env,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+        )
+    try:
+        assert wait_for(
+            lambda: "processing and pruning old runs"
+            in log_path.read_text(encoding="utf-8", errors="replace")
+        )
+        handler = next(
+            p
+            for p in psutil.Process(child.pid).children()
+            if p.name() == "crashpad_handler.exe"
+        )
+    except BaseException:
+        child.kill()
+        raise
+    return child, handler
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="only Windows sends scope updates to the handler over its pipe",
+)
+def test_crashpad_suspended_handler(cmake):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+
+    child, handler = start_until_handler(tmp_path, ["open-transaction"])
+    handler.suspend()
+    try:
+        # two scope updates, each given up after 5 seconds
+        child.wait(timeout=40)
+    finally:
+        child.kill()
+        handler.resume()
+
+    assert child.returncode == 0
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="only Windows sends scope updates to the handler over its pipe",
+)
+def test_crashpad_busy_handler_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    child, _ = start_until_handler(tmp_path, ["crash"], env)
+    instances = []
+    try:
+        pipe = next(
+            name
+            for name in os.listdir("\\\\.\\pipe\\")
+            if name.startswith(f"crashpad_{child.pid}_")
+        )
+        # occupy both of the handler's pipe instances
+        for _ in range(2):
+            instances.append(open(f"\\\\.\\pipe\\{pipe}", "r+b", buffering=0))
+        with httpserver.wait(timeout=30) as waiting:
+            child.wait(timeout=30)
+    finally:
+        child.kill()
+        for instance in instances:
+            instance.close()
+
+    assert waiting.result
+    assert len(httpserver.log) == 1
+    assert_crashpad_upload(
+        httpserver.log[0][0], expect_breadcrumbs=False, expect_default_scope=False
+    )

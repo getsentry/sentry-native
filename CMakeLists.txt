@@ -124,6 +124,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
+option(SENTRY_ERROR_ON_WARNINGS "Treat warnings in sentry-native as errors" OFF)
 
 option(SENTRY_INTEGRATION_PLATFORM
 	"Enable the downstream-provided platform integration" OFF)
@@ -425,10 +426,10 @@ if(SENTRY_EMBED_INFO)
 	# SENTRY_BUILD_ID cache variable takes precedence
 	if(SENTRY_BUILD_ID)
 		set(SENTRY_EMBEDDED_BUILD_ID "${SENTRY_BUILD_ID}")
-	elseif(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\+(.+)$")
-		# Extract build ID from SENTRY_VERSION_FULL if present (format: major.minor.patch+build-id)
+	elseif(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+(-[^+]+)?\\+(.+)$")
+		# Extract build ID from SENTRY_VERSION_FULL if present (format: major.minor.patch[-prerelease]+build-id)
 		# This handles cases where downstream SDKs modify sentry.h to include build metadata
-		set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_1}")
+		set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_2}")
 	else()
 		# No build ID found in version or provided, use timestamp as default
 		# Format: YYYYMMDD-HHMMSS (semver-compliant: alphanumerics and hyphens only)
@@ -487,8 +488,8 @@ if (NOT SENTRY_SDK_VERSION STREQUAL "")
 	target_compile_definitions(sentry PRIVATE SENTRY_SDK_VERSION="${SENTRY_SDK_VERSION}")
 endif()
 
-# we do not need this on android, only linux
-if(LINUX)
+# we do not need this on android, only linux and apple
+if(LINUX OR APPLE)
 	target_sources(sentry PRIVATE
 		"${PROJECT_SOURCE_DIR}/vendor/stb_sprintf.c"
 		"${PROJECT_SOURCE_DIR}/vendor/stb_sprintf.h"
@@ -596,6 +597,9 @@ if(MSVC)
 	else()
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4 /wd5105>)
 	endif()
+	if(SENTRY_ERROR_ON_WARNINGS)
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/WX>)
+	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
 		"${PROJECT_SOURCE_DIR}/src/sentry_mpack.c"
@@ -611,7 +615,7 @@ if(MSVC)
 
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang") # clang-cl
 		target_compile_options(sentry PRIVATE
-			$<BUILD_INTERFACE:-Werror -Wall>
+			$<BUILD_INTERFACE:-Wall>
 			$<BUILD_INTERFACE:-Wno-unsafe-buffer-usage>
 			$<BUILD_INTERFACE:-Wno-nonportable-system-include-path>
 			$<BUILD_INTERFACE:-Wno-declaration-after-statement>
@@ -628,16 +632,27 @@ if(MSVC)
 			$<BUILD_INTERFACE:-Wno-reserved-identifier>
 			$<BUILD_INTERFACE:-Wno-old-style-cast>
 			$<BUILD_INTERFACE:-Wno-zero-as-null-pointer-constant>
+			$<BUILD_INTERFACE:-Wno-c++-compat>
+			$<BUILD_INTERFACE:-Wno-padded>
 		)
+		# older versions reject the unknown option under -Werror
+		if(CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 21)
+			target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-nrvo>)
+		endif()
 	endif()
 else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	if(SENTRY_ERROR_ON_WARNINGS)
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Werror>)
+	endif()
 	# The crashpad and breakpad headers generate the following warnings that we
 	# ignore specifically
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-multichar>)
 	else()
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-gnu-include-next -Wno-multichar>)
+		# glibc 2.43 headers expand `memchr` and friends to `_Generic`
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-c11-extensions>)
 	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
@@ -735,8 +750,9 @@ if(MINGW)
 		-Wno-unused-variable
 		-Wno-unused-parameter
 		-Wno-format
-		-Wno-incompatible-pointer-types
+		$<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-pointer-types>
 		-Wno-incompatible-function-pointer-types
+		-Wno-cast-function-type
 	)
 endif()
 
@@ -788,6 +804,18 @@ if(SENTRY_BACKEND_CRASHPAD)
 		set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
 	endif()
 	add_subdirectory(external/crashpad crashpad_build)
+
+	if(SENTRY_ERROR_ON_WARNINGS)
+		if(MSVC)
+			target_compile_options(crashpad_interface INTERFACE
+				$<$<COMPILE_LANGUAGE:C,CXX>:/WX>
+			)
+		else()
+			target_compile_options(crashpad_interface INTERFACE
+				$<$<COMPILE_LANGUAGE:C,CXX>:-Werror>
+			)
+		endif()
+	endif()
 
 	if(WIN32)
 		add_dependencies(sentry crashpad::wer)
@@ -983,6 +1011,10 @@ elseif(SENTRY_BACKEND_NATIVE)
 		target_compile_definitions(sentry-crash PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)
 	endif()
 
+	# Copy warning options from sentry target
+	get_target_property(SENTRY_COMPILE_OPTIONS sentry COMPILE_OPTIONS)
+	target_compile_options(sentry-crash PRIVATE ${SENTRY_COMPILE_OPTIONS})
+
 	# Copy include directories from sentry target
 	target_include_directories(sentry-crash PRIVATE
 		${PROJECT_SOURCE_DIR}/include
@@ -1048,11 +1080,11 @@ elseif(SENTRY_BACKEND_NATIVE)
 	endif()
 
 	# Install daemon
-	install(TARGETS sentry-crash
+	sentry_install(TARGETS sentry-crash
 		RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 	)
 	if(WIN32)
-		install(TARGETS sentry-wer
+		sentry_install(TARGETS sentry-wer
 			RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -1206,6 +1238,11 @@ if(SENTRY_BUILD_TESTS)
 
 	add_custom_command(TARGET sentry_test_integration POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "${SENTRY_FIXTURE_OUTPUT_DIR}/view-hierarchy.json")
+
+	sentry_add_executable(sentry_test_malloc_lock tests/fixtures/integration.c)
+	target_sources(sentry_test_malloc_lock PRIVATE tests/fixtures/malloc_lock.c)
+	target_compile_definitions(sentry_test_malloc_lock PRIVATE SENTRY_TEST_MALLOC_LOCK)
+	target_compile_options(sentry_test_malloc_lock PRIVATE $<TARGET_PROPERTY:sentry_test_integration,COMPILE_OPTIONS>)
 endif()
 
 # Limit the exported symbols when sentry is built as a shared library to those with a "sentry_" prefix:

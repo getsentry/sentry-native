@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased (v1)
+## 1.0.0-beta.2
+
+**Features**:
+
+- Add offline mode (`sentry_set_offline`/`sentry_is_offline`) to stop uploads while the device is known to be offline. With `http_retry`, envelopes are cached and sent once offline mode is disabled. ([#2339](https://github.com/getsentry/sentry-native/pull/2339))
+
+**Fixes**:
+
+- Native/Android: support API 21+ (previously API 30+) with a file fallback for kernels without memfd. ([#2301](https://github.com/getsentry/sentry-native/pull/2301))
+- Native: retain crash envelopes on OOM in the crash daemon. ([#2320](https://github.com/getsentry/sentry-native/pull/2320))
+- Native: omit crash metadata in minidump-only mode. ([#2324](https://github.com/getsentry/sentry-native/pull/2324))
+- Native: recover interrupted crash reports. ([#2330](https://github.com/getsentry/sentry-native/pull/2330))
+- Native/Unix: prevent malloc deadlocks in signal handling. ([#2336](https://github.com/getsentry/sentry-native/pull/2336))
+
+## 1.0.0-beta.1
 
 **Breaking / Important behavior changes**:
 
@@ -48,6 +62,33 @@
 - Native/Linux: fix oversized `debug_meta.images` entries that overlapped other libraries when a file was mapped more than once. ([#2228](https://github.com/getsentry/sentry-native/pull/2228))
 - Fix const-correctness of `sentry_options_get_*`, `sentry_span_iter_headers`, and `sentry_transaction_iter_headers`. ([#2277](https://github.com/getsentry/sentry-native/pull/2277))
 - Native/Linux: back the crash context with a memfd to prevent `SIGBUS` during `sentry_init` when `/dev/shm` is full. ([#1725](https://github.com/getsentry/sentry-native/pull/1725))
+- Native/Unix: capture complete memory regions in `SENTRY_MINIDUMP_MODE_FULL` instead of truncating each region to 4 MB. ([#2281](https://github.com/getsentry/sentry-native/pull/2281))
+- Native: upload large minidumps separately if `sentry_options_set_enable_large_attachments` is enabled. ([#2281](https://github.com/getsentry/sentry-native/pull/2281))
+
+**Thank you**:
+
+- [nmandelblit](https://github.com/nmandelblit)
+
+## 0.17.7
+
+**Features**:
+
+- Session replay: add user input events (such as mouse clicks and touches) provided in the replay sidecar to the replay recording. ([#2288](https://github.com/getsentry/sentry-native/pull/2288))
+- Add `sentry_options_set_app_hang_thread_stackwalk_mode` to attach the stack traces of all threads to app-hang events. ([#2327](https://github.com/getsentry/sentry-native/pull/2327))
+
+**Fixes**:
+
+- Crashpad/Windows: Breadcrumb and scope IPC updates time out after 5 seconds instead of blocking forever on a stalled handler. ([#2280](https://github.com/getsentry/sentry-native/pull/2280), [crashpad#178](https://github.com/getsentry/crashpad/pull/178))
+- Crashpad/Linux: fix a handler crash after launching an external crash reporter. ([#2287](https://github.com/getsentry/sentry-native/pull/2287), [crashpad#179](https://github.com/getsentry/crashpad/pull/179))
+- Native/Linux: fix incorrect fault addresses in minidumps on 32-bit systems when the address has its highest bit set, and remove pointer-width compiler warnings. ([#2305](https://github.com/getsentry/sentry-native/pull/2305))
+- Windows: The thread stack guarantee warning now reports the actual stack reserve factor instead of repeating the expected one. ([#2313](https://github.com/getsentry/sentry-native/pull/2313))
+- Crashpad: fix a handler crash (debug) and memory leak (release) when a crash-report upload fails partway. ([#2326](https://github.com/getsentry/sentry-native/pull/2326), [crashpad#180](https://github.com/getsentry/crashpad/pull/180))
+
+**Thank you**:
+
+- [Aureliolo](https://github.com/Aureliolo)
+- [HlustikP](https://github.com/HlustikP)
+- [bionicbeagle](https://github.com/bionicbeagle)
 
 ## 0.17.6
 

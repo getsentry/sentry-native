@@ -4,7 +4,9 @@ import shutil
 import subprocess
 import sys
 import platform
+import re
 import time
+from collections import Counter, deque
 from pathlib import Path
 
 import pytest
@@ -17,6 +19,17 @@ from .build_config import (
     get_cflags,
     get_tsan_env,
 )
+
+# give up the whole run when the same build error repeats this many times
+build_error_limit = int(os.environ.get("SENTRY_TEST_BUILD_ERROR_LIMIT") or 0)
+build_errors = Counter()
+
+# build errors as annotated on CI
+with open(Path(__file__).parent.parent / ".github" / "problem-matchers.json") as f:
+    problem_matchers = [
+        [re.compile(p["regexp"]) for p in m["pattern"]]
+        for m in json.load(f)["problemMatcher"]
+    ]
 
 # outlives the session fixture for the terminal summary
 build_stats = dict()
@@ -308,9 +321,32 @@ def cmake_build(cwd, targets, options):
         ]
 
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
-    try:
-        subprocess.run(buildcmd, cwd=cwd, env=env, check=True)
-    except subprocess.CalledProcessError:
+    errors = set()
+    if build_error_limit:
+        lines = deque(maxlen=max(map(len, problem_matchers)))
+        with subprocess.Popen(
+            buildcmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        ) as process:
+            for line in process.stdout:
+                sys.stdout.buffer.write(line)
+                sys.stdout.buffer.flush()
+                lines.append(line.decode(errors="replace").rstrip("\r\n"))
+                for patterns in problem_matchers:
+                    if len(lines) < len(patterns):
+                        continue
+                    window = list(lines)[-len(patterns) :]
+                    matches = [p.search(l) for p, l in zip(patterns, window)]
+                    if all(matches):
+                        errors.add(tuple(g for m in matches for g in m.groups()))
+        returncode = process.returncode
+    else:
+        returncode = subprocess.run(buildcmd, cwd=cwd, env=env).returncode
+    if returncode != 0:
+        build_errors.update(errors)
+        if any(build_errors[e] >= build_error_limit for e in errors):
+            reason = f"cmake build failed {build_error_limit} times with the same error"
+            print(f"::error::{reason}", flush=True)
+            pytest.exit(reason, returncode=pytest.ExitCode.TESTS_FAILED)
         raise pytest.fail.Exception("cmake build failed") from None
 
     # check if the DLL and EXE artifacts contain version-information
@@ -366,7 +402,6 @@ def cmake_build(cwd, targets, options):
 
 
 def configure_clang_cl(config_cmd: list[str]):
-    config_cmd.append("-G Visual Studio 17 2022")
     config_cmd.append("-A x64")
     config_cmd.append("-T ClangCL")
 

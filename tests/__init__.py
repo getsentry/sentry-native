@@ -45,7 +45,8 @@ def run_command(name):
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
-SENTRY_VERSION = "0.17.6"
+SENTRY_VERSION = "1.0.0-beta.2"
+SENTRY_VERSION_BASE = SENTRY_VERSION.split("-", 1)[0]
 
 # must match the fixed id set by the example's "replay-context" arg
 REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
@@ -144,6 +145,13 @@ def stage_replay(tmp_path, replay_id=REPLAY_ID):
         "sizeBytes": len(video),
         "frameCount": 58,
         "frameRate": 30,
+        # ms since the first video frame; the last one lies outside the clip,
+        # and an event without a timestamp is skipped as well
+        "inputEvents": [
+            {"type": 3, "timestamp": offset_ms, "data": {"source": 2, "type": 2}}
+            for offset_ms in (0, 15077, 15078)
+        ]
+        + [{"type": 3, "data": {"source": 2, "type": 2}}],
     }
     (replays / f"replay-{replay_id}.json").write_text(json.dumps(sidecar))
     return replays, video
@@ -292,12 +300,10 @@ def run(
         ) from None
 
 
-def run_crash(tmp_path, exe, args, env, **kwargs):
+def crash_env(env):
     """
-    Run a crash test.
-
-    When running under ASAN, we configure it to not intercept crash signals
-    so that our native crash handler can run and capture the crash.
+    Configure ASAN to not intercept crash signals, so that our native crash
+    handler can run and capture the crash.
     """
     # When running under ASAN, disable ASAN's signal handling so our crash
     # handler can run. ASAN would otherwise intercept SIGSEGV/SIGABRT/etc
@@ -314,8 +320,17 @@ def run_crash(tmp_path, exe, args, env, **kwargs):
             env = dict(env, ASAN_OPTIONS=f"{asan_opts}:{asan_signal_opts}")
         else:
             env = dict(env, ASAN_OPTIONS=asan_signal_opts)
+    return env
 
-    run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
+
+def run_crash(tmp_path, exe, args, env, **kwargs):
+    """
+    Run a crash test.
+
+    When running under ASAN, we configure it to not intercept crash signals
+    so that our native crash handler can run and capture the crash.
+    """
+    return run(tmp_path, exe, args, expect_failure=True, env=crash_env(env), **kwargs)
 
 
 def check_output(*args, **kwargs):

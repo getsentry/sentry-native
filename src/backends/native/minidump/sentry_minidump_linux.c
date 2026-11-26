@@ -355,7 +355,8 @@ read_process_memory(
     // Try process_vm_readv first - much faster for bulk reads
     // (single syscall vs one syscall per word with ptrace)
     struct iovec local_iov = { .iov_base = buf, .iov_len = len };
-    struct iovec remote_iov = { .iov_base = (void *)addr, .iov_len = len };
+    struct iovec remote_iov
+        = { .iov_base = (void *)(uintptr_t)addr, .iov_len = len };
 
     ssize_t nread
         = sentry__process_vm_readv(tid, &local_iov, 1, &remote_iov, 1, 0);
@@ -1856,7 +1857,7 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     exception_stream.exception_record.exception_flags
         = (uint32_t)writer->crash_ctx->platform.siginfo.si_code;
     exception_stream.exception_record.exception_address
-        = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
+        = (uint64_t)(uintptr_t)writer->crash_ctx->platform.siginfo.si_addr;
     exception_stream.exception_record.number_parameters = 0;
 
     // Write the crashing thread's context
@@ -2069,7 +2070,8 @@ linux_indirect_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
     }
     pid_t tid = writer->crash_ctx->crashed_tid;
     struct iovec local_iov = { .iov_base = buf, .iov_len = len };
-    struct iovec remote_iov = { .iov_base = (void *)addr, .iov_len = len };
+    struct iovec remote_iov
+        = { .iov_base = (void *)(uintptr_t)addr, .iov_len = len };
     return sentry__process_vm_readv(tid, &local_iov, 1, &remote_iov, 1, 0);
 }
 
@@ -2199,14 +2201,108 @@ capture_indirect_memory(
     }
 }
 
+static ssize_t
+read_region(
+    minidump_writer_base_t *writer, uint64_t addr, void *buf, size_t size)
+{
+    return read_process_memory((minidump_writer_t *)writer, addr, buf, size);
+}
+
+// Pages to query at a time
+#    define PAGE_QUERY_COUNT 1024
+// Pagemap entry bits of pages in memory or swap
+#    define PAGEMAP_IN_USE ((1ULL << 63) | (1ULL << 62))
+
+/**
+ * Add the pages of a mapping that are in memory or swap to the list. Other
+ * pages were never touched and read back as zeros, or are still in the mapped
+ * file. Add the whole mapping if the pagemap is not available.
+ */
+static bool
+add_mapping_pages(int pagemap, const memory_mapping_t *mapping,
+    minidump_memory64_list_t **list, uint64_t *capacity)
+{
+    uint64_t pages[PAGE_QUERY_COUNT];
+    uint64_t page_size = (uint64_t)sysconf(_SC_PAGESIZE);
+    uint64_t address = mapping->start;
+
+    while (address < mapping->end) {
+        uint64_t count = (mapping->end - address) / page_size;
+        if (count > PAGE_QUERY_COUNT) {
+            count = PAGE_QUERY_COUNT;
+        }
+
+        ssize_t nread = pread(pagemap, pages, count * sizeof(pages[0]),
+            (off_t)(address / page_size * sizeof(pages[0])));
+        if (nread < (ssize_t)sizeof(pages[0])) {
+            return sentry__minidump_add_range(list, capacity, mapping->start,
+                address, mapping->end - address);
+        }
+
+        count = (uint64_t)nread / sizeof(pages[0]);
+        for (uint64_t i = 0; i < count; i++) {
+            if ((pages[i] & PAGEMAP_IN_USE) != 0
+                && !sentry__minidump_add_range(list, capacity, mapping->start,
+                    address + i * page_size, page_size)) {
+                return false;
+            }
+        }
+        address += count * page_size;
+    }
+    return true;
+}
+
+/**
+ * Write memory64 list stream (all readable mappings)
+ */
+static int
+write_memory64_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    uint64_t capacity = writer->mapping_count;
+    minidump_memory64_list_t *list = sentry_malloc(
+        sizeof(*list) + capacity * sizeof(minidump_memory64_descriptor_t));
+    if (!list) {
+        return -1;
+    }
+
+    char pagemap_path[64];
+    snprintf(pagemap_path, sizeof(pagemap_path), "/proc/%d/pagemap",
+        writer->crash_ctx->crashed_pid);
+    int pagemap = open(pagemap_path, O_RDONLY | O_CLOEXEC);
+
+    bool added = true;
+    list->count = 0;
+    for (size_t i = 0; added && i < writer->mapping_count; i++) {
+        const memory_mapping_t *mapping = &writer->mappings[i];
+        if (should_include_region(mapping, SENTRY_MINIDUMP_MODE_FULL, 0)) {
+            added = add_mapping_pages(pagemap, mapping, &list, &capacity);
+        }
+    }
+    if (pagemap >= 0) {
+        close(pagemap);
+    }
+
+    int rv = added
+        ? sentry__minidump_write_memory64_list(
+              (minidump_writer_base_t *)writer, dir, list, read_region)
+        : -1;
+    sentry_free(list);
+    return rv;
+}
+
 /**
  * Write memory list stream (heap memory based on minidump mode)
  */
 static int
 write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
+    if (writer->crash_ctx->minidump_mode == SENTRY_MINIDUMP_MODE_FULL) {
+        return write_memory64_list_stream(writer, dir);
+    }
+
     // Get crash address for SMART mode filtering
-    uint64_t crash_addr = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
+    uint64_t crash_addr
+        = (uint64_t)(uintptr_t)writer->crash_ctx->platform.siginfo.si_addr;
 
     // SMART mode: scan registers + stack words for pointers into writable
     // heap mappings and capture a chunk around each. Has to run BEFORE the
@@ -2887,7 +2983,7 @@ sentry__write_minidump(
     //   1  ThreadList
     //   2  ModuleList
     //   3  Exception
-    //   4  MemoryList
+    //   4  MemoryList          Memory64List in FULL mode
     //   5  LinuxProcStatus     /proc/<pid>/status
     //   6  LinuxMaps           /proc/<pid>/maps
     //   7  ThreadNames
@@ -2928,9 +3024,6 @@ sentry__write_minidump(
     result |= write_module_list_stream(writer, &directories[2]);
     SENTRY_DEBUG("writing exception stream");
     result |= write_exception_stream(writer, &directories[3]);
-
-    // Write memory list stream (empty for STACK_ONLY, populated for SMART/FULL)
-    result |= write_memory_list_stream(writer, &directories[4]);
 
     // Write Linux-specific streams for debugger compatibility.
     // These are non-fatal: if they fail, the minidump is still valid. The
@@ -3000,6 +3093,10 @@ sentry__write_minidump(
         NULLIFY_DIR_ENTRY(13, MINIDUMP_STREAM_LINUX_DSO_DEBUG);
     }
 #    undef NULLIFY_DIR_ENTRY
+
+    // Write memory list stream (empty for STACK_ONLY, populated for SMART/FULL)
+    // last, because FULL mode memory can extend past the 4GB RVA limit
+    result |= write_memory_list_stream(writer, &directories[4]);
 
     if (result < 0) {
         goto cleanup_error;

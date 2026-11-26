@@ -7,6 +7,9 @@ add_library(sentry-android SHARED
 	src/main/jni/sentry_http.c
 )
 
+# Export only the JNI functions
+set_property(TARGET sentry-android PROPERTY C_VISIBILITY_PRESET hidden)
+
 # Conditionally add test library if ENABLE_TESTS is set
 if(ENABLE_TESTS)
 	add_library(sentry-android-test SHARED src/androidTest/jni/ndk-test.cpp)

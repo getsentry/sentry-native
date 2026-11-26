@@ -158,15 +158,14 @@ sentry__unwind_stack_libunwind(
             return 0;
         }
     } else {
-#ifdef __clang__
+#ifdef __GNUC__
 // This pragma is required to build with Werror on ARM64 Ubuntu
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored                                           \
-        "-Wgnu-statement-expression-from-macro-expansion"
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wpedantic"
 #endif
         int ret = unw_getcontext(&uc);
-#ifdef __clang__
-#    pragma clang diagnostic pop
+#ifdef __GNUC__
+#    pragma GCC diagnostic pop
 #endif
         if (ret != 0) {
             return 0;

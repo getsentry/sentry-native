@@ -131,6 +131,8 @@ sentry_options_new(void)
     opts->thread_stackwalk_mode = SENTRY_THREAD_STACKWALK_MODE_ALL;
     opts->enable_app_hang_tracking = false;
     opts->app_hang_timeout = 5000;
+    opts->app_hang_thread_stackwalk_mode
+        = SENTRY_THREAD_STACKWALK_MODE_HUNG_ONLY;
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
@@ -1084,6 +1086,25 @@ uint64_t
 sentry_options_get_app_hang_timeout(const sentry_options_t *opts)
 {
     return opts->app_hang_timeout;
+}
+
+void
+sentry_options_set_app_hang_thread_stackwalk_mode(
+    sentry_options_t *opts, sentry_thread_stackwalk_mode_t mode)
+{
+    int imode = (int)mode;
+    if (imode < SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY) {
+        imode = SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY;
+    } else if (imode > SENTRY_THREAD_STACKWALK_MODE_ALL) {
+        imode = SENTRY_THREAD_STACKWALK_MODE_ALL;
+    }
+    opts->app_hang_thread_stackwalk_mode = imode;
+}
+
+sentry_thread_stackwalk_mode_t
+sentry_options_get_app_hang_thread_stackwalk_mode(const sentry_options_t *opts)
+{
+    return (sentry_thread_stackwalk_mode_t)opts->app_hang_thread_stackwalk_mode;
 }
 
 void

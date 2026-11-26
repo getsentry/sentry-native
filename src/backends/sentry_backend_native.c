@@ -77,9 +77,14 @@ static android_crash_daemon_config_t g_android_crash_daemon_config
     = { false, -1, -1, -1, -1 };
 
 __attribute__((visibility("default"))) int
-sentry_android_crash_daemon_create_shm(void)
+sentry_android_crash_daemon_create_shm(const char *database_path)
 {
-    return sentry__crash_ipc_create_memfd();
+    int fd = sentry__crash_ipc_create_memfd();
+    if (fd < 0 && database_path) {
+        // no memfd before kernel 3.17, e.g. below API 26
+        fd = sentry__crash_ipc_create_shm_file(database_path);
+    }
+    return fd;
 }
 
 __attribute__((visibility("default"))) void
@@ -423,6 +428,40 @@ add_attachment(void *data, sentry_value_t attachment)
     // locations.
 }
 
+// a daemon removes the crash event once it has sent the crash or kept it
+// for the next launch
+static bool
+send_unprocessed_crash(
+    const sentry_options_t *options, const sentry_path_t *run_path)
+{
+    sentry_value_t event = sentry__crash_event_read(run_path);
+    if (sentry_value_is_null(event)) {
+        return true;
+    }
+    // remove before sending to prevent repeated sends
+    if (!sentry__crash_event_remove(run_path)) {
+        sentry_value_decref(event);
+        return false;
+    }
+
+    sentry_path_t *path
+        = sentry__path_join_str(run_path, "__sentry-attachments");
+    sentry_value_t attachments = sentry__read_attachment_manifest(path);
+    sentry__path_free(path);
+    sentry_envelope_t *envelope
+        = sentry__enclose_event(options, event, NULL, attachments);
+    sentry_value_decref(attachments);
+    if (!envelope) {
+        return true;
+    }
+    if (options->on_crashed_last_run_func) {
+        options->on_crashed_last_run_func(
+            envelope, options->on_crashed_last_run_data);
+    }
+    sentry__capture_envelope(options->transport, envelope, options);
+    return true;
+}
+
 static bool
 native_backend_process_old_run(sentry_backend_t *backend,
     const sentry_options_t *options, const sentry_path_t *run_path)
@@ -438,7 +477,14 @@ native_backend_process_old_run(sentry_backend_t *backend,
             continue;
         }
 
-        sentry_envelope_t *envelope = options->on_crashed_last_run_func
+        // a daemon interrupted before the crash was sent leaves the event
+        sentry_path_t *event_path
+            = sentry__path_join_str(run_path, "__sentry-event");
+        bool interrupted = event_path && sentry__path_is_file(event_path);
+        sentry__path_free(event_path);
+
+        sentry_envelope_t *envelope
+            = options->on_crashed_last_run_func || interrupted
             ? sentry__envelope_from_path(file)
             : NULL;
         bool materialized = envelope && sentry__envelope_materialize(envelope);
@@ -448,14 +494,20 @@ native_backend_process_old_run(sentry_backend_t *backend,
             sentry__pathiter_free(it);
             return false;
         }
-        if (materialized) {
+        if (materialized && options->on_crashed_last_run_func) {
             options->on_crashed_last_run_func(
                 envelope, options->on_crashed_last_run_data);
+        }
+        // prefer the daemon's envelope to the crash event
+        if (materialized && interrupted
+            && sentry__crash_event_remove(run_path)) {
+            sentry__capture_envelope(options->transport, envelope, options);
+            envelope = NULL;
         }
         sentry_envelope_free(envelope);
     }
     sentry__pathiter_free(it);
-    return true;
+    return send_unprocessed_crash(options, run_path);
 }
 
 /**
@@ -949,6 +1001,8 @@ native_backend_startup(
 #endif
     sentry__atomic_store(
         &ctx->user_consent, sentry__atomic_fetch(&options->run->user_consent));
+    sentry__atomic_store(
+        &ctx->offline_mode, sentry__atomic_fetch(&options->run->offline_mode));
 
     // Set up event and breadcrumb paths
     sentry_path_t *run_path = options->run->run_path;
@@ -1066,6 +1120,7 @@ native_backend_startup(
         < 0) {
         SENTRY_WARN("failed to initialize crash handler");
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->envelope_path);
         sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
@@ -1122,6 +1177,7 @@ native_backend_startup(
 #    endif
         SENTRY_WARN("failed to start crash daemon");
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->envelope_path);
         sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
@@ -1174,9 +1230,16 @@ native_backend_startup(
     state->ipc->message_read_handle = NULL;
 #    endif
 
+    bool wait_ready = true;
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    // the crash service attaches later, the crash handler waits for it
+    wait_ready = !state->android_service_daemon;
+#    endif
     // Wait for daemon to signal it's ready
-    if (!sentry__crash_ipc_wait_for_ready(
-            state->ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS)) {
+    if (!wait_ready) {
+        SENTRY_DEBUG("not waiting for the crash service to signal ready");
+    } else if (!sentry__crash_ipc_wait_for_ready(
+                   state->ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS)) {
         SENTRY_WARN("Daemon did not signal ready in time, proceeding anyway");
     } else {
         SENTRY_DEBUG("Daemon signaled ready");
@@ -1212,6 +1275,10 @@ native_backend_startup(
 #    if defined(SENTRY_PLATFORM_UNIX)
         if (state->daemon_pid > 0) {
             kill(state->daemon_pid, SIGTERM);
+            pid_t wait_result;
+            do {
+                wait_result = waitpid(state->daemon_pid, NULL, 0);
+            } while (wait_result < 0 && errno == EINTR);
         }
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
         wer_unregister_module();
@@ -1228,6 +1295,7 @@ native_backend_startup(
         }
         state->scope_observer = NULL;
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->envelope_path);
         sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
@@ -1251,9 +1319,11 @@ native_backend_shutdown(sentry_backend_t *backend)
 
     if (state->scope_observer) {
         SENTRY_WITH_SCOPE_MUT (scope) {
+            sentry__mutex_lock(&scope->observers_lock);
             sentry__scope_remove_observer(scope, state->scope_observer);
+            state->scope_observer = NULL;
+            sentry__mutex_unlock(&scope->observers_lock);
         }
-        state->scope_observer = NULL;
     }
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
@@ -1379,6 +1449,8 @@ native_backend_user_consent_changed(sentry_backend_t *backend)
         if (options->run) {
             sentry__atomic_store(&state->ipc->shmem->user_consent,
                 sentry__atomic_fetch(&options->run->user_consent));
+            sentry__atomic_store(&state->ipc->shmem->offline_mode,
+                sentry__atomic_fetch(&options->run->offline_mode));
         }
     }
 }
@@ -1467,7 +1539,7 @@ attachment_list(native_backend_state_t *state, const sentry_scope_t *scope)
         const char *type = sentry__attachment_get_type(attachment);
         if (!sentry__string_empty(type)) {
             sentry_value_set_by_key(
-                attach_info, "attachment_type", sentry_value_new_string(type));
+                attach_info, "type", sentry_value_new_string(type));
         }
         const char *content_type
             = sentry__attachment_get_content_type(attachment);
@@ -1490,6 +1562,8 @@ sync_attachments(void *data, sentry_value_t attachment)
     if (sentry__atomic_fetch(&state->crashed)) {
         return;
     }
+    // send the list directly, because sentry_scope_clear gets here before it
+    // resets the scope, and a snapshot would restore the cleared data
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t list = attachment_list(state, scope);
         sentry__crash_ipc_send(
@@ -1555,11 +1629,23 @@ clear_scope(void *data)
     }
 }
 
+static void
+send_update(native_backend_state_t *state, uint16_t type, sentry_value_t value)
+{
+    if (!sentry__atomic_fetch(&state->ipc->stalled)) {
+        sentry__crash_ipc_send(state->ipc, type, value);
+    } else if (sentry__crash_ipc_flush(state->ipc)) {
+        // the snapshot includes this update
+        SENTRY_WITH_SCOPE (scope) {
+            snapshot_scope(state, scope);
+        }
+    }
+}
+
 #define VALUE_OBSERVER(Name, Type)                                             \
     static void Name(void *data, sentry_value_t value)                         \
     {                                                                          \
-        native_backend_state_t *state = data;                                  \
-        sentry__crash_ipc_send(state->ipc, Type, value);                       \
+        send_update(data, Type, value);                                        \
     }
 
 VALUE_OBSERVER(set_release, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE)
@@ -1580,8 +1666,7 @@ set_user(void *data, sentry_value_t user)
         sentry_value_set_by_key(value, "id",
             sentry_value_new_string(state->options->run->installation_id));
     }
-    sentry__crash_ipc_send(
-        state->ipc, SENTRY_CRASH_IPC_MESSAGE_SET_USER, value);
+    send_update(state, SENTRY_CRASH_IPC_MESSAGE_SET_USER, value);
     sentry_value_decref(value);
 }
 
@@ -1590,19 +1675,17 @@ set_level(void *data, sentry_level_t level)
 {
     native_backend_state_t *state = data;
     sentry_value_t value = sentry__value_new_level(level);
-    sentry__crash_ipc_send(
-        state->ipc, SENTRY_CRASH_IPC_MESSAGE_SET_LEVEL, value);
+    send_update(state, SENTRY_CRASH_IPC_MESSAGE_SET_LEVEL, value);
     sentry_value_decref(value);
 }
 
 static void
 send_key(void *data, uint16_t type, const char *key, sentry_value_t value)
 {
-    native_backend_state_t *state = data;
     sentry_value_t pair = sentry_value_new_list();
     sentry_value_append(pair, sentry_value_new_string(key));
     sentry_value_append(pair, sentry_value_incref(value));
-    sentry__crash_ipc_send(state->ipc, type, pair);
+    send_update(data, type, pair);
     sentry_value_decref(pair);
 }
 
@@ -1629,9 +1712,8 @@ set_context(void *data, const char *key, sentry_value_t value)
 #define REMOVE_OBSERVER(Name, Type)                                            \
     static void Name(void *data, const char *key)                              \
     {                                                                          \
-        native_backend_state_t *state = data;                                  \
         sentry_value_t value = sentry_value_new_string(key);                   \
-        sentry__crash_ipc_send(state->ipc, Type, value);                       \
+        send_update(data, Type, value);                                        \
         sentry_value_decref(value);                                            \
     }
 
@@ -1671,12 +1753,13 @@ init_scope_observer(void *data, const sentry_scope_t *scope)
 }
 
 #if defined(SENTRY_PLATFORM_ANDROID)
+// shutdown clears scope_observer under observers_lock before freeing the IPC
 static native_backend_state_t *
 android_service_backend_state(const sentry_options_t *options)
 {
     native_backend_state_t *state
         = options->backend ? options->backend->data : NULL;
-    if (!state || !state->android_service_daemon
+    if (!state || !state->android_service_daemon || !state->scope_observer
         || sentry__atomic_fetch(&state->crashed)) {
         return NULL;
     }
@@ -1688,10 +1771,18 @@ sentry_android_crash_daemon_dup_shm_fd(void)
 {
     int fd = -1;
     SENTRY_WITH_OPTIONS (options) {
+        // prevent the IPC lookup from racing with backend shutdown or reinstall
+        sentry_scope_t *scope = sentry_scope_acquire();
+        if (!scope) {
+            continue;
+        }
+        sentry__mutex_lock(&scope->observers_lock);
         native_backend_state_t *state = android_service_backend_state(options);
         if (state) {
             fd = fcntl(state->ipc->shm_fd, F_DUPFD_CLOEXEC, 0);
         }
+        sentry__mutex_unlock(&scope->observers_lock);
+        sentry_scope_release(scope);
     }
     return fd;
 }
@@ -1703,16 +1794,15 @@ sentry_android_crash_daemon_reattach(
     bool reattached = false;
     bool taken = false;
     SENTRY_WITH_OPTIONS (options) {
-        native_backend_state_t *state = android_service_backend_state(options);
-        if (!state) {
-            continue;
-        }
         // scope changes notify under this lock, so none lands before the
         // snapshot
         SENTRY_WITH_SCOPE_MUT (scope) {
             sentry__mutex_lock(&scope->observers_lock);
-            taken = true;
-            if (sentry__crash_ipc_reattach(
+            native_backend_state_t *state
+                = android_service_backend_state(options);
+            taken = state != NULL;
+            if (taken
+                && sentry__crash_ipc_reattach(
                     state->ipc, notify_fd, ready_fd, message_fd)) {
                 // as at startup, the new daemon waits for the configured app
                 uint64_t ready = 1;

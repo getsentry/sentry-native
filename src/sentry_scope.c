@@ -87,10 +87,27 @@ static sentry_scope_t *g_isolation_scope = NULL;
 static __declspec(thread) scope_access_t *g_scope_access;
 static __declspec(thread) scope_access_t
     g_scope_access_pool[SCOPE_ACCESS_POOL_SIZE];
+#    define SCOPE_ACCESS_NOINLINE __declspec(noinline)
 #else
 static __thread scope_access_t *g_scope_access;
 static __thread scope_access_t g_scope_access_pool[SCOPE_ACCESS_POOL_SIZE];
+#    define SCOPE_ACCESS_NOINLINE __attribute__((noinline))
 #endif
+
+// the first TLS access on a thread may allocate (e.g. on macOS), so keep it out
+// of line where compilers cannot hoist it above the signal handler checks
+static SCOPE_ACCESS_NOINLINE scope_access_t **
+scope_access_list(void)
+{
+    return &g_scope_access;
+}
+
+static SCOPE_ACCESS_NOINLINE scope_access_t *
+scope_access_pool(void)
+{
+    return g_scope_access_pool;
+}
+
 #ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_lock)
 #else
@@ -106,7 +123,7 @@ scope_data_get_access(const sentry_scope_data_t *data)
         return NULL;
     }
 #endif
-    for (scope_access_t *access = g_scope_access; access;
+    for (scope_access_t *access = *scope_access_list(); access;
         access = access->next) {
         if (access->data == data) {
             return access;
@@ -173,6 +190,7 @@ scope_data_write_unlock(sentry_scope_data_t *data, bool locked)
 
 static size_t begin_scope_notify(sentry_scope_t *scope);
 static void end_scope_notify(sentry_scope_t *scope);
+static sentry_options_t *ref_options(const sentry_scope_t *scope);
 
 // notify observers registered before this notification started
 #define SENTRY_SCOPE_NOTIFY(scope, callback, ...)                              \
@@ -485,6 +503,7 @@ get_global_scope(void)
         sentry_value_freeze(contexts);
         sentry_value_freeze(sdk);
         sentry__value_replace(&data->client_sdk, sdk);
+        sentry__mutex_init(&g_scope.observers_lock);
         sentry__atomic_store(&g_scope_initialized, 1);
     }
     sentry__mutex_unlock(&g_lock);
@@ -533,6 +552,23 @@ init_global_scope(const sentry_options_t *options)
     return true;
 }
 
+static void
+reset_global_scope(void)
+{
+    if (!sentry__atomic_fetch(&g_scope_initialized)) {
+        return;
+    }
+    sentry_value_t sdk = get_client_sdk();
+    sentry_value_freeze(sdk);
+    sentry_scope_data_t *data = &g_scope_data;
+    SENTRY_SCOPE_WRITE_LOCK (data) {
+        sentry__value_replace(&data->client_sdk, sdk);
+        sentry__value_replace(&data->attachments, sentry_value_new_list());
+        sentry__value_replace(&data->release, sentry_value_new_null());
+        sentry__value_replace(&data->environment, sentry_value_new_null());
+    }
+}
+
 static sentry_scope_t *
 alloc_scope(void)
 {
@@ -570,6 +606,7 @@ sentry__scope_init(const sentry_options_t *options)
     }
     sentry_scope_t *scope = new_isolation_scope();
     if (!scope) {
+        reset_global_scope();
         return false;
     }
 
@@ -636,6 +673,7 @@ sentry__scope_cleanup(void)
         sentry__options_unlock();
         return;
     }
+    reset_global_scope();
     SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
     sentry__mutex_lock(&g_lock);
     sentry__options_unlock();
@@ -875,9 +913,10 @@ scope_begin(const sentry_scope_t *scope, bool write)
     }
 
     // depth == 0 marks a free slot
+    scope_access_t *pool = scope_access_pool();
     for (size_t i = 0; i < SCOPE_ACCESS_POOL_SIZE; i++) {
-        if (g_scope_access_pool[i].depth == 0) {
-            access = &g_scope_access_pool[i];
+        if (pool[i].depth == 0) {
+            access = &pool[i];
             access->pooled = true;
             break;
         }
@@ -898,8 +937,9 @@ scope_begin(const sentry_scope_t *scope, bool write)
     access->data = data;
     access->depth = 1;
     access->write = write;
-    access->next = g_scope_access;
-    g_scope_access = access;
+    scope_access_t **list = scope_access_list();
+    access->next = *list;
+    *list = access;
     return 0;
 }
 
@@ -951,7 +991,7 @@ scope_end(const sentry_scope_t *scope)
     }
 #endif
 
-    scope_access_t **link = &g_scope_access;
+    scope_access_t **link = scope_access_list();
     while (*link && (*link)->data != scope->data) {
         link = &(*link)->next;
     }
@@ -1665,8 +1705,8 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     if (options->run && options->run->installation_id) {
         sentry_value_t usr = sentry_value_get_by_key(event, "user");
         if (sentry_value_is_null(usr)) {
-            usr = sentry_value_new_object();
-            sentry_value_set_by_key(event, "user", usr);
+            sentry_value_set_by_key(event, "user", sentry_value_new_object());
+            usr = sentry_value_get_by_key(event, "user");
         }
         if (sentry_value_get_type(usr) == SENTRY_VALUE_TYPE_OBJECT
             && sentry_value_is_null(sentry_value_get_by_key(usr, "id"))) {
@@ -1679,11 +1719,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 void
 sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
 {
-    sentry__mutex_lock(&scope->observers_lock);
-    const sentry_options_t *options = sentry__options_incref(scope->state);
-    sentry__mutex_unlock(&scope->observers_lock);
+    sentry_options_t *options = ref_options(scope);
     breadcrumb = sentry__invoke_before_breadcrumb(options, breadcrumb);
-    sentry_options_free((sentry_options_t *)options);
+    sentry_options_free(options);
     if (sentry_value_is_null(breadcrumb)) {
         return;
     }

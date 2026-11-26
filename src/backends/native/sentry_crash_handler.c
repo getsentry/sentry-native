@@ -43,7 +43,8 @@ static void (*g_crash_callback)(void) = NULL;
 #if (defined(SENTRY_PLATFORM_WINDOWS)                                          \
     && !((defined(_MSC_VER) || defined(__clang__))                             \
         && (defined(_M_AMD64) || defined(_M_ARM64))))                          \
-    || defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    || ((defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID))   \
+        && !defined(__arm__))
 static inline bool
 capture_valid_ip(uint64_t ip)
 {
@@ -907,6 +908,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     // This allows malloc/free to work safely in signal handler context
 #    ifdef SENTRY_PLATFORM_UNIX
     sentry__page_allocator_enable();
+    (void)!sentry__enter_signal_handler();
 #    endif
 
     // Call Sentry's exception handler to invoke on_crash/before_send hooks
@@ -995,6 +997,7 @@ daemon_handling:
 
     // Re-enable previous signal handlers before re-raising to prevent loops
     sentry__exit_crash_handler();
+    sentry__leave_signal_handler();
     reset_signal_handlers();
 
     if (g_handler_strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
@@ -1025,6 +1028,7 @@ install_signal_handlers(sentry_crash_ipc_t *ipc, bool preload,
         if (!preload) {
             g_crash_ipc = ipc;
             g_handler_strategy = strategy;
+            g_crash_callback = callback;
         }
         return 0;
     }
@@ -1082,14 +1086,13 @@ install_signal_handlers(sentry_crash_ipc_t *ipc, bool preload,
     {
         unw_context_t uc;
         unw_cursor_t cursor;
-#        ifdef __clang__
-#            pragma clang diagnostic push
-#            pragma clang diagnostic ignored                                   \
-                "-Wgnu-statement-expression-from-macro-expansion"
+#        ifdef __GNUC__
+#            pragma GCC diagnostic push
+#            pragma GCC diagnostic ignored "-Wpedantic"
 #        endif
         if (unw_getcontext(&uc) == 0) {
-#        ifdef __clang__
-#            pragma clang diagnostic pop
+#        ifdef __GNUC__
+#            pragma GCC diagnostic pop
 #        endif
             if (unw_init_local(&cursor, &uc) == 0) {
                 // Walk a few frames to ensure .eh_frame info is cached
@@ -1157,6 +1160,7 @@ sentry__crash_handler_shutdown(void)
 {
     if (sentry__atomic_fetch(&g_preloaded)) {
         g_crash_ipc = NULL;
+        g_crash_callback = NULL;
         SENTRY_DEBUG("crash handler deactivated, keeping preloaded handlers");
         return;
     }

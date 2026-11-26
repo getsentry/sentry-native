@@ -15,7 +15,7 @@
  * On Xbox, MiniDumpWriteDump is provided by xgameplatform.lib
  * (linked by the Xbox toolchain), not dbghelp.lib.
  */
-#    if !defined(SENTRY_PLATFORM_XBOX)
+#    if defined(_MSC_VER) && !defined(SENTRY_PLATFORM_XBOX)
 #        pragma comment(lib, "dbghelp.lib")
 #    endif
 

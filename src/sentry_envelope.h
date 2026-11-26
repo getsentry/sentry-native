@@ -241,4 +241,11 @@ bool sentry__envelope_materialize(sentry_envelope_t *envelope);
 bool sentry__envelope_has_content_type(
     const sentry_envelope_t *envelope, const char *content_type);
 
+/**
+ * True if `envelope` contains at least one item with the given `type` header
+ * value. For raw envelopes this parses only the item headers.
+ */
+bool sentry__envelope_has_item_type(
+    const sentry_envelope_t *envelope, const char *type);
+
 #endif

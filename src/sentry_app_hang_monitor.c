@@ -1,5 +1,6 @@
 #include "sentry_app_hang_monitor.h"
 
+#include "sentry_alloc.h"
 #include "sentry_app_hang_latch.h"
 #include "sentry_core.h"
 #include "sentry_logger.h"
@@ -61,26 +62,108 @@ static sentry_threadid_t g_thread;
 static sentry_mutex_t g_wait_mutex = SENTRY__MUTEX_INIT;
 static sentry_cond_t g_wait_cond;
 static uint64_t g_timeout_ms = 0;
+static bool g_attach_all_threads = false;
 
 static size_t
-stackwalk_thread(uint64_t tid, void **ips, size_t max)
+stackwalk_thread(uint64_t tid, void **ips, size_t max, uint64_t timeout_ms)
 {
     // A test installs an override.
     return g_stackwalk_override != NULL
         ? g_stackwalk_override(tid, ips, max)
-        : sentry__thread_stackwalk(tid, ips, max);
+        : sentry__thread_stackwalk(tid, ips, max, timeout_ms);
 }
+
+#    if SENTRY_HAS_THREAD_LIST
+static const char *
+thread_name(const sentry_thread_info_t *threads, size_t count, uint64_t tid)
+{
+    for (size_t i = 0; i < count; i++) {
+        if (threads[i].tid == tid) {
+            return threads[i].name[0] ? threads[i].name : NULL;
+        }
+    }
+    return NULL;
+}
+
+// Adds every thread except the watchdog to the event. The hung thread gets no
+// stack trace: its stack is on the exception, which `thread_id` links to it.
+static void
+add_all_threads(sentry_value_t event, uint64_t hung_tid)
+{
+    sentry_thread_info_t *threads = sentry_malloc(
+        sizeof(sentry_thread_info_t) * SENTRY_APP_HANG_MAX_THREADS);
+    if (!threads) {
+        SENTRY_DEBUG("app-hang: failed to allocate the thread list");
+        return;
+    }
+    const size_t count
+        = sentry__thread_list(threads, SENTRY_APP_HANG_MAX_THREADS);
+    if (count == 0) {
+        SENTRY_DEBUG("app-hang: failed to list threads");
+        sentry_free(threads);
+        return;
+    }
+
+    sentry_value_t hung = sentry_value_new_thread(
+        hung_tid, thread_name(threads, count, hung_tid));
+    sentry_value_set_by_key(hung, "crashed", sentry_value_new_bool(true));
+    sentry_value_t hung_id = sentry_value_get_by_key(hung, "id");
+    sentry_value_incref(hung_id);
+    sentry_value_t exc = sentry_value_get_by_index(
+        sentry_value_get_by_key(
+            sentry_value_get_by_key(event, "exception"), "values"),
+        0);
+    sentry_value_set_by_key(exc, "thread_id", hung_id);
+    sentry_event_add_thread(event, hung);
+
+    const uint64_t self_tid = sentry__app_hang_current_tid();
+    const uint64_t start = sentry__monotonic_time();
+    const uint64_t deadline = start + SENTRY_APP_HANG_ALL_THREADS_BUDGET_MS;
+    void *ips[SENTRY_APP_HANG_MAX_FRAMES];
+    size_t walked = 0;
+    for (size_t i = 0; i < count; i++) {
+        const uint64_t tid = threads[i].tid;
+        if (tid == hung_tid || tid == self_tid) {
+            continue;
+        }
+        sentry_value_t thread = sentry_value_new_thread(
+            tid, threads[i].name[0] ? threads[i].name : NULL);
+        const uint64_t now = sentry__monotonic_time();
+        if (now < deadline) {
+            const uint64_t remaining = deadline - now;
+            size_t n = stackwalk_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES,
+                remaining < SENTRY_APP_HANG_OTHER_THREAD_TIMEOUT_MS
+                    ? remaining
+                    : SENTRY_APP_HANG_OTHER_THREAD_TIMEOUT_MS);
+            if (n > 0) {
+                sentry_value_set_stacktrace(thread, ips, n);
+                walked++;
+            }
+        }
+        sentry_event_add_thread(event, thread);
+    }
+    SENTRY_DEBUGF("app-hang: walked %zu of %zu threads in %llu ms", walked,
+        count, (unsigned long long)(sentry__monotonic_time() - start));
+    sentry_free(threads);
+}
+#    endif
 
 static bool
 app_hang_capture(uint64_t hang_time_ms, uint64_t tid)
 {
     void *ips[SENTRY_APP_HANG_MAX_FRAMES];
-    size_t n = stackwalk_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES);
+    size_t n = stackwalk_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES,
+        SENTRY_APP_HANG_HUNG_THREAD_TIMEOUT_MS);
     if (n == 0) {
         SENTRY_DEBUG("app-hang: no frames sampled, skipping event");
         return false;
     }
     sentry_value_t event = sentry__app_hang_make_event(ips, n, hang_time_ms);
+#    if SENTRY_HAS_THREAD_LIST
+    if (g_attach_all_threads) {
+        add_all_threads(event, tid);
+    }
+#    endif
     sentry__capture_event(event, NULL, NULL);
     return true;
 }
@@ -134,6 +217,15 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
     }
 
     g_timeout_ms = options->app_hang_timeout;
+    g_attach_all_threads = options->app_hang_thread_stackwalk_mode
+        == SENTRY_THREAD_STACKWALK_MODE_ALL;
+#    if !SENTRY_HAS_THREAD_LIST
+    if (g_attach_all_threads) {
+        SENTRY_WARN("app-hang: attaching all threads is not supported on this "
+                    "platform");
+        g_attach_all_threads = false;
+    }
+#    endif
     sentry__cond_init(&g_wait_cond);
     // Arm before spawning: the worker uses is_active() as its run condition, so
     // it must already be true when the new thread first evaluates the loop.
@@ -165,8 +257,9 @@ sentry__app_hang_monitor_stop(void)
     sentry__cond_free(&g_wait_cond);
     sentry__app_hang_latch_reset();
     g_running = false;
-    // g_timeout_ms are intentionally NOT cleared here: the worker
-    // (now joined) is their only reader, and start() always re-sets them.
+    // g_timeout_ms and g_attach_all_threads are intentionally NOT cleared here:
+    // the worker (now joined) is their only reader, and start() always re-sets
+    // them.
     SENTRY_DEBUG("app-hang watchdog stopped");
 }
 

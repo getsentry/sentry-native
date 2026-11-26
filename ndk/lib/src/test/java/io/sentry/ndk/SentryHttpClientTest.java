@@ -260,6 +260,18 @@ public class SentryHttpClientTest {
     assertEquals(0, connection.output.size());
   }
 
+  @Test
+  public void emptyProxyConnectsDirectly() throws Exception {
+    final SentryHttpClient direct = new SentryHttpClient();
+    try {
+      direct.configure(5000, "", null, "test");
+
+      assertFalse(direct.openConnection(new URL("http://localhost/")).usingProxy());
+    } finally {
+      direct.shutdown();
+    }
+  }
+
   private static final class Connection extends HttpURLConnection {
     final ByteArrayOutputStream output = new ByteArrayOutputStream();
     final Map<String, List<String>> headers = new LinkedHashMap<>();

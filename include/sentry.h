@@ -109,15 +109,15 @@ extern "C" {
  * checks, or `sentry_sdk_version()` for the runtime version.
  */
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.17.6"
+#    define SENTRY_SDK_VERSION "1.0.0-beta.2"
 #endif
 
 /**
  * Compile-time SDK version `major.minor.patch` as individual numbers.
  */
-#define SENTRY_SDK_VERSION_MAJOR 0
-#define SENTRY_SDK_VERSION_MINOR 17
-#define SENTRY_SDK_VERSION_PATCH 6
+#define SENTRY_SDK_VERSION_MAJOR 1
+#define SENTRY_SDK_VERSION_MINOR 0
+#define SENTRY_SDK_VERSION_PATCH 0
 
 /**
  * Checks whether the compile-time SDK version is at least `major.minor.patch`.
@@ -1370,6 +1370,11 @@ typedef enum {
      * Most comprehensive debugging information but slowest to generate
      * and upload. Best for development/staging environments or critical
      * crash investigations.
+     *
+     * On macOS, the application and `sentry-crash` must be signed with the
+     * `com.apple.security.cs.debugger` and `com.apple.security.get-task-allow`
+     * entitlements. Uploading large dumps requires
+     * `sentry_options_set_enable_large_attachments`.
      */
     SENTRY_MINIDUMP_MODE_FULL = 2,
 } sentry_minidump_mode_t;
@@ -1431,6 +1436,13 @@ typedef enum {
      * with the thread count.
      */
     SENTRY_THREAD_STACKWALK_MODE_ALL = 2,
+
+    /**
+     * Walk the hung thread only. Alias of `CRASHED_ONLY` for
+     * `sentry_options_set_app_hang_thread_stackwalk_mode`.
+     */
+    SENTRY_THREAD_STACKWALK_MODE_HUNG_ONLY
+    = SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY,
 } sentry_thread_stackwalk_mode_t;
 
 /**
@@ -2574,6 +2586,35 @@ SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 SENTRY_API int sentry_user_consent_is_required(void);
 
 /**
+ * Enables (`mode` non-zero) or disables (`mode` zero) offline mode.
+ *
+ * While offline mode is enabled, the SDK does not upload anything to Sentry.
+ * Envelopes are written to the cache instead when `http_retry` is enabled;
+ * otherwise they are discarded. The cache is subject to the configured cache
+ * limits (`cache_max_items`, `cache_max_size`, `cache_max_age`).
+ *
+ * Logs and metrics are not cached: they are discarded while offline mode is
+ * enabled.
+ *
+ * Disabling offline mode schedules a retry of any envelopes cached while it
+ * was enabled, provided that `http_retry` is enabled.
+ *
+ * The setting is persisted in the database directory and restored by the next
+ * `sentry_init`, so an application that starts while still offline does not
+ * attempt to upload envelopes from previous runs.
+ *
+ * This function has no effect before `sentry_init` has been called.
+ */
+SENTRY_API void sentry_set_offline(int mode);
+
+/**
+ * Checks whether offline mode is enabled.
+ *
+ * Returns 1 if offline mode is enabled, 0 otherwise.
+ */
+SENTRY_API int sentry_is_offline(void);
+
+/**
  * Acquires the isolation scope used by top-level scope functions.
  *
  * Returns an owned reference that must be released with `sentry_scope_release`.
@@ -3398,6 +3439,32 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout(
     sentry_options_t *opts, uint64_t app_hang_timeout);
 SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout(
     const sentry_options_t *opts);
+
+/**
+ * Sets which threads the app-hang watchdog walks.
+ *
+ * - HUNG_ONLY (default): the event only contains the stack trace of the
+ *   hung thread. Unlike crash reports, no other threads are listed.
+ * - ALL: the watchdog also walks every other thread of the process, so the
+ *   event shows what the hung thread is waiting on (for example, a worker
+ *   thread that holds a lock). The hung thread is marked as `crashed` and
+ *   linked to the exception through `thread_id`.
+ *
+ * Each thread is suspended (Windows, macOS) or signaled (Linux, Android) while
+ * its stack is walked, so a capture takes longer when the process has many
+ * threads. The number of walked threads and the total walk time are limited.
+ *
+ * ALL is supported on Windows x64 and ARM64, Linux, Android and macOS. On
+ * other platforms, including Xbox and Windows x86, it has no effect and a
+ * warning is logged.
+ *
+ * Only has an effect if app-hang detection is enabled via
+ * `sentry_options_set_enable_app_hang_tracking`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_thread_stackwalk_mode(
+    sentry_options_t *opts, sentry_thread_stackwalk_mode_t mode);
+SENTRY_EXPERIMENTAL_API sentry_thread_stackwalk_mode_t
+sentry_options_get_app_hang_thread_stackwalk_mode(const sentry_options_t *opts);
 
 /**
  * Records a heartbeat from the calling thread.

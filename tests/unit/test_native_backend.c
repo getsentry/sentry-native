@@ -12,8 +12,12 @@
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_scope.h"
+#include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
 #include "sentry_tracing.h"
+#include "sentry_utils.h"
+#include "sentry_uuid.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +26,11 @@
 // Include native backend headers
 #    include "../../src/backends/native/minidump/sentry_minidump_format.h"
 #    include "../../src/backends/native/sentry_crash_context.h"
+#    include "../../src/backends/native/sentry_crash_handler.h"
 #    include "../../src/backends/native/sentry_crash_ipc.h"
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include <sys/socket.h>
+#    endif
 
 static void
 noop_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
@@ -38,6 +46,28 @@ count_sent_envelopes(sentry_envelope_t *envelope, void *state)
     (*count)++;
     sentry_envelope_free(envelope);
 }
+
+typedef struct {
+    size_t count;
+    sentry_uuid_t event_id;
+} sent_envelopes_t;
+
+static void
+record_sent_envelopes(sentry_envelope_t *envelope, void *state)
+{
+    sent_envelopes_t *sent = state;
+    sent->count++;
+    sent->event_id = sentry__envelope_get_event_id(envelope);
+    sentry_envelope_free(envelope);
+}
+
+static void
+count_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
+{
+    (void)envelope;
+    size_t *count = user_data;
+    (*count)++;
+}
 #endif
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -46,7 +76,9 @@ count_sent_envelopes(sentry_envelope_t *envelope, void *state)
 
 #if defined(SENTRY_PLATFORM_LINUX)
 #    include <fcntl.h>
+#    include <linux/sockios.h>
 #    include <stdlib.h>
+#    include <sys/ioctl.h>
 #    include <sys/stat.h>
 #    include <sys/wait.h>
 #    include <unistd.h>
@@ -188,6 +220,78 @@ SENTRY_TEST(corrupt_crash_envelope_does_not_block_old_run)
     sentry__path_free(queued_envelope);
     sentry__path_free(crash_envelope);
     sentry__run_free(old_run);
+    sentry__run_clean(options->run, true);
+    sentry_options_free(options);
+#else
+    SKIP_TEST();
+#endif
+}
+
+SENTRY_TEST(recover_interrupted_crash)
+{
+#ifdef SENTRY_BACKEND_NATIVE
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(sentry__path_remove_all(options->database_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(options->database_path) == 0);
+
+    options->run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!options->run);
+
+    sent_envelopes_t sent = { 0 };
+    sentry_transport_t *transport = sentry_transport_new(record_sent_envelopes);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &sent);
+    sentry_options_set_transport(options, transport);
+    size_t crashed_last_run = 0;
+    sentry_options_set_on_crashed_last_run(
+        options, count_crashed_last_run, &crashed_last_run);
+
+    for (size_t i = 1; i <= 2; i++) {
+        sentry_run_t *old_run = sentry__run_new(options->database_path);
+        TEST_ASSERT(!!old_run);
+        sentry__filelock_unlock(old_run->lock);
+
+        // crash handling was interrupted, so the crash event is left behind
+        sentry_path_t *event_path
+            = sentry__path_join_str(old_run->run_path, "__sentry-event");
+        TEST_ASSERT(!!event_path);
+        sentry_uuid_t event_id = sentry_uuid_new_v4();
+        char id[37];
+        sentry_uuid_as_string(&event_id, id);
+        char event[128];
+        snprintf(event, sizeof(event),
+            "{\"event_id\":\"%s\",\"level\":\"fatal\"}", id);
+        TEST_ASSERT(
+            sentry__path_write_buffer(event_path, event, strlen(event)) == 0);
+        sentry__path_free(event_path);
+
+        // the daemon's envelope, if any, takes precedence
+        if (i == 2) {
+            sentry_path_t *envelope_path = sentry__path_join_str(
+                old_run->run_path, "__sentry-crash.envelope");
+            TEST_ASSERT(!!envelope_path);
+            sentry_envelope_t *envelope = sentry__envelope_new(NULL);
+            TEST_ASSERT(!!envelope);
+            sentry__envelope_add_event(envelope,
+                sentry_value_new_message_event(
+                    SENTRY_LEVEL_FATAL, NULL, "crash"),
+                NULL);
+            event_id = sentry__envelope_get_event_id(envelope);
+            TEST_ASSERT(
+                sentry_envelope_write_to_path(envelope, envelope_path) == 0);
+            sentry_envelope_free(envelope);
+            sentry__path_free(envelope_path);
+        }
+
+        sentry__process_old_runs(options, 0);
+
+        TEST_CHECK_INT_EQUAL(sent.count, i);
+        TEST_CHECK(sentry__uuid_eq(&sent.event_id, &event_id));
+        TEST_CHECK_INT_EQUAL(crashed_last_run, i);
+        TEST_CHECK(!sentry__path_is_dir(old_run->run_path));
+        sentry__run_free(old_run);
+    }
+
     sentry__run_clean(options->run, true);
     sentry_options_free(options);
 #else
@@ -1334,6 +1438,117 @@ SENTRY_TEST(native_scope_updates)
 }
 
 #ifdef SENTRY_BACKEND_NATIVE
+static void
+stall_step(const char *step)
+{
+    printf("stall:%s\n", step);
+    fflush(stdout);
+    getchar();
+}
+
+static sentry_value_t
+stall_on_crash(const sentry_ucontext_t *UNUSED(uctx), sentry_value_t event,
+    sentry_hint_t *UNUSED(hint), void *UNUSED(data))
+{
+    printf("stall:crash\n");
+    fflush(stdout);
+    return event;
+}
+
+static void
+stall_add_breadcrumb(int index)
+{
+    char message[16 * 1024];
+    memset(message, 'x', sizeof(message) - 1);
+    message[sizeof(message) - 1] = '\0';
+    sentry_value_t crumb = sentry_value_new_breadcrumb(NULL, message);
+    sentry_value_set_by_key(crumb, "index", sentry_value_new_int32(index));
+    sentry_add_breadcrumb(crumb);
+}
+
+static void
+stall_set_large_extra(void)
+{
+    size_t size = 2 * 1024 * 1024;
+    char *large = sentry_malloc(size);
+    TEST_ASSERT(large != NULL);
+    memset(large, 'x', size);
+    sentry_set_extra("large", sentry_value_new_string_n(large, size));
+    sentry_free(large);
+}
+
+SENTRY_THREAD_FN
+stall_sender_thread(void *UNUSED(data))
+{
+    stall_set_large_extra();
+    return 0;
+}
+
+static void
+stall_crash(void)
+{
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+    RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, NULL);
+#    else
+    raise(SIGSEGV);
+#    endif
+}
+#endif
+
+// driven by test_native_stall_* in test_integration_native.py
+SENTRY_TEST(native_stall)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    const char *mode = getenv("SENTRY_TEST_NATIVE_STALL");
+    if (!mode) {
+        SKIP_TEST();
+    }
+    bool crash = sentry__string_eq(mode, "crash");
+    bool recover = sentry__string_eq(mode, "recover");
+    int crumbs = 64;
+    int recovery_crumbs = 10;
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, getenv("SENTRY_DSN"));
+    sentry_options_set_max_breadcrumbs(options, crumbs + recovery_crumbs);
+    if (crash) {
+        sentry_options_set_on_crash(options, stall_on_crash, NULL);
+    }
+    TEST_ASSERT(sentry_init(options) == 0);
+    stall_step("ready");
+
+    if (crash) {
+        sentry_threadid_t thread;
+        sentry__thread_init(&thread);
+        TEST_ASSERT(!sentry__thread_spawn(&thread, stall_sender_thread, NULL));
+        // let the sender fill the stream
+        sleep_ms(100);
+        stall_crash();
+    }
+
+    for (int i = 0; i < crumbs; i++) {
+        stall_add_breadcrumb(i);
+    }
+    stall_set_large_extra();
+    stall_step("done");
+
+    if (recover) {
+        for (int i = 0; i < recovery_crumbs; i++) {
+            sleep_ms(100);
+            stall_add_breadcrumb(crumbs + i);
+        }
+        SENTRY_WITH_OPTIONS (current) {
+            // exercise staged IPC state without a crash-time snapshot
+            current->backend->except_func = NULL;
+        }
+        stall_crash();
+    }
+    sentry_close();
+#endif
+}
+
+#ifdef SENTRY_BACKEND_NATIVE
 static sentry_crash_ipc_t *
 new_test_ipc(void)
 {
@@ -1355,9 +1570,13 @@ static void
 write_test_frame(sentry_crash_ipc_t *ipc, const char *buf, size_t len)
 {
 #    if defined(SENTRY_PLATFORM_WINDOWS)
+    OVERLAPPED overlapped = { 0 };
+    overlapped.hEvent = ipc->message_write.hEvent;
     DWORD written = 0;
-    TEST_ASSERT(
-        WriteFile(ipc->message_write_handle, buf, (DWORD)len, &written, NULL));
+    TEST_ASSERT(WriteFile(
+        ipc->message_write_handle, buf, (DWORD)len, NULL, &overlapped));
+    TEST_ASSERT(GetOverlappedResult(
+        ipc->message_write_handle, &overlapped, &written, FALSE));
     TEST_CHECK_INT_EQUAL(written, len);
 #    else
     TEST_CHECK_INT_EQUAL(write(ipc->message_fd[0], buf, len), len);
@@ -1411,6 +1630,235 @@ SENTRY_TEST(crash_ipc_interrupted_frame)
     TEST_CHECK(sentry_value_is_null(
         sentry_value_get_by_key(ipc->scope.event, "release")));
     sentry_free(buf);
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_torn_frame)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    const char payload[] = "\xa6latest";
+    const size_t offsets[] = { 0, 1, SENTRY_CRASH_IPC_MESSAGE_PREFIX_SIZE,
+        SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE,
+        SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE + sizeof(payload) - 2 };
+    for (size_t i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) {
+        uint64_t sequence = ipc->sequence + 1;
+        char *buf = NULL;
+        size_t len = 0;
+        TEST_ASSERT(sentry__crash_ipc_message_encode(
+                        SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, 0, sequence,
+                        payload, sizeof(payload) - 1, &buf, &len)
+            == SENTRY_CRASH_IPC_MESSAGE_OK);
+        write_test_frame(ipc, buf, offsets[i]);
+        ipc->torn_frame = buf;
+        ipc->torn_len = len;
+        ipc->torn_sent = offsets[i];
+        ipc->stalled = 1;
+        TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+        TEST_CHECK_INT_EQUAL(ipc->scope.sequence, sequence - 1);
+
+        TEST_CHECK(sentry__crash_ipc_flush(ipc));
+        TEST_CHECK(ipc->torn_frame == NULL);
+        TEST_CHECK_INT_EQUAL(ipc->sequence, sequence);
+        TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+        TEST_CHECK_INT_EQUAL(ipc->scope.sequence, sequence);
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    ipc->scope.event, "release")),
+            "latest");
+
+        sentry_value_t snapshot = scope_snapshot();
+        TEST_CHECK(sentry__crash_ipc_send(
+            ipc, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, snapshot));
+        sentry_value_decref(snapshot);
+        TEST_CHECK(!ipc->stalled);
+        TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+        TEST_CHECK_INT_EQUAL(ipc->scope.sequence, sequence + 1);
+    }
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_stalled_stream)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    size_t size = 8 * 1024 * 1024;
+    char *large = sentry_malloc(size);
+    TEST_ASSERT(large != NULL);
+    memset(large, 'x', size);
+    sentry_value_t value = sentry_value_new_string_n(large, size);
+    sentry_free(large);
+    TEST_CHECK(!sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
+    sentry_value_decref(value);
+    TEST_CHECK(ipc->stalled);
+    TEST_CHECK(ipc->torn_frame != NULL);
+    TEST_CHECK_INT_EQUAL(ipc->sequence, 1);
+
+    value = sentry_value_new_string("skipped");
+    TEST_CHECK(!sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_ENVIRONMENT, value));
+    sentry_value_decref(value);
+    TEST_CHECK_INT_EQUAL(ipc->sequence, 1);
+
+    while (!sentry__crash_ipc_flush(ipc)) {
+        sentry__crash_ipc_receive(ipc, 0);
+    }
+    TEST_CHECK(ipc->stalled);
+    TEST_CHECK_INT_EQUAL(ipc->sequence, 2);
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    TEST_CHECK_INT_EQUAL(ipc->scope.sequence, 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(sentry_value_get_by_key(
+                             ipc->scope.event, "release")),
+        size);
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(ipc->scope.event, "environment")));
+
+    sentry_value_t snapshot = scope_snapshot();
+    TEST_CHECK(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, snapshot));
+    sentry_value_decref(snapshot);
+    TEST_CHECK(!ipc->stalled);
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    TEST_CHECK_INT_EQUAL(ipc->scope.sequence, 3);
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_awaiting_ready)
+{
+#if !defined(SENTRY_BACKEND_NATIVE)                                            \
+    || !(defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID))
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    ipc->awaiting_ready = 1;
+    size_t size = 2 * 1024 * 1024;
+    char *large = sentry_malloc(size);
+    TEST_ASSERT(large != NULL);
+    memset(large, 'x', size);
+    sentry_value_t value = sentry_value_new_string_n(large, size);
+    sentry_free(large);
+    // the send serializes too, so leave that time out of the bound
+    uint64_t start = sentry__monotonic_time();
+    size_t len = 0;
+    sentry_free(sentry_value_to_msgpack(value, &len));
+    uint64_t serialize = sentry__monotonic_time() - start;
+    // nothing reads yet, so the frame stalls at once and counts as sent
+    start = sentry__monotonic_time();
+    TEST_CHECK(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
+    // a blocking write would wait out the whole send timeout
+    TEST_CHECK(sentry__monotonic_time() - start
+        < serialize + SENTRY_CRASH_IPC_SEND_TIMEOUT_MS / 2);
+    sentry_value_decref(value);
+    TEST_CHECK(ipc->stalled);
+    TEST_CHECK(ipc->awaiting_ready);
+
+    uint64_t ready = 1;
+    TEST_CHECK_INT_EQUAL(
+        write(ipc->ready_fd, &ready, sizeof(ready)), sizeof(ready));
+    while (!sentry__crash_ipc_flush(ipc)) {
+        sentry__crash_ipc_receive(ipc, 0);
+    }
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    sentry_value_t snapshot = scope_snapshot();
+    TEST_CHECK(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, snapshot));
+    sentry_value_decref(snapshot);
+    TEST_CHECK(!ipc->awaiting_ready);
+    TEST_CHECK(!ipc->stalled);
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    TEST_CHECK_INT_EQUAL(ipc->scope.sequence, 3);
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_stalled_notify)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    const char payload[] = "\xa6latest";
+    char *buf = NULL;
+    size_t len = 0;
+    TEST_ASSERT(
+        sentry__crash_ipc_message_encode(SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE,
+            0, 2, payload, sizeof(payload) - 1, &buf, &len)
+        == SENTRY_CRASH_IPC_MESSAGE_OK);
+    write_test_frame(ipc, buf, 7);
+    ipc->torn_frame = buf;
+    ipc->torn_len = len;
+    ipc->torn_sent = 7;
+    ipc->stalled = 1;
+    sentry__crash_ipc_notify(ipc);
+    TEST_CHECK(sentry__crash_ipc_receive(ipc, 100));
+    TEST_CHECK(!ipc->message_closed);
+    TEST_CHECK_INT_EQUAL(ipc->scope.sequence, 1);
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_reattach_stalled)
+{
+#if !defined(SENTRY_BACKEND_NATIVE) || !defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    size_t size = 8 * 1024 * 1024;
+    char *large = sentry_malloc(size);
+    TEST_ASSERT(large != NULL);
+    memset(large, 'x', size);
+    sentry_value_t value = sentry_value_new_string_n(large, size);
+    sentry_free(large);
+    TEST_CHECK(!sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
+    TEST_CHECK(ipc->stalled);
+    TEST_CHECK(ipc->torn_frame != NULL);
+
+    int fds[2];
+    TEST_ASSERT(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0);
+    int notify_fd = eventfd(0, EFD_CLOEXEC);
+    int ready_fd = eventfd(0, EFD_CLOEXEC);
+    TEST_CHECK(sentry__crash_ipc_reattach(ipc, notify_fd, ready_fd, fds[0]));
+    TEST_CHECK(ipc->awaiting_ready);
+    TEST_CHECK(!ipc->stalled);
+    TEST_CHECK(ipc->torn_frame == NULL);
+    TEST_CHECK_INT_EQUAL(ipc->sequence, 0);
+
+    // the new daemon starts at a snapshot with sequence 1
+    sentry_value_t snapshot = scope_snapshot();
+    TEST_CHECK(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, snapshot));
+    sentry_value_decref(snapshot);
+    char header[SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE];
+    TEST_CHECK_INT_EQUAL(read(fds[1], header, sizeof(header)), sizeof(header));
+    TEST_CHECK_INT_EQUAL((uint8_t)header[8], 1);
+
+    // the send timeout applies to the new stream once its daemon is ready
+    uint64_t ready = 1;
+    TEST_CHECK_INT_EQUAL(
+        write(ipc->ready_fd, &ready, sizeof(ready)), sizeof(ready));
+    struct timeval timeout = { 0, 0 };
+    socklen_t len = sizeof(timeout);
+    getsockopt(ipc->message_fd[0], SOL_SOCKET, SO_SNDTIMEO, &timeout, &len);
+    TEST_CHECK(timeout.tv_sec || timeout.tv_usec);
+    TEST_CHECK(!sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
+    TEST_CHECK(ipc->stalled);
+    sentry_value_decref(value);
+    close(fds[1]);
     sentry__crash_ipc_free(ipc);
 #endif
 }
@@ -1545,7 +1993,17 @@ SENTRY_TEST(crash_daemon_shutdown_during_crash)
         execl(daemon, daemon, pid, tid, notify, ready, shm, message, NULL);
         _exit(1);
     }
-    TEST_CHECK(sentry__crash_ipc_wait_for_ready(ipc, 5000));
+    TEST_CHECK(sentry__crash_ipc_wait_for_ready(
+        ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS));
+    // wait until the daemon has read SHUTDOWN
+    int queued = -1;
+    for (int i = 0; i < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS / 10; i++) {
+        if (ioctl(ipc->message_fd[0], SIOCOUTQ, &queued) != 0 || queued == 0) {
+            break;
+        }
+        sleep_ms(10);
+    }
+    TEST_CHECK_INT_EQUAL(queued, 0);
     sleep_ms(100);
     TEST_CHECK_INT_EQUAL(waitpid(child, NULL, WNOHANG), 0);
 
@@ -1553,7 +2011,7 @@ SENTRY_TEST(crash_daemon_shutdown_during_crash)
     sentry__crash_ipc_notify(ipc);
     int status = 0;
     pid_t result = 0;
-    for (int i = 0; i < 500; i++) {
+    for (int i = 0; i < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS / 10; i++) {
         result = waitpid(child, &status, WNOHANG);
         if (result != 0) {
             break;
@@ -1596,5 +2054,55 @@ SENTRY_TEST(crash_ipc_notify_without_daemon)
     TEST_CHECK(!sentry__crash_ipc_notify(ipc));
     signal(SIGPIPE, previous);
     sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_notify_before_main_thread_attach)
+{
+#if !defined(SENTRY_BACKEND_NATIVE)                                            \
+    || !(defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID))
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    ipc->awaiting_ready = 1;
+    ipc->attach_on_main_thread = true;
+    // the crashed main thread can't attach the daemon
+    TEST_CHECK(!sentry__crash_ipc_notify(ipc));
+
+    uint64_t ready = 1;
+    TEST_CHECK_INT_EQUAL(
+        write(ipc->ready_fd, &ready, sizeof(ready)), sizeof(ready));
+    TEST_CHECK(sentry__crash_ipc_notify(ipc));
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+#if defined(SENTRY_BACKEND_NATIVE) && defined(SENTRY_PLATFORM_LINUX)
+static void
+exit_from_crash_callback(void)
+{
+    _exit(42);
+}
+#endif
+
+SENTRY_TEST(crash_handler_preloaded_callback)
+{
+#if !defined(SENTRY_BACKEND_NATIVE) || !defined(SENTRY_PLATFORM_LINUX)
+    SKIP_TEST();
+#else
+    // fork() keeps the preloaded handlers out of the test process
+    pid_t child = fork();
+    TEST_ASSERT(child >= 0);
+    if (child == 0) {
+        sentry__crash_handler_preload();
+        sentry__crash_handler_init(
+            NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, exit_from_crash_callback);
+        raise(SIGSEGV);
+        _exit(1);
+    }
+    int status = 0;
+    TEST_CHECK_INT_EQUAL(waitpid(child, &status, 0), child);
+    TEST_CHECK(WIFEXITED(status));
+    TEST_CHECK_INT_EQUAL(WEXITSTATUS(status), 42);
 #endif
 }

@@ -2,7 +2,7 @@ import os
 import shutil
 import subprocess
 import pytest
-from . import run, SENTRY_VERSION
+from . import run, SENTRY_VERSION, SENTRY_VERSION_BASE
 from .conditions import has_http
 
 has_strings = shutil.which("strings") is not None
@@ -187,7 +187,7 @@ def test_sdk_version_override(cmake):
 
         # Verify that version and build ID are correctly separated
         assert (
-            f"SENTRY_VERSION:{SENTRY_VERSION};" in output
+            f"SENTRY_VERSION:{SENTRY_VERSION_BASE};" in output
         ), "Version should be base version without build metadata"
         assert (
             "BUILD:20251016-test-build;" in output
@@ -236,7 +236,7 @@ def test_sdk_version_override_with_explicit_build_id(cmake):
 
         # Verify that explicit build ID takes precedence
         assert (
-            f"SENTRY_VERSION:{SENTRY_VERSION};" in output
+            f"SENTRY_VERSION:{SENTRY_VERSION_BASE};" in output
         ), "Version should be base version"
         assert (
             "BUILD:explicit-build-id;" in output

@@ -886,9 +886,17 @@ def assert_replay_envelope(envelope, video, replay_id=REPLAY_ID):
     assert payload["frameCount"] == 58
     assert payload["frameRate"] == 30
 
+    # input events inside the clip are rebased onto the replay start
+    input_events = [e for e in events if e["type"] == 3]
+    start_ms = event["replay_start_timestamp"] * 1000
+    offsets = [e["timestamp"] - start_ms for e in input_events]
+    assert len(offsets) == 2
+    assert abs(offsets[0]) < 1 and abs(offsets[1] - 15077) < 1
+    assert all(e["data"] == {"source": 2, "type": 2} for e in input_events)
+
     # the crash event's breadcrumbs falling into the replay window are
     # embedded as rrweb `breadcrumb` custom events, in timestamp order
-    breadcrumb_events = events[2:]
+    breadcrumb_events = [e for e in events[2:] if e["type"] == 5]
     assert len(breadcrumb_events) == 3
     for rrweb_event in breadcrumb_events:
         assert rrweb_event["type"] == 5

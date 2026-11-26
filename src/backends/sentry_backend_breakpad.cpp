@@ -30,6 +30,7 @@ extern "C" {
 #    pragma GCC diagnostic push
 #    pragma GCC diagnostic ignored "-Wpedantic"
 #    pragma GCC diagnostic ignored "-Wvariadic-macros"
+#    pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS

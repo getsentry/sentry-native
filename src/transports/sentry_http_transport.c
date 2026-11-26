@@ -46,6 +46,8 @@ typedef struct {
     sentry_retry_t *retry;
     volatile long retry_enabled;
     volatile long dump_failed;
+    sentry_mutex_t last_event_lock;
+    sentry_uuid_t last_event_id;
     sentry_cache_keep_t cache_keep;
     sentry_run_t *run;
     bool send_client_reports;
@@ -821,7 +823,7 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
             if (upload_offset == file_size
                 && !sentry__envelope_item_resolve_attachment_ref(
                     item, NULL, resp.location, 0)) {
-                result = RESULT_DISCARD;
+                result = RESULT_ERROR;
             }
         }
         http_response_cleanup(&resp);
@@ -978,7 +980,8 @@ resolve_attachment_refs(
 
         if (result == RESULT_SHUTDOWN
             || (result == RESULT_ERROR
-                && (state->retry || state->cache_keep))) {
+                && (sentry__atomic_fetch(&state->retry_enabled)
+                    || state->cache_keep))) {
             sentry__attachment_ref_cleanup(&ref);
             return result;
         }
@@ -1078,6 +1081,7 @@ http_transport_state_free(void *_state)
     sentry__rate_limiter_free(state->ratelimiter);
     sentry__retry_free(state->retry);
     sentry__run_free(state->run);
+    sentry__mutex_free(&state->last_event_lock);
     sentry_free(state);
 }
 
@@ -1099,7 +1103,16 @@ http_send_task(void *_envelope, void *_state)
     // Capture cached sibling paths before resolving attachment-refs. Dropped
     // attachment-refs no longer carry local paths afterwards.
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
-    int status_code = http_send_envelope(envelope, state);
+    int status_code;
+    if (sentry__run_should_skip_upload(state->run)) {
+        // Uploads were blocked (offline mode or revoked consent) after this
+        // envelope was queued: handle it like a network failure, which caches
+        // it for retry when enabled, instead of waiting for a send to time out.
+        SENTRY_DEBUG("not sending queued envelope: uploads are blocked");
+        status_code = RESULT_ERROR;
+    } else {
+        status_code = http_send_envelope(envelope, state);
+    }
 
     const sentry_envelope_t *ref_owner = NULL;
     if (status_code < 0) {
@@ -1139,6 +1152,13 @@ http_send_task(void *_envelope, void *_state)
         prune_attachment_refs(state->run, ref_paths, ref_owner);
     }
     sentry_value_decref(ref_paths);
+
+    if (status_code != RESULT_OK && !sentry_uuid_is_nil(&event_id)
+        && sentry__envelope_has_item_type(envelope, "event")) {
+        sentry__mutex_lock(&state->last_event_lock);
+        state->last_event_id = event_id;
+        sentry__mutex_unlock(&state->last_event_lock);
+    }
 
     if (status_code == 0 && reported) {
         sentry__client_report_restore(&report);
@@ -1306,6 +1326,7 @@ sentry__http_transport_new(
     state->ratelimiter = sentry__rate_limiter_new();
     state->client = client;
     state->send_func = send_func;
+    sentry__mutex_init(&state->last_event_lock);
 
     sentry_bgworker_t *bgworker
         = sentry__bgworker_new(state, http_transport_state_free);
@@ -1374,6 +1395,19 @@ sentry__http_transport_set_dump_failed(
         sentry__atomic_store(
             &http_transport_get_state(transport)->dump_failed, enabled);
     }
+}
+
+sentry_uuid_t
+sentry__http_transport_get_last_event_id(sentry_transport_t *transport)
+{
+    sentry_uuid_t event_id = sentry_uuid_nil();
+    if (sentry__transport_get_state(transport)) {
+        http_transport_state_t *state = http_transport_get_state(transport);
+        sentry__mutex_lock(&state->last_event_lock);
+        event_id = state->last_event_id;
+        sentry__mutex_unlock(&state->last_event_lock);
+    }
+    return event_id;
 }
 
 sentry_transport_t *

@@ -6,14 +6,19 @@ multi-thread capture, and FPU/SIMD register capture on all platforms.
 """
 
 import os
+import queue
+import signal
 import subprocess
 import sys
+import threading
 import time
 import struct
 
+import psutil
 import pytest
 
 from . import (
+    crash_env,
     is_feedback_envelope,
     is_replay_envelope,
     lib_name,
@@ -28,6 +33,7 @@ from . import (
 )
 from .assertions import (
     assert_attachment,
+    assert_attachment_view_hierarchy,
     assert_breadcrumb,
     assert_crash_timestamp,
     assert_crash_hint_attachments,
@@ -45,7 +51,8 @@ from .assertions import (
     assert_crash_stack,
 )
 from .conditions import has_files, has_http, has_system_proxy, is_arm64e, is_kcov
-from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
+from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine, is_x86
+from .conditions import is_valgrind
 from .proxy import proxy_test_finally, start_proxy, system_proxy
 
 pytestmark = pytest.mark.skipif(
@@ -56,6 +63,13 @@ pytestmark = pytest.mark.skipif(
 # Sanitizer builds are slower, so selected native crash tests use the same 10s
 # timeout the native daemon used before it respected the SDK shutdown timeout.
 SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
+
+# A stall costs one 1s send timeout, and later updates only try a nonblocking write.
+STALL_UPDATES_TIMEOUT = 30 if is_asan or is_tsan or is_kcov else 5
+# A sanitizer crash handler alone may wait 30s for the daemon.
+STALL_STEP_TIMEOUT = 60 if is_asan or is_tsan or is_kcov else 30
+STALL_KILLED_TIMEOUT = 5 if is_asan or is_tsan or is_kcov else 1
+STALL_CLOSED_TIMEOUT = 5 if is_asan or is_tsan or is_kcov else 4
 
 STATUS_STACK_OVERFLOW = 0xC00000FD
 STATUS_STACK_BUFFER_OVERRUN = 0xC0000409
@@ -73,7 +87,7 @@ def test_native_capture_crash(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_test_integration",
-            ["log", "stdout", "test-logger", "crash"],
+            ["log", "stdout", "test-logger", "attach-view-hierarchy", "crash"],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -81,6 +95,7 @@ def test_native_capture_crash(cmake, httpserver):
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_native_crash(envelope)
+    assert_attachment_view_hierarchy(envelope)
 
 
 @pytest.mark.parametrize(
@@ -508,6 +523,142 @@ def test_native_scope_updates_without_snapshot(cmake, httpserver, mode, scoped_t
         "__sentry-attachments",
     ):
         assert not list((tmp_path / ".sentry-native").glob(f"*.run/{name}"))
+
+
+class StallChild:
+    """Runs the `native_stall` unit test, which waits for `proceed` at each step."""
+
+    def __init__(self, tmp_path, mode, dsn):
+        self.child = subprocess.Popen(
+            [
+                *run_command(str(tmp_path / "sentry_test_unit")),
+                "--no-exec",
+                "native_stall",
+            ],
+            cwd=tmp_path,
+            env=crash_env(
+                dict(os.environ, SENTRY_DSN=dsn, SENTRY_TEST_NATIVE_STALL=mode)
+            ),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
+        self.lines = queue.Queue()
+        threading.Thread(target=self._read_lines, daemon=True).start()
+
+    def _read_lines(self):
+        for line in self.child.stdout:
+            self.lines.put(line)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.child.kill()
+        self.child.wait()
+
+    def wait_for_step(self, step, timeout=STALL_STEP_TIMEOUT):
+        deadline = time.monotonic() + timeout
+        while f"stall:{step}".encode() not in self.lines.get(
+            timeout=max(0, deadline - time.monotonic())
+        ):
+            pass
+
+    def proceed(self):
+        self.child.stdin.write(b"\n")
+        self.child.stdin.flush()
+
+    def daemon(self):
+        # Wine reparents the processes it spawns
+        procs = (
+            psutil.process_iter()
+            if is_wine
+            else psutil.Process(self.child.pid).children()
+        )
+        for proc in procs:
+            if "sentry-crash" in proc.name():
+                return proc
+        pytest.fail("native crash daemon not found")
+
+
+def is_gone(proc):
+    try:
+        return proc.status() == psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return True
+
+
+def test_native_stall_bounds_updates(cmake, unreachable_dsn):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    with StallChild(tmp_path, "updates", unreachable_dsn) as stall:
+        stall.wait_for_step("ready")
+        daemon = stall.daemon()
+        daemon.suspend()
+        try:
+            started_at = time.monotonic()
+            stall.proceed()
+            stall.wait_for_step("done")
+            assert time.monotonic() - started_at < STALL_UPDATES_TIMEOUT
+        finally:
+            daemon.resume()
+        started_at = time.monotonic()
+        stall.proceed()
+        assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) == 0
+        # the resumed daemon exits on its shutdown frame, before the 5s kill
+        assert time.monotonic() - started_at < STALL_CLOSED_TIMEOUT
+
+
+def test_native_stall_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=STALL_STEP_TIMEOUT) as waiting:
+        with StallChild(tmp_path, "crash", make_dsn(httpserver)) as stall:
+            stall.wait_for_step("ready")
+            daemon = stall.daemon()
+            daemon.suspend()
+            try:
+                stall.proceed()
+                # the crash handler reaches on_crash behind the stalled sender
+                stall.wait_for_step("crash")
+            finally:
+                daemon.resume()
+            assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) != 0
+    assert waiting.result
+
+
+def test_native_stall_recovery(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=STALL_STEP_TIMEOUT) as waiting:
+        with StallChild(tmp_path, "recover", make_dsn(httpserver)) as stall:
+            stall.wait_for_step("ready")
+            daemon = stall.daemon()
+            daemon.suspend()
+            try:
+                stall.proceed()
+                stall.wait_for_step("done")
+            finally:
+                daemon.resume()
+            stall.proceed()
+            assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) != 0
+    assert waiting.result
+    event = Envelope.deserialize(httpserver.log[0][0].get_data()).get_event()
+    assert [crumb["index"] for crumb in event["breadcrumbs"]] == list(range(74))
+    assert event["extra"]["large"] == "x" * (2 * 1024 * 1024)
+
+
+def test_native_stall_killed_daemon(cmake, unreachable_dsn):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    with StallChild(tmp_path, "killed", unreachable_dsn) as stall:
+        stall.wait_for_step("ready")
+        daemon = stall.daemon()
+        daemon.kill()
+        assert wait_for(lambda: is_gone(daemon))
+        started_at = time.monotonic()
+        stall.proceed()
+        stall.wait_for_step("done")
+        assert time.monotonic() - started_at < STALL_KILLED_TIMEOUT
+        stall.proceed()
+        assert stall.child.wait(timeout=STALL_STEP_TIMEOUT) == 0
 
 
 def test_native_byte_attachment_is_confined(cmake, unreachable_dsn):
@@ -977,6 +1128,32 @@ def test_native_minidump_streams(cmake, httpserver):
             )
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux" or not is_x86 or is_wine or is_asan or is_tsan,
+    reason="Requires unsanitized 32-bit Linux with a fixed high-address mapping",
+)
+def test_native_minidump_high_fault_address(cmake):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    result = run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "crash-high-address"],
+        expect_failure=True,
+        env=dict(os.environ, SENTRY_DSN=""),
+    )
+    if result.returncode == 77:
+        pytest.skip("High-address mapping unavailable")
+    assert result.returncode == -signal.SIGSEGV
+
+    db_dir = tmp_path / ".sentry-native"
+    assert wait_for_file(db_dir / "*.run/__sentry-crash.dmp")
+    dump = _parse_minidump(next(db_dir.glob("*.run/__sentry-crash.dmp")))
+    assert 6 in dump["streams"]
+    _, rva = dump["streams"][6]
+    exception_address = struct.unpack_from("<Q", dump["data"], rva + 24)[0]
+    assert exception_address == 0xF1234000, f"Fault address: {exception_address:#018x}"
+
+
 def _codesign_for_task_for_pid(*paths):
     """
     Ad-hoc codesign macOS binaries with ``com.apple.security.cs.debugger``
@@ -1393,6 +1570,11 @@ def test_crash_mode_minidump_only(cmake, httpserver):
         for item in envelope.items
     )
     assert has_minidump, "Minidump mode should include minidump"
+
+    # The minidump holds the exception
+    event = envelope.get_event()
+    assert event is not None
+    assert "exception" not in event
 
 
 @pytest.mark.xfail(
@@ -2040,3 +2222,93 @@ def test_native_proxy_system(cmake, httpserver, proxy_empty):
             proxy_process,
             expected_proxy_logsize=0 if proxy_empty else None,
         )
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or is_wine or is_asan or is_tsan or is_kcov,
+    reason="Covers the Linux and macOS writers, without sanitizer shadow memory "
+    "or kcov's ptrace tracer",
+)
+@pytest.mark.parametrize(
+    "args, embedded, uploaded",
+    [
+        (["large-allocation", "8"], True, False),
+        (["sparse-allocation", "large-allocation", "600"], True, False),
+        (["large-allocation", "600"], False, False),
+        (["large-attachment", "large-allocation", "128"], False, True),
+    ],
+)
+def test_native_full_mode(cmake, httpserver, args, embedded, uploaded):
+    # Static build so the hardened-runtime process can load itself without
+    # tripping the dyld "different team IDs" check on ad-hoc-signed dylibs.
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {"SENTRY_BACKEND": "native", "BUILD_SHARED_LIBS": "OFF"},
+    )
+
+    if sys.platform == "darwin":
+        _codesign_for_task_for_pid(
+            str(tmp_path / "sentry_test_integration"),
+            str(tmp_path / "sentry-crash"),
+        )
+
+    httpserver.expect_request("/api/123456/upload/").respond_with_data(
+        "Not Found", status=404
+    )
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=300) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "stdout", "minidump-mode", "2", *args, "crash"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    requests = [entry[0] for entry in httpserver.log]
+    envelope = Envelope.deserialize(
+        next(req for req in requests if "/envelope/" in req.path).get_data()
+    )
+    assert envelope.get_event() is not None
+
+    minidumps = [
+        item.payload.bytes
+        for item in envelope
+        if item.headers.get("attachment_type") == "event.minidump"
+    ]
+    assert len(minidumps) == int(embedded)
+    # The fixture ends its allocation with this pattern
+    assert all(b"\xa5" * 32 in minidump for minidump in minidumps)
+
+    # sentry <base64({"attachment_type":"event.minidump"})>
+    metadata = "sentry eyJhdHRhY2htZW50X3R5cGUiOiJldmVudC5taW5pZHVtcCJ9"
+    assert uploaded == any(
+        req.headers.get("upload-metadata") == metadata for req in requests
+    )
+
+
+@pytest.mark.skipif(is_valgrind, reason="valgrind replaces malloc")
+@pytest.mark.skipif(sys.platform == "win32", reason="the heap lock is recursive")
+def test_native_crash_malloc_locked(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_malloc_lock"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        # fail fast if the crash handler deadlocks on the allocator
+        result = run_crash(
+            tmp_path,
+            "sentry_test_malloc_lock",
+            ["log", "attachment", "crash-malloc-locked"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            timeout=60,
+        )
+        if result.returncode == 77:
+            pytest.skip("malloc lock unavailable")
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_native_crash(envelope)
+    assert_attachment(envelope)
