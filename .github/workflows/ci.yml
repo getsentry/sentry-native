@@ -558,6 +558,13 @@ jobs:
           Get-Service WerSvc | Format-List Name, Status, StartType
           Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting' -ErrorAction SilentlyContinue
           Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting' -ErrorAction SilentlyContinue
+          # WER does not store reports while diagnostic data is off
+          foreach ($key in @(
+              'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection'
+              'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection'
+              'HKLM:\SOFTWARE\Wow6432Node\Policies\Microsoft\Windows\DataCollection')) {
+            if (Test-Path $key) { Set-ItemProperty $key -Name AllowTelemetry -Value 1 -Type DWord }
+          }
           New-Item -Force 'HKCU:\Software\Microsoft\Windows\Windows Error Reporting' | Out-Null
           Set-ItemProperty 'HKCU:\Software\Microsoft\Windows\Windows Error Reporting' -Name DontShowUI -Value 1 -Type DWord
 
