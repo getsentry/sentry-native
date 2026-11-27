@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Native/Windows: capture WinUI crashes that bypass the unhandled exception filter, such as crashes and unhandled errors on the UI thread. ([#2346](https://github.com/getsentry/sentry-native/pull/2346))
+
 **Fixes**:
 
 - Native: detect daemon startup failure to avoid a 10s stall in `sentry_init` on Windows and Linux. ([#2349](https://github.com/getsentry/sentry-native/pull/2349))
