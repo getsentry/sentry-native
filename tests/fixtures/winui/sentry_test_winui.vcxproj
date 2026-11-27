@@ -10,6 +10,8 @@
     <ProjectGuid>{6C1A4E2B-3F57-4F0B-9C55-0F1D2E3A4B5C}</ProjectGuid>
     <RootNamespace>sentry_test_winui</RootNamespace>
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+    <!-- VS 2022 fails to resolve NuGet assets without a target moniker -->
+    <NuGetTargetMoniker>native,Version=v0.0</NuGetTargetMoniker>
     <CppWinRTOptimized>true</CppWinRTOptimized>
     <MinimalCoreWin>true</MinimalCoreWin>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
