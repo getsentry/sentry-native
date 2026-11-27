@@ -468,9 +468,12 @@ def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
     assert any(b.get("message") == "100" for b in breadcrumbs)
 
 
+@pytest.mark.parametrize("attempt", range(25))
 @pytest.mark.parametrize("mode", [0, 1, 2])
 @pytest.mark.parametrize("scoped_trace", [False, True])
-def test_native_scope_updates_without_snapshot(cmake, httpserver, mode, scoped_trace):
+def test_native_scope_updates_without_snapshot(
+    cmake, httpserver, mode, scoped_trace, attempt
+):
     tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(
@@ -488,7 +491,10 @@ def test_native_scope_updates_without_snapshot(cmake, httpserver, mode, scoped_t
             env=env,
         )
     if not waiting.result:
-        for path in (tmp_path / ".sentry-native").glob("*.run/sentry-daemon.log"):
+        logs = (tmp_path / ".sentry-native").glob("*.run/sentry-daemon.log")
+        path = max(logs, key=lambda p: p.stat().st_mtime, default=None)
+        print(f"=== daemon log: {path} ===")
+        if path:
             print(path.read_text(encoding="utf-8", errors="replace"))
     assert waiting.result
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
