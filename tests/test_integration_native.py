@@ -468,7 +468,7 @@ def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
     assert any(b.get("message") == "100" for b in breadcrumbs)
 
 
-@pytest.mark.parametrize("attempt", range(25))
+@pytest.mark.parametrize("attempt", range(5))
 @pytest.mark.parametrize("mode", [0, 1, 2])
 @pytest.mark.parametrize("scoped_trace", [False, True])
 def test_native_scope_updates_without_snapshot(

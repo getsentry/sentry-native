@@ -1,0 +1,60 @@
+# PROBE: temporary workflow for the native scope minidump flake
+name: Probe
+
+on:
+  push:
+    branches:
+      - jpnurmi/test/native-scope-daemon-log
+
+jobs:
+  probe:
+    name: Probe ${{ matrix.n }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        n: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    env:
+      ERROR_ON_WARNINGS: 1
+      SENTRY_TEST_BUILD_ERROR_LIMIT: "10"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Runner info
+        shell: powershell
+        run: |
+          Get-CimInstance Win32_Processor | Format-List Name,Manufacturer,NumberOfCores,NumberOfLogicalProcessors
+          Get-CimInstance Win32_ComputerSystem | Format-List Model,TotalPhysicalMemory
+          Get-CimInstance Win32_OperatingSystem | Format-List Caption,Version,BuildNumber
+          Get-ProcessMitigation -System
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Remove Strawberry Perl from PATH
+        shell: powershell
+        run: |
+          $strawberryBins = @(
+            'C:\Strawberry\c\bin',
+            'C:\Strawberry\perl\site\bin',
+            'C:\Strawberry\perl\bin'
+          )
+
+          $cleanedPaths   = $env:Path -split ';' | Where-Object { $_ -and ($strawberryBins -notcontains $_) }
+          $newPath = ($cleanedPaths -join ';')
+
+          "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up zlib for Windows
+        shell: powershell
+        run: . "scripts\install-zlib.ps1"
+
+      - name: Test
+        shell: bash
+        run: |
+          pip install --upgrade --requirement tests/requirements.txt
+          pytest --capture=no --verbose tests/test_integration_native.py -k "scope_updates_without_snapshot or test_native_breadcrumbs"

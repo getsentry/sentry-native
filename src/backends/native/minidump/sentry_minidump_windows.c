@@ -19,6 +19,93 @@
 #        pragma comment(lib, "dbghelp.lib")
 #    endif
 
+// PROBE: temporary diagnostics for ERROR_PARTIAL_COPY on CI
+static BOOL CALLBACK
+probe_callback(PVOID param, const PMINIDUMP_CALLBACK_INPUT input,
+    PMINIDUMP_CALLBACK_OUTPUT output)
+{
+    if (input->CallbackType == ReadMemoryFailureCallback) {
+        HANDLE process = (HANDLE)param;
+        ULONG64 offset = input->ReadMemoryFailure.Offset;
+        MEMORY_BASIC_INFORMATION mbi = { 0 };
+        VirtualQueryEx(process, (LPCVOID)(ULONG_PTR)offset, &mbi, sizeof(mbi));
+        SENTRY_WARNF("PROBE read failure: offset=0x%llx bytes=%lu "
+                     "status=0x%lx base=%p alloc_base=%p alloc_protect=0x%lx "
+                     "size=0x%llx state=0x%lx protect=0x%lx type=0x%lx",
+            (unsigned long long)offset, input->ReadMemoryFailure.Bytes,
+            (unsigned long)input->ReadMemoryFailure.FailureStatus,
+            mbi.BaseAddress, mbi.AllocationBase, mbi.AllocationProtect,
+            (unsigned long long)mbi.RegionSize, mbi.State, mbi.Protect,
+            mbi.Type);
+        output->Status = S_OK;
+    }
+    return TRUE;
+}
+
+static void
+probe_minidump(const sentry_crash_context_t *ctx, const char *output_path,
+    const char *label, MINIDUMP_TYPE dump_type, int exception_mode,
+    BOOL callback)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s.probe", output_path);
+    HANDLE file = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE process = OpenProcess(
+        PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, ctx->crashed_pid);
+    if (file == INVALID_HANDLE_VALUE || !process) {
+        SENTRY_WARNF("PROBE %s: setup failed %lu", label, GetLastError());
+        return;
+    }
+
+    EXCEPTION_POINTERS pointers = { 0 };
+    EXCEPTION_RECORD record = ctx->platform.exception_record;
+    record.ExceptionRecord = NULL;
+    pointers.ExceptionRecord = &record;
+    pointers.ContextRecord = (PCONTEXT)&ctx->platform.context;
+    MINIDUMP_EXCEPTION_INFORMATION info = { 0 };
+    info.ThreadId = ctx->crashed_tid;
+    if (exception_mode == 1) {
+        info.ExceptionPointers = ctx->platform.exception_pointers;
+        info.ClientPointers = TRUE;
+    } else {
+        info.ExceptionPointers = &pointers;
+        info.ClientPointers = FALSE;
+    }
+    MINIDUMP_CALLBACK_INFORMATION cb = { probe_callback, process };
+
+    BOOL ok = MiniDumpWriteDump(process, ctx->crashed_pid, file, dump_type,
+        exception_mode ? &info : NULL, NULL, callback ? &cb : NULL);
+    DWORD error = ok ? 0 : GetLastError();
+    LARGE_INTEGER size = { 0 };
+    GetFileSizeEx(file, &size);
+    SENTRY_WARNF("PROBE %s: ok=%d error=%lu size=%lld", label, ok, error,
+        (long long)size.QuadPart);
+    CloseHandle(process);
+    CloseHandle(file);
+    DeleteFileA(path);
+}
+
+static void
+probe_failure(const sentry_crash_context_t *ctx, const char *output_path,
+    MINIDUMP_TYPE dump_type)
+{
+    const EXCEPTION_RECORD *rec = &ctx->platform.exception_record;
+    SENTRY_WARNF("PROBE exception: code=0x%lx flags=0x%lx address=%p "
+                 "params=%lu p0=0x%llx p1=0x%llx pointers=%p tid=%lu "
+                 "dump_type=0x%x",
+        rec->ExceptionCode, rec->ExceptionFlags, rec->ExceptionAddress,
+        rec->NumberParameters, (unsigned long long)rec->ExceptionInformation[0],
+        (unsigned long long)rec->ExceptionInformation[1],
+        (void *)ctx->platform.exception_pointers, ctx->crashed_tid,
+        (unsigned)dump_type);
+    probe_minidump(ctx, output_path, "same", dump_type, 1, FALSE);
+    probe_minidump(ctx, output_path, "local-pointers", dump_type, 2, FALSE);
+    probe_minidump(ctx, output_path, "no-exception", dump_type, 0, FALSE);
+    probe_minidump(ctx, output_path, "normal", MiniDumpNormal, 1, FALSE);
+    probe_minidump(ctx, output_path, "callback", dump_type, 1, TRUE);
+}
+
 /**
  * Windows minidump writer
  * Windows provides MiniDumpWriteDump API which does all the heavy lifting!
@@ -134,6 +221,7 @@ sentry__write_minidump(
 
     if (!success) {
         SENTRY_WARNF("MiniDumpWriteDump failed: %lu", error);
+        probe_failure(ctx, output_path, dump_type);
         wchar_t *wdelete_path2 = sentry__string_to_wstr(output_path);
         if (wdelete_path2) {
             DeleteFileW(wdelete_path2);
