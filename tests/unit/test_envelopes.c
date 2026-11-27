@@ -1174,7 +1174,7 @@ SENTRY_TEST(attachment_ref_roundtrip)
 }
 
 static void
-check_oversized_minidump(sentry_envelope_t *envelope, void *data)
+check_large_minidump(sentry_envelope_t *envelope, void *data)
 {
     size_t *called = data;
     (*called)++;
@@ -1184,43 +1184,38 @@ check_oversized_minidump(sentry_envelope_t *envelope, void *data)
     char filename[41];
     sentry_uuid_as_string(&event_id, filename);
     memcpy(filename + 36, ".dmp", 5);
-    check_attachment_ref_item(envelope, 1, "sentry_test_oversized_minidump.dmp",
+    check_attachment_ref_item(envelope, 1, "sentry_test_large_minidump.dmp",
         "application/octet-stream", SENTRY_ATTACHMENT_TYPE_MINIDUMP,
-        SENTRY_MAX_ATTACHMENT_SIZE + 1, filename);
+        SENTRY_LARGE_ATTACHMENT_SIZE + 1, filename);
 
     SENTRY_WITH_OPTIONS (options) {
         sentry_path_t *cached
             = sentry__path_join_str(options->run->cache_path, filename);
         TEST_CHECK_INT_EQUAL(
-            sentry__path_get_size(cached), SENTRY_MAX_ATTACHMENT_SIZE + 1);
+            sentry__path_get_size(cached), SENTRY_LARGE_ATTACHMENT_SIZE + 1);
         sentry__path_remove(cached);
         sentry__path_free(cached);
     }
     sentry_envelope_free(envelope);
 }
 
-SENTRY_TEST(capture_minidump_oversized)
+SENTRY_TEST(capture_minidump_large)
 {
 #if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
     || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
     SKIP_TEST();
 #else
     const char *filename
-        = SENTRY_TEST_PATH_PREFIX "sentry_test_oversized_minidump.dmp";
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_large_minidump.dmp";
     sentry_path_t *path = sentry__path_from_str(filename);
     FILE *f = fopen(filename, "wb");
     TEST_ASSERT(!!f);
-    TEST_ASSERT_INT_EQUAL(fseek(f, SENTRY_MAX_ATTACHMENT_SIZE, SEEK_SET), 0);
+    TEST_ASSERT_INT_EQUAL(fseek(f, SENTRY_LARGE_ATTACHMENT_SIZE, SEEK_SET), 0);
     TEST_ASSERT_INT_EQUAL(fputc('x', f), 'x');
     TEST_ASSERT_INT_EQUAL(fclose(f), 0);
 
-    sentry_value_t attachment = sentry_attachment_from_file(filename);
-    TEST_CHECK(sentry_value_is_null(attachment));
-    sentry_value_decref(attachment);
-
     size_t called = 0;
-    sentry_transport_t *transport
-        = sentry_transport_new(check_oversized_minidump);
+    sentry_transport_t *transport = sentry_transport_new(check_large_minidump);
     sentry_transport_set_state(transport, &called);
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -1231,7 +1226,7 @@ SENTRY_TEST(capture_minidump_oversized)
     sentry_uuid_t event_id = sentry_capture_minidump(filename);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
     TEST_CHECK_INT_EQUAL(
-        sentry__path_get_size(path), SENTRY_MAX_ATTACHMENT_SIZE + 1);
+        sentry__path_get_size(path), SENTRY_LARGE_ATTACHMENT_SIZE + 1);
     sentry_close();
     sentry__path_remove(path);
     sentry__path_free(path);
