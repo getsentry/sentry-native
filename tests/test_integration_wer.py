@@ -527,6 +527,7 @@ def build_winui(tmp_path):
 
     project_path = tmp_path / "winui"
     shutil.copytree(winui_fixture_path, project_path, dirs_exist_ok=True)
+    arch = "ARM64" if platform.machine() == "ARM64" else "x64"
     subprocess.run(
         [
             msbuild,
@@ -536,7 +537,7 @@ def build_winui(tmp_path):
             "-nodeReuse:false",
             "-verbosity:minimal",
             "-p:Configuration=Debug",
-            "-p:Platform=x64",
+            f"-p:Platform={arch}",
             "-p:IgnoreWarnIntDirInTempDetected=true",
             f"-p:OutDir={tmp_path}\\",
             f"-p:SentryIncludeDir={Path(__file__).parent.parent / 'include'}",
@@ -549,8 +550,8 @@ def build_winui(tmp_path):
 
 @pytest.mark.skipif(not has_native or is_qemu, reason="native backend not available")
 @pytest.mark.skipif(
-    is_x86 or platform.machine() != "AMD64",
-    reason="the WinUI fixture is only built for x64",
+    is_x86 or platform.machine() not in ("AMD64", "ARM64"),
+    reason="the WinUI fixture is only built for x64 and ARM64",
 )
 @pytest.mark.parametrize(
     "crash_arg,exception_code",
