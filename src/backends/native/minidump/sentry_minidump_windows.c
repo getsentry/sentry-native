@@ -87,6 +87,73 @@ probe_minidump(const sentry_crash_context_t *ctx, const char *output_path,
 }
 
 static void
+probe_context(const sentry_crash_context_t *ctx)
+{
+    SENTRY_WARNF("PROBE local: context_flags=0x%lx sizeof(CONTEXT)=%zu "
+                 "enabled_xstate=0x%llx",
+        ctx->platform.context.ContextFlags, sizeof(CONTEXT),
+        (unsigned long long)GetEnabledXStateFeatures());
+    HANDLE process = OpenProcess(
+        PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, ctx->crashed_pid);
+    if (!process) {
+        return;
+    }
+    EXCEPTION_POINTERS pointers = { 0 };
+    SIZE_T read = 0;
+    BOOL ok = ReadProcessMemory(process, ctx->platform.exception_pointers,
+        &pointers, sizeof(pointers), &read);
+    SENTRY_WARNF("PROBE pointers: ok=%d record=%p context=%p", ok,
+        (void *)pointers.ExceptionRecord, (void *)pointers.ContextRecord);
+    if (ok && pointers.ContextRecord) {
+        MEMORY_BASIC_INFORMATION mbi = { 0 };
+        VirtualQueryEx(process, pointers.ContextRecord, &mbi, sizeof(mbi));
+        ULONG_PTR end = (ULONG_PTR)mbi.BaseAddress + mbi.RegionSize;
+        SENTRY_WARNF("PROBE context region: base=%p size=0x%llx "
+                     "headroom=0x%llx state=0x%lx protect=0x%lx",
+            mbi.BaseAddress, (unsigned long long)mbi.RegionSize,
+            (unsigned long long)(end - (ULONG_PTR)pointers.ContextRecord),
+            mbi.State, mbi.Protect);
+        DWORD flags = 0;
+        ok = ReadProcessMemory(process,
+            (char *)pointers.ContextRecord + offsetof(CONTEXT, ContextFlags),
+            &flags, sizeof(flags), &read);
+        SENTRY_WARNF(
+            "PROBE remote context_flags: ok=%d flags=0x%lx", ok, flags);
+        struct {
+            LONG offset;
+            DWORD length;
+        } chunks[3] = { 0 };
+        ok = ReadProcessMemory(process,
+            (char *)pointers.ContextRecord + sizeof(CONTEXT), chunks,
+            sizeof(chunks), &read);
+        SENTRY_WARNF("PROBE context_ex: ok=%d all=(%ld,%lu) legacy=(%ld,%lu) "
+                     "xstate=(%ld,%lu)",
+            ok, chunks[0].offset, chunks[0].length, chunks[1].offset,
+            chunks[1].length, chunks[2].offset, chunks[2].length);
+        if (ok) {
+            char *ex = (char *)pointers.ContextRecord + sizeof(CONTEXT);
+            ULONG_PTR all_end
+                = (ULONG_PTR)ex + chunks[0].offset + chunks[0].length;
+            ULONG_PTR xstate_end
+                = (ULONG_PTR)ex + chunks[2].offset + chunks[2].length;
+            SENTRY_WARNF(
+                "PROBE context_ex ends: all_end=0x%llx xstate_end=0x%llx "
+                "region_end=0x%llx",
+                (unsigned long long)all_end, (unsigned long long)xstate_end,
+                (unsigned long long)end);
+        }
+    }
+    if (ok && pointers.ExceptionRecord) {
+        EXCEPTION_RECORD record = { 0 };
+        ok = ReadProcessMemory(
+            process, pointers.ExceptionRecord, &record, sizeof(record), &read);
+        SENTRY_WARNF("PROBE remote record: ok=%d read=%zu chained=%p", ok, read,
+            (void *)record.ExceptionRecord);
+    }
+    CloseHandle(process);
+}
+
+static void
 probe_failure(const sentry_crash_context_t *ctx, const char *output_path,
     MINIDUMP_TYPE dump_type)
 {
@@ -99,6 +166,7 @@ probe_failure(const sentry_crash_context_t *ctx, const char *output_path,
         (unsigned long long)rec->ExceptionInformation[1],
         (void *)ctx->platform.exception_pointers, ctx->crashed_tid,
         (unsigned)dump_type);
+    probe_context(ctx);
     probe_minidump(ctx, output_path, "same", dump_type, 1, FALSE);
     probe_minidump(ctx, output_path, "local-pointers", dump_type, 2, FALSE);
     probe_minidump(ctx, output_path, "no-exception", dump_type, 0, FALSE);
