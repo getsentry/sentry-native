@@ -1377,6 +1377,9 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     if (ipc->parent_handle) {
         CloseHandle(ipc->parent_handle);
     }
+    if (ipc->daemon_handle) {
+        CloseHandle(ipc->daemon_handle);
+    }
 
     sentry_free(ipc);
 }
@@ -1436,10 +1439,16 @@ sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
     }
 
     DWORD timeout = (timeout_ms >= 0) ? (DWORD)timeout_ms : INFINITE;
-    DWORD result = WaitForSingleObject(ipc->ready_event_handle, timeout);
+    // the process handle is signaled when the daemon exits
+    HANDLE handles[] = { ipc->ready_event_handle, ipc->daemon_handle };
+    DWORD result = WaitForMultipleObjects(
+        ipc->daemon_handle ? 2 : 1, handles, FALSE, timeout);
 
     if (result == WAIT_OBJECT_0) {
         return true;
+    } else if (result == WAIT_OBJECT_0 + 1) {
+        SENTRY_WARN("crash daemon exited before signaling ready");
+        return false;
     } else if (result == WAIT_TIMEOUT) {
         return false;
     } else {

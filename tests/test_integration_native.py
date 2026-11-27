@@ -2330,9 +2330,7 @@ def test_native_crash_malloc_locked(cmake, httpserver):
         ),
         pytest.param(
             "exits",
-            marks=pytest.mark.skipif(
-                sys.platform == "win32" or is_wine, reason="POSIX only"
-            ),
+            marks=pytest.mark.skipif(is_wine, reason="no hostname.exe on PATH"),
         ),
     ],
 )
@@ -2345,10 +2343,13 @@ def test_native_daemon_start_failure(cmake, tmp_path_factory, daemon):
     for dll in build_path.glob("*.dll"):
         shutil.copy2(dll, tmp_path)
 
-    daemon_path = tmp_path / "sentry-crash"
+    daemon_path = tmp_path / exe_name("sentry-crash")
     if daemon == "not-executable":
         shutil.copy2(build_path / "sentry-crash", daemon_path)
         daemon_path.chmod(0o644)
+    elif daemon == "exits" and sys.platform == "win32":
+        # exits on the daemon's arguments
+        shutil.copy2(shutil.which("hostname"), daemon_path)
     elif daemon == "exits":
         daemon_path.write_text("#!/bin/sh\nexit 1\n")
         daemon_path.chmod(0o755)
@@ -2361,7 +2362,7 @@ def test_native_daemon_start_failure(cmake, tmp_path_factory, daemon):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    # Linux logs the exit, and other platforms never log a ready timeout
+    # Linux and Windows log the exit, and macOS never logs a ready timeout
     assert (
         b"crash daemon exited before signaling ready" in result.stderr
         or b"did not signal ready" not in result.stderr
