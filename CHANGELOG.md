@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Drop the outdated 1 GiB size limit for TUS attachment uploads. ([#2352](https://github.com/getsentry/sentry-native/pull/2352))
+
 ## 1.0.0-beta.2
 
 **Features**:

@@ -7,7 +7,6 @@
 #include "sentry_value.h"
 
 #define SENTRY_LARGE_ATTACHMENT_SIZE (100 * 1024 * 1024) // 100 MiB
-#define SENTRY_MAX_ATTACHMENT_SIZE (1024 * 1024 * 1024) // 1 GiB
 
 /*
  * Attachments are object values with two data representations:
