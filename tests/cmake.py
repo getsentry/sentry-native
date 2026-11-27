@@ -5,6 +5,7 @@ import subprocess
 import sys
 import platform
 import re
+import time
 from collections import Counter, deque
 from pathlib import Path
 
@@ -30,6 +31,27 @@ with open(Path(__file__).parent.parent / ".github" / "problem-matchers.json") as
         for m in json.load(f)["problemMatcher"]
     ]
 
+# outlives the session fixture for the terminal summary
+build_stats = dict()
+
+
+def format_build_stats(verbose=False):
+    rows = sorted(
+        build_stats.items(),
+        key=lambda row: (len(row[1]["tests"]), -row[1]["seconds"]),
+    )
+    lines = [f"{'tests':>5}  {'time':>7}  configuration [targets]"]
+    for (source_dir, config), stats in rows:
+        label = f"{config} ({source_dir})" if source_dir else config
+        targets = ", ".join(sorted(stats["targets"]))
+        lines.append(
+            f"{len(stats['tests']):>5}  {stats['seconds']:>6.1f}s  "
+            f"{label or '(default)'} [{targets}]"
+        )
+        if verbose or len(stats["tests"]) == 1:
+            lines.extend(f"{'':16}{test}" for test in sorted(stats["tests"]))
+    return "\n".join(lines) + "\n"
+
 
 class CMake:
     def __init__(self, factory):
@@ -45,10 +67,12 @@ class CMake:
 
         if options is None:
             options = dict()
-        key = ";".join(f"{k}={v}" for k, v in options.items())
+        key = ";".join(f"{k}={v}" for k, v in sorted(options.items()))
         if cflags:
             key += ";" + ";".join(cflags)
         key = (source_dir, key)
+
+        start = time.monotonic()
 
         # cache the build configuration
         if key not in self.runs:
@@ -63,6 +87,13 @@ class CMake:
             if new_targets:
                 cmake_build(cwd, new_targets, options)
                 built_targets.update(new_targets)
+
+        stats = build_stats.setdefault(
+            key, {"seconds": 0, "targets": set(), "tests": set()}
+        )
+        stats["seconds"] += time.monotonic() - start
+        stats["targets"].update(targets)
+        stats["tests"].add(os.environ["PYTEST_CURRENT_TEST"].rsplit(" ", 1)[0])
 
         build_tmp_path = cwd
 

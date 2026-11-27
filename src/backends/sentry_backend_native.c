@@ -526,7 +526,7 @@ daemon_start(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     HANDLE ready_event_handle, HANDLE message_read_handle,
-    const char *handler_path)
+    const char *handler_path, HANDLE *daemon_handle)
 #endif
 {
 #if defined(SENTRY_PLATFORM_MACOS)
@@ -820,8 +820,7 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Close thread handle (we don't need it)
     CloseHandle(pi.hThread);
 
-    // Close process handle (daemon is independent)
-    CloseHandle(pi.hProcess);
+    *daemon_handle = pi.hProcess;
 
     // Return daemon process ID
     return pi.dwProcessId;
@@ -1112,9 +1111,10 @@ native_backend_startup(
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     daemon_handler_path = resolve_handler_path(options);
     uint64_t tid = (uint64_t)GetCurrentThreadId();
-    state->daemon_pid = daemon_start(GetCurrentProcessId(), tid,
-        state->ipc->event_handle, state->ipc->ready_event_handle,
-        state->ipc->message_read_handle, daemon_handler_path);
+    state->daemon_pid
+        = daemon_start(GetCurrentProcessId(), tid, state->ipc->event_handle,
+            state->ipc->ready_event_handle, state->ipc->message_read_handle,
+            daemon_handler_path, &state->ipc->daemon_handle);
 #    endif
     sentry_free(daemon_handler_path);
 
@@ -1190,7 +1190,7 @@ native_backend_startup(
         SENTRY_DEBUG("not waiting for the crash service to signal ready");
     } else if (!sentry__crash_ipc_wait_for_ready(
                    state->ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS)) {
-        SENTRY_WARN("Daemon did not signal ready in time, proceeding anyway");
+        SENTRY_WARN("Daemon did not signal ready, proceeding anyway");
     } else {
         SENTRY_DEBUG("Daemon signaled ready");
     }

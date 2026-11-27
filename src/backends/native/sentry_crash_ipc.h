@@ -167,6 +167,7 @@ typedef struct {
     wchar_t event_name[SENTRY_CRASH_IPC_NAME_SIZE];
     wchar_t ready_event_name[SENTRY_CRASH_IPC_NAME_SIZE];
     HANDLE init_mutex; // Named mutex for initialization synchronization
+    HANDLE daemon_handle; // Daemon process (app side)
 #endif
 
     sentry_process_handle_t parent_handle;

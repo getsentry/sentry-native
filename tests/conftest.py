@@ -1,3 +1,4 @@
+import ctypes
 import json
 import os
 import subprocess
@@ -10,7 +11,7 @@ import struct
 import threading
 from datetime import datetime, timedelta, UTC
 from . import adb, run
-from .cmake import CMake
+from .cmake import CMake, build_stats, format_build_stats
 from .conditions import has_sccache, is_android, is_wine
 import tests
 
@@ -141,6 +142,11 @@ def pytest_configure(config):
         "markers",
         "with_wer: mark test to only run when WER testing is enabled",
     )
+    if sys.platform == "win32" and config.getoption("--with_wer"):
+        # WER ignores crashes in processes that inherit SEM_NOGPFAULTERRORBOX
+        SEM_NOGPFAULTERRORBOX = 0x2
+        kernel32 = ctypes.windll.kernel32
+        kernel32.SetErrorMode(kernel32.GetErrorMode() & ~SEM_NOGPFAULTERRORBOX)
 
 
 @pytest.fixture
@@ -275,10 +281,13 @@ def pytest_sessionstart(session):
 
 
 def pytest_terminal_summary(terminalreporter):
-    if has_sccache:
+    if has_sccache and terminalreporter.verbosity > 1:
         result = subprocess.run(
             ["sccache", "--show-stats"], capture_output=True, text=True
         )
         if result.stdout:
             terminalreporter.section("sccache stats")
             terminalreporter.write(result.stdout)
+    if build_stats and terminalreporter.verbosity > 1:
+        terminalreporter.section("cmake builds")
+        terminalreporter.write(format_build_stats(terminalreporter.verbosity > 2))

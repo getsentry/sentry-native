@@ -29,6 +29,7 @@
   </Dependencies>
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
     <uap4:CustomCapability Name="Microsoft.classicAppCompat_8wekyb3d8bbwe" />
   </Capabilities>
   <Applications>
