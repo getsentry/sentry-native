@@ -108,7 +108,7 @@ sentry__write_minidump(
 #    ifdef CONTEXT_XSTATE
     // Only sizeof(CONTEXT) is copied, without the extended state. Clear its
     // flag but keep the architecture bit that CONTEXT_XSTATE includes.
-    local_context.ContextFlags &= ~(CONTEXT_XSTATE & ~CONTEXT_CONTROL);
+    local_context.ContextFlags &= ~(DWORD)(CONTEXT_XSTATE & ~CONTEXT_CONTROL);
 #    endif
     local_exception_pointers.ExceptionRecord = &local_exception_record;
     local_exception_pointers.ContextRecord = &local_context;
