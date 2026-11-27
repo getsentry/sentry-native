@@ -131,8 +131,7 @@ sentry_options_new(void)
     opts->thread_stackwalk_mode = SENTRY_THREAD_STACKWALK_MODE_ALL;
     opts->enable_app_hang_tracking = false;
     opts->app_hang_timeout = 5000;
-    opts->app_hang_thread_stackwalk_mode
-        = SENTRY_THREAD_STACKWALK_MODE_HUNG_ONLY;
+    opts->app_hang_thread_stackwalk_mode = SENTRY_THREAD_STACKWALK_MODE_SINGLE;
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
@@ -703,8 +702,8 @@ sentry_options_set_thread_stackwalk_mode(
 {
     // Clamp to valid range (cast to int to handle negative values)
     int imode = (int)mode;
-    if (imode < SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY) {
-        imode = SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY;
+    if (imode < SENTRY_THREAD_STACKWALK_MODE_SINGLE) {
+        imode = SENTRY_THREAD_STACKWALK_MODE_SINGLE;
     } else if (imode > SENTRY_THREAD_STACKWALK_MODE_ALL) {
         imode = SENTRY_THREAD_STACKWALK_MODE_ALL;
     }
@@ -1093,8 +1092,8 @@ sentry_options_set_app_hang_thread_stackwalk_mode(
     sentry_options_t *opts, sentry_thread_stackwalk_mode_t mode)
 {
     int imode = (int)mode;
-    if (imode < SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY) {
-        imode = SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY;
+    if (imode < SENTRY_THREAD_STACKWALK_MODE_SINGLE) {
+        imode = SENTRY_THREAD_STACKWALK_MODE_SINGLE;
     } else if (imode > SENTRY_THREAD_STACKWALK_MODE_ALL) {
         imode = SENTRY_THREAD_STACKWALK_MODE_ALL;
     }

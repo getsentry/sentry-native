@@ -309,9 +309,9 @@ SENTRY_TEST(options_thread_stackwalk_mode_set_get)
     SENTRY_TEST_OPTIONS_NEW(options);
 
     sentry_options_set_thread_stackwalk_mode(
-        options, SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY);
+        options, SENTRY_THREAD_STACKWALK_MODE_SINGLE);
     TEST_CHECK_INT_EQUAL(sentry_options_get_thread_stackwalk_mode(options),
-        SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY);
+        SENTRY_THREAD_STACKWALK_MODE_SINGLE);
 
     sentry_options_set_thread_stackwalk_mode(
         options, SENTRY_THREAD_STACKWALK_MODE_ALL);
@@ -330,15 +330,15 @@ SENTRY_TEST(options_thread_stackwalk_mode_clamp)
     TEST_CHECK_INT_EQUAL(sentry_options_get_thread_stackwalk_mode(options),
         SENTRY_THREAD_STACKWALK_MODE_ALL);
 
-    // Test clamping invalid low values to CRASHED_ONLY
+    // Test clamping invalid low values to SINGLE
     sentry_options_set_thread_stackwalk_mode(options, -1);
     TEST_CHECK_INT_EQUAL(sentry_options_get_thread_stackwalk_mode(options),
-        SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY);
+        SENTRY_THREAD_STACKWALK_MODE_SINGLE);
 
-    // The reserved zero value clamps to CRASHED_ONLY as well
+    // The reserved zero value clamps to SINGLE as well
     sentry_options_set_thread_stackwalk_mode(options, 0);
     TEST_CHECK_INT_EQUAL(sentry_options_get_thread_stackwalk_mode(options),
-        SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY);
+        SENTRY_THREAD_STACKWALK_MODE_SINGLE);
 
     sentry_options_free(options);
 }
