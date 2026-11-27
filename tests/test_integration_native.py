@@ -490,7 +490,7 @@ def test_native_scope_updates_without_snapshot(
             ["--no-exec", "native_scope_updates"],
             env=env,
         )
-    if not waiting.result:
+    if not waiting.result or mode == 0:
         logs = (tmp_path / ".sentry-native").glob("*.run/sentry-daemon.log")
         path = max(logs, key=lambda p: p.stat().st_mtime, default=None)
         print(f"=== daemon log: {path} ===")

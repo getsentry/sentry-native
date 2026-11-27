@@ -89,10 +89,13 @@ probe_minidump(const sentry_crash_context_t *ctx, const char *output_path,
 static void
 probe_context(const sentry_crash_context_t *ctx)
 {
+    DWORD context_len = 0;
+    InitializeContext(
+        NULL, ctx->platform.context.ContextFlags, NULL, &context_len);
     SENTRY_WARNF("PROBE local: context_flags=0x%lx sizeof(CONTEXT)=%zu "
-                 "enabled_xstate=0x%llx",
+                 "enabled_xstate=0x%llx context_len=0x%lx",
         ctx->platform.context.ContextFlags, sizeof(CONTEXT),
-        (unsigned long long)GetEnabledXStateFeatures());
+        (unsigned long long)GetEnabledXStateFeatures(), context_len);
     HANDLE process = OpenProcess(
         PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, ctx->crashed_pid);
     if (!process) {
@@ -166,7 +169,6 @@ probe_failure(const sentry_crash_context_t *ctx, const char *output_path,
         (unsigned long long)rec->ExceptionInformation[1],
         (void *)ctx->platform.exception_pointers, ctx->crashed_tid,
         (unsigned)dump_type);
-    probe_context(ctx);
     probe_minidump(ctx, output_path, "same", dump_type, 1, FALSE);
     probe_minidump(ctx, output_path, "local-pointers", dump_type, 2, FALSE);
     probe_minidump(ctx, output_path, "no-exception", dump_type, 0, FALSE);
@@ -278,11 +280,38 @@ sentry__write_minidump(
         exception_info.ClientPointers = FALSE;
     }
 
+    if (exception_info.ClientPointers) {
+        probe_context(ctx);
+    }
+
     // Write minidump using Windows API
     BOOL success = MiniDumpWriteDump(process_handle, ctx->crashed_pid,
         file_handle, dump_type, &exception_info, NULL, NULL);
 
     DWORD error = GetLastError();
+
+    if (!success && exception_info.ClientPointers) {
+        // dbghelp may fail to read the remote extended context near the top
+        // of the crashed thread's stack. Retry with the copied record/context.
+        SENTRY_WARNF("MiniDumpWriteDump failed with client pointers: %lu, "
+                     "retrying with copied context",
+            error);
+        local_exception_record = ctx->platform.exception_record;
+        local_exception_record.ExceptionRecord = NULL;
+        local_exception_pointers.ExceptionRecord = &local_exception_record;
+        local_exception_pointers.ContextRecord
+            = (PCONTEXT)&ctx->platform.context;
+        exception_info.ExceptionPointers = &local_exception_pointers;
+        exception_info.ClientPointers = FALSE;
+
+        LARGE_INTEGER zero = { 0 };
+        SetFilePointerEx(file_handle, zero, NULL, FILE_BEGIN);
+        SetEndOfFile(file_handle);
+        success = MiniDumpWriteDump(process_handle, ctx->crashed_pid,
+            file_handle, dump_type, &exception_info, NULL, NULL);
+        error = GetLastError();
+        SENTRY_WARNF("PROBE fallback: ok=%d error=%lu", success, error);
+    }
 
     CloseHandle(process_handle);
     CloseHandle(file_handle);
