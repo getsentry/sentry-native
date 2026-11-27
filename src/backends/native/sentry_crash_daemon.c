@@ -3877,14 +3877,13 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
             = sentry_value_get_by_key(attach_info, "filename");
         sentry_value_t attachment_type_val
             = sentry_value_get_by_key(attach_info, "type");
-        sentry_value_t content_type_val
-            = sentry_value_get_by_key(attach_info, "content_type");
 
         const char *path = sentry_value_as_string(path_val);
         const char *filename = sentry_value_as_string(filename_val);
         const char *attachment_type
             = sentry_value_as_string(attachment_type_val);
-        const char *content_type = sentry_value_as_string(content_type_val);
+        const char *content_type
+            = sentry__attachment_get_content_type(attach_info);
 
         if (path && filename && !attachment_is_placeholder(options, path)) {
             write_attachment_to_envelope(
@@ -4099,14 +4098,13 @@ write_envelope_with_minidump(const sentry_options_t *options,
             = sentry_value_get_by_key(attach_info, "filename");
         sentry_value_t attachment_type_val
             = sentry_value_get_by_key(attach_info, "type");
-        sentry_value_t content_type_val
-            = sentry_value_get_by_key(attach_info, "content_type");
 
         const char *path = sentry_value_as_string(path_val);
         const char *filename = sentry_value_as_string(filename_val);
         const char *attachment_type
             = sentry_value_as_string(attachment_type_val);
-        const char *content_type = sentry_value_as_string(content_type_val);
+        const char *content_type
+            = sentry__attachment_get_content_type(attach_info);
 
         if (path && filename && !attachment_is_placeholder(options, path)) {
             write_attachment_to_envelope(
