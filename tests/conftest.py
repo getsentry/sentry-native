@@ -1,3 +1,4 @@
+import ctypes
 import json
 import os
 import subprocess
@@ -141,6 +142,11 @@ def pytest_configure(config):
         "markers",
         "with_wer: mark test to only run when WER testing is enabled",
     )
+    if sys.platform == "win32" and config.getoption("--with_wer"):
+        # WER ignores crashes in processes that inherit SEM_NOGPFAULTERRORBOX
+        SEM_NOGPFAULTERRORBOX = 0x2
+        kernel32 = ctypes.windll.kernel32
+        kernel32.SetErrorMode(kernel32.GetErrorMode() & ~SEM_NOGPFAULTERRORBOX)
 
 
 @pytest.fixture

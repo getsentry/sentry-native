@@ -549,12 +549,17 @@ jobs:
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with: *android-options
 
+      - name: Configure WER
+        if: ${{ runner.os == 'Windows' }}
+        shell: powershell
+        run: . "scripts\configure-wer.ps1"
+
       - name: Test
         if: ${{ !env['ANDROID_API'] }}
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
-          pytest --capture=no -vv tests
+          pytest --capture=no -vv --with_wer tests
 
       - name: Check NDK
         if: ${{ env['ANDROID_API'] }}
