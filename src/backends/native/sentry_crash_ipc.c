@@ -1377,6 +1377,9 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     if (ipc->parent_handle) {
         CloseHandle(ipc->parent_handle);
     }
+    if (ipc->daemon_handle) {
+        CloseHandle(ipc->daemon_handle);
+    }
 
     sentry_free(ipc);
 }
@@ -1436,10 +1439,16 @@ sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
     }
 
     DWORD timeout = (timeout_ms >= 0) ? (DWORD)timeout_ms : INFINITE;
-    DWORD result = WaitForSingleObject(ipc->ready_event_handle, timeout);
+    // the process handle is signaled when the daemon exits
+    HANDLE handles[] = { ipc->ready_event_handle, ipc->daemon_handle };
+    DWORD result = WaitForMultipleObjects(
+        ipc->daemon_handle ? 2 : 1, handles, FALSE, timeout);
 
     if (result == WAIT_OBJECT_0) {
         return true;
+    } else if (result == WAIT_OBJECT_0 + 1) {
+        SENTRY_WARN("crash daemon exited before signaling ready");
+        return false;
     } else if (result == WAIT_TIMEOUT) {
         return false;
     } else {
@@ -1453,15 +1462,27 @@ sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
     fd_set readfds;
     FD_ZERO(&readfds);
     FD_SET(ipc->ready_fd, &readfds);
+    int max_fd = ipc->ready_fd;
+    // the message socket hangs up when the daemon exits
+    if (ipc->message_fd[0] >= 0) {
+        FD_SET(ipc->message_fd[0], &readfds);
+        if (ipc->message_fd[0] > max_fd) {
+            max_fd = ipc->message_fd[0];
+        }
+    }
 
     struct timeval timeout;
     timeout.tv_sec = timeout_ms / 1000;
     timeout.tv_usec = (timeout_ms % 1000) * 1000;
 
-    int result = select(ipc->ready_fd + 1, &readfds, NULL, NULL,
-        timeout_ms >= 0 ? &timeout : NULL);
+    int result = select(
+        max_fd + 1, &readfds, NULL, NULL, timeout_ms >= 0 ? &timeout : NULL);
 
     if (result > 0) {
+        if (!FD_ISSET(ipc->ready_fd, &readfds)) {
+            SENTRY_WARN("crash daemon exited before signaling ready");
+            return false;
+        }
         // Read the eventfd value
         uint64_t val;
         if (read(ipc->ready_fd, &val, sizeof(val)) < 0) {
