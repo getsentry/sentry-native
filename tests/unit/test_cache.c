@@ -175,7 +175,8 @@ count_cached_envelopes(const sentry_path_t *cache_path, int *retry_format)
             const char *uuid;
             if (retry_format
                 && sentry__parse_cache_filename(
-                    sentry__path_filename(entry), &ts, &attempt, &uuid)) {
+                    sentry__path_filename(entry), &ts, &attempt, &uuid)
+                && attempt >= 0) {
                 (*retry_format)++;
             }
         }
