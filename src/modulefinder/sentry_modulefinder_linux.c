@@ -637,10 +637,13 @@ load_modules(sentry_value_t modules)
         if (!module.start || module.permissions[0] != 'r') {
             continue;
         }
-        // skip mappings in `/dev/` or mappings that have no filename
+        // skip mappings in `/dev/`, memfd mappings, or mappings that have no
+        // filename
         if (!module.file.len
             || (module.file.len >= 5
-                && memcmp("/dev/", module.file.ptr, 5) == 0)) {
+                && memcmp("/dev/", module.file.ptr, 5) == 0)
+            || (module.file.len >= 7
+                && memcmp("/memfd:", module.file.ptr, 7) == 0)) {
             continue;
         }
         // for the vdso, we use the special filename `linux-gate.so`
