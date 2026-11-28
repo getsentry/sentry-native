@@ -119,6 +119,8 @@ class CMake:
 
         # ensure that there are no left-overs from previous runs
         shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
+        if os.environ.get("ANDROID_API"):
+            adb("shell", f"rm -rf {android_tmp}/.sentry-native", check=True)
 
         # Inject a sub-path into the temporary build directory as the CWD for all tests to verify UTF-8 path handling.
         if os.environ.get("UTF8_TEST_CWD"):
