@@ -1008,12 +1008,8 @@ def test_disable_backend(cmake, httpserver):
     sys.platform != "darwin" or not os.getenv("CI"),
     reason="retry mechanism test only runs on macOS in CI",
 )
-def test_crashpad_retry(cmake, httpserver):
+def test_crashpad_retry(cmake, httpserver, unreachable_dsn):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
-
-    subprocess.run(
-        ["sudo", "ifconfig", "lo0", "down"]
-    )  # Disables the loopback network interface
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
@@ -1024,14 +1020,11 @@ def test_crashpad_retry(cmake, httpserver):
         "sentry_test_integration",
         ["log", "crash"],
         expect_failure=True,
-        env=env,
+        env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
     )
 
     assert len(httpserver.log) == 0
 
-    subprocess.run(
-        ["sudo", "ifconfig", "lo0", "up"], check=True
-    )  # Enables the loopback network interface again
     # don't rmtree here, we don't want to be isolated (example should pick up previous crash from .sentry-native DB)
     # we also sleep to give Crashpad enough time to handle the previous crash
     run(tmp_path, "sentry_test_integration", ["log", "sleep"], env=env)
