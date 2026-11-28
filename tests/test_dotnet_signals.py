@@ -113,6 +113,8 @@ def run_dotnet_native_crash(project_path, tmp_path):
         ),
     ],
 )
+# concurrent first runs of the dotnet CLI fail to set up its shared memory
+@pytest.mark.xdist_group("dotnet")
 def test_dotnet_signals(cmake, tmp_path_factory, backend):
     if shutil.which("dotnet") is None:
         pytest.skip("dotnet is not installed")
@@ -225,6 +227,7 @@ def run_aot_native_crash(tmp_path):
     ),
     reason="dotnet AOT signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
+@pytest.mark.xdist_group("dotnet")
 def test_aot_signals_inproc(cmake, tmp_path_factory):
     if shutil.which("dotnet") is None:
         pytest.skip("dotnet is not installed")
