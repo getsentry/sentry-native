@@ -9,6 +9,7 @@
 #    include <mach-o/loader.h>
 #    include <mach/mach.h>
 #    include <mach/mach_vm.h>
+#    include <mach/shared_region.h>
 #    include <pthread.h>
 #    include <signal.h>
 #    include <stdbool.h>
@@ -1265,9 +1266,13 @@ should_include_region_macos(const memory_region_t *region,
         return false;
     }
 
-    // FULL: Include all readable regions
+    // FULL: Include all readable regions, except for the shared region. That
+    // holds the dyld shared cache, gigabytes of system libraries shared
+    // between processes.
     if (mode == SENTRY_MINIDUMP_MODE_FULL) {
-        return (region->protection & VM_PROT_READ) != 0;
+        bool shared = region->address >= SHARED_REGION_BASE
+            && region->address < SHARED_REGION_BASE + SHARED_REGION_SIZE;
+        return (region->protection & VM_PROT_READ) != 0 && !shared;
     }
 
     // SMART: Include only regions containing the crash address, matching the
@@ -1527,6 +1532,103 @@ capture_indirect_memory_macos(
 }
 
 /**
+ * Clean up the capture file written by the signal handler since we used VM
+ * regions instead.
+ */
+static void
+remove_module_headers_capture(const minidump_writer_t *writer)
+{
+    const char *run_path = writer->crash_ctx->run_path;
+    size_t run_len = strlen(run_path);
+    char hdr_path[SENTRY_CRASH_MAX_PATH];
+    if (run_len + 22 < sizeof(hdr_path)) {
+        snprintf(
+            hdr_path, sizeof(hdr_path), "%s/__sentry-modheaders", run_path);
+        unlink(hdr_path);
+    }
+}
+
+static ssize_t
+read_region(
+    minidump_writer_base_t *writer, uint64_t addr, void *buf, size_t size)
+{
+    kern_return_t kr = read_task_memory(
+        ((minidump_writer_t *)writer)->task, addr, buf, size);
+    return kr == KERN_SUCCESS ? (ssize_t)size : -1;
+}
+
+// Pages to query at a time
+#    define PAGE_QUERY_COUNT 1024
+
+/**
+ * Add the pages of a region to the list, except for anonymous pages that were
+ * never touched. Those have no disposition and read back as zeros, and
+ * allocators reserve hundreds of megabytes of them.
+ */
+static bool
+add_region_pages(minidump_writer_t *writer, const memory_region_t *region,
+    minidump_memory64_list_t **list, uint64_t *capacity)
+{
+    int pages[PAGE_QUERY_COUNT];
+    uint64_t address = region->address;
+    uint64_t end = region->address + region->size;
+
+    while (address < end) {
+        uint64_t size = PAGE_QUERY_COUNT * vm_page_size;
+        if (size > end - address) {
+            size = end - address;
+        }
+
+        mach_vm_size_t count = PAGE_QUERY_COUNT;
+        kern_return_t kr = mach_vm_page_range_query(writer->task, address, size,
+            (mach_vm_address_t)(uintptr_t)pages, &count);
+        if (kr != KERN_SUCCESS) {
+            return sentry__minidump_add_range(
+                list, capacity, region->address, address, end - address);
+        }
+
+        for (mach_vm_size_t i = 0; i < count; i++) {
+            if (pages[i] != 0
+                && !sentry__minidump_add_range(list, capacity, region->address,
+                    address + i * vm_page_size, vm_page_size)) {
+                return false;
+            }
+        }
+        address += size;
+    }
+    return true;
+}
+
+/**
+ * Write memory64 list stream with all readable regions.
+ */
+static int
+write_memory64_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    uint64_t capacity = writer->region_count;
+    minidump_memory64_list_t *list = sentry_malloc(
+        sizeof(*list) + capacity * sizeof(minidump_memory64_descriptor_t));
+    if (!list) {
+        return -1;
+    }
+
+    list->count = 0;
+    for (size_t i = 0; i < writer->region_count; i++) {
+        const memory_region_t *region = &writer->regions[i];
+        if (should_include_region_macos(region, writer->crash_ctx, 0)
+            && !add_region_pages(writer, region, &list, &capacity)) {
+            sentry_free(list);
+            return -1;
+        }
+    }
+
+    int rv = sentry__minidump_write_memory64_list(
+        (minidump_writer_base_t *)writer, dir, list, read_region);
+    sentry_free(list);
+    return rv;
+}
+
+/**
  * Write memory list stream with memory based on minidump mode.
  *
  * When we have a task port (full path), memory is read from the process.
@@ -1551,6 +1653,12 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     // When we have VM regions (task_for_pid succeeded), use them
     if (writer->region_count > 0) {
+        if (mode == SENTRY_MINIDUMP_MODE_FULL) {
+            int rv = write_memory64_list_stream(writer, dir);
+            remove_module_headers_capture(writer);
+            return rv;
+        }
+
         // SMART mode: scan registers + stack words for pointers into
         // writable heap regions and capture a chunk around each. Has to
         // run before the memory_list allocation below so we know the
@@ -1670,16 +1778,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         sentry_free(memory_list);
 
-        // Clean up the capture file written by the signal handler since
-        // we used VM regions instead.
-        const char *run_path = writer->crash_ctx->run_path;
-        size_t run_len = strlen(run_path);
-        char hdr_path[SENTRY_CRASH_MAX_PATH];
-        if (run_len + 22 < sizeof(hdr_path)) {
-            snprintf(
-                hdr_path, sizeof(hdr_path), "%s/__sentry-modheaders", run_path);
-            unlink(hdr_path);
-        }
+        remove_module_headers_capture(writer);
 
         return dir->rva ? 0 : -1;
     }
@@ -1755,6 +1854,10 @@ sentry__write_minidump(
         SENTRY_DEBUGF("write_minidump: task_for_pid failed (%d), writing "
                       "minimal minidump",
             kr);
+        if (ctx->minidump_mode == SENTRY_MINIDUMP_MODE_FULL) {
+            SENTRY_WARN("write_minidump: full memory capture requires "
+                        "task_for_pid access");
+        }
         // Without task port, write minimal minidump with all required streams
         // Matching Crashpad's minimum: SystemInfo, MiscInfo, ThreadList,
         // Exception, ModuleList, MemoryList. We additionally emit ThreadNames
@@ -1867,6 +1970,11 @@ sentry__write_minidump(
         return -1;
     }
 
+    // Suspend the process during FULL captures, which can outlast the crash
+    // handler's wait for the daemon
+    bool suspended = ctx->minidump_mode == SENTRY_MINIDUMP_MODE_FULL
+        && task_suspend(writer.task) == KERN_SUCCESS;
+
     // Enumerate memory regions
     enumerate_memory_regions(&writer);
 
@@ -1891,7 +1999,6 @@ sentry__write_minidump(
     result |= write_thread_list_stream(&writer, &directories[2]);
     result |= write_exception_stream(&writer, &directories[3]);
     result |= write_module_list_stream(&writer, &directories[4]);
-    result |= write_memory_list_stream(&writer, &directories[5]);
 
     if (result < 0) {
         goto cleanup_error;
@@ -1902,6 +2009,12 @@ sentry__write_minidump(
         directories[6].stream_type = 0;
         directories[6].rva = 0;
         directories[6].data_size = 0;
+    }
+
+    // Write memory list last, because FULL mode memory can extend past the 4GB
+    // RVA limit
+    if (write_memory_list_stream(&writer, &directories[5]) < 0) {
+        goto cleanup_error;
     }
 
     // Write header and directory
@@ -1919,6 +2032,9 @@ sentry__write_minidump(
     }
 
     // Cleanup - success path
+    if (suspended) {
+        task_resume(writer.task);
+    }
     for (mach_msg_type_number_t i = 0; i < writer.thread_count; i++) {
         mach_port_deallocate(mach_task_self(), writer.threads[i]);
     }
@@ -1933,6 +2049,9 @@ sentry__write_minidump(
 
 cleanup_error:
     // Cleanup - error path (same as success, but delete file and return error)
+    if (suspended) {
+        task_resume(writer.task);
+    }
     for (mach_msg_type_number_t i = 0; i < writer.thread_count; i++) {
         mach_port_deallocate(mach_task_self(), writer.threads[i]);
     }

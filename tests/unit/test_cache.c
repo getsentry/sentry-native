@@ -11,6 +11,7 @@
 #include "sentry_testsupport.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
+#include "transports/sentry_http_transport.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <windows.h>
@@ -139,16 +140,64 @@ state_has_event_id(
     return false;
 }
 
+static int
+test_http_send_fails(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    (void)client;
+    (void)req;
+    (void)resp;
+    return false;
+}
+
+static int
+test_http_send_ok(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    (void)req;
+    size_t *count = client;
+    (*count)++;
+    resp->status_code = 200;
+    return true;
+}
+
+static int
+count_cached_envelopes(const sentry_path_t *cache_path, int *retry_format)
+{
+    int count = 0;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(cache_path);
+    const sentry_path_t *entry;
+    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+        if (sentry__path_ends_with(entry, ".envelope")) {
+            count++;
+            uint64_t ts;
+            int attempt;
+            const char *uuid;
+            if (retry_format
+                && sentry__parse_cache_filename(
+                    sentry__path_filename(entry), &ts, &attempt, &uuid)
+                && attempt >= 0) {
+                (*retry_format)++;
+            }
+        }
+    }
+    sentry__pathiter_free(iter);
+    return count;
+}
+
 SENTRY_TEST(cache_keep)
 {
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
     SKIP_TEST();
 #endif
     SENTRY_TEST_OPTIONS_NEW(options);
-    TEST_ASSERT(!!options->transport);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
     sentry_options_set_http_retry(options, false);
+    sentry_transport_t *transport
+        = sentry__http_transport_new(NULL, test_http_send_fails);
+    TEST_ASSERT(!!transport);
+    sentry_options_set_transport(options, transport);
     sentry_init(options);
 
     sentry_path_t *cache_path
@@ -888,6 +937,223 @@ SENTRY_TEST(cache_consent_revoked_nocache)
     }
     sentry__pathiter_free(iter);
     TEST_CHECK_INT_EQUAL(count, 0);
+
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_offline_mode)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, true);
+    sentry_init(options);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    sentry__path_remove_all(cache_path);
+
+    sentry_set_offline(1);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "test", "offline"));
+
+    int retry_format = 0;
+    TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, &retry_format), 1);
+    TEST_CHECK_INT_EQUAL(retry_format, 1);
+
+    sentry_set_offline(0);
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_offline_mode_nocache)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, false);
+    sentry_init(options);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    sentry__path_remove_all(cache_path);
+
+    sentry_set_offline(1);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "test", "offline"));
+
+    // without http_retry, envelopes are discarded while offline
+    TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, NULL), 0);
+
+    sentry_set_offline(0);
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_offline_mode_toggle)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    // before init, the API has no effect
+    sentry_set_offline(1);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 0);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+
+    sentry_path_t *offline_path
+        = sentry__path_join_str(options->database_path, "offline-mode");
+    TEST_ASSERT(!!offline_path);
+
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 0);
+    TEST_CHECK(!sentry__path_is_file(offline_path));
+
+    // enabling persists the setting in the database directory
+    sentry_set_offline(1);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 1);
+    TEST_CHECK(sentry__path_is_file(offline_path));
+
+    // enabling twice is a no-op, and any non-zero value enables it
+    sentry_set_offline(42);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 1);
+
+    // disabling removes the persisted setting
+    sentry_set_offline(0);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 0);
+    TEST_CHECK(!sentry__path_is_file(offline_path));
+
+    sentry__path_free(offline_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_offline_mode_persisted)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+    sentry_set_offline(1);
+    sentry_close();
+
+    // the next init restores offline mode from the database directory
+    SENTRY_TEST_OPTIONS_NEW(options2);
+    sentry_options_set_dsn(options2, "https://foo@sentry.invalid/42");
+    sentry_init(options2);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 1);
+    sentry_set_offline(0);
+    sentry_close();
+
+    // once disabled, it stays disabled across inits
+    SENTRY_TEST_OPTIONS_NEW(options3);
+    sentry_options_set_dsn(options3, "https://foo@sentry.invalid/42");
+    sentry_init(options3);
+    TEST_CHECK_INT_EQUAL(sentry_is_offline(), 0);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_offline_mode_flush)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, true);
+    size_t sent = 0;
+    sentry_transport_t *transport
+        = sentry__http_transport_new(&sent, test_http_send_ok);
+    TEST_ASSERT(!!transport);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+    // let the startup retry poll run before clearing the cache
+    sentry_flush(5000);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    sentry__path_remove_all(cache_path);
+    sent = 0;
+
+    sentry_set_offline(1);
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "test", "offline"));
+    sentry_flush(5000);
+
+    // offline: nothing was sent, the event waits in the cache
+    TEST_CHECK_INT_EQUAL(sent, 0);
+    TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, NULL), 1);
+
+    // disabling offline mode immediately retries the cached envelope
+    sentry_set_offline(0);
+    sentry_flush(5000);
+
+    TEST_CHECK_INT_EQUAL(sent, 1);
+    TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, NULL), 0);
+
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_offline_mode_queued)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, true);
+    size_t sent = 0;
+    sentry_transport_t *transport
+        = sentry__http_transport_new(&sent, test_http_send_ok);
+    TEST_ASSERT(!!transport);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+    // let the startup retry poll run before clearing the cache
+    sentry_flush(5000);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    sentry__path_remove_all(cache_path);
+    sent = 0;
+
+    sentry_set_offline(1);
+
+    // hand an envelope to the transport directly, as if it had been queued
+    // before offline mode was enabled (bypassing the check at submission)
+    sentry_envelope_t *envelope = sentry__envelope_new(options);
+    TEST_ASSERT(!!envelope);
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    sentry__envelope_add_event(
+        envelope, sentry__value_new_event_with_id(&event_id), NULL);
+    sentry__transport_send_envelope(options->transport, envelope);
+    sentry_flush(5000);
+
+    // the queued envelope was not sent but cached for retry
+    int retry_format = 0;
+    TEST_CHECK_INT_EQUAL(sent, 0);
+    TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, &retry_format), 1);
+    TEST_CHECK_INT_EQUAL(retry_format, 1);
+
+    // disabling offline mode sends it
+    sentry_set_offline(0);
+    sentry_flush(5000);
+
+    TEST_CHECK_INT_EQUAL(sent, 1);
+    TEST_CHECK_INT_EQUAL(count_cached_envelopes(cache_path, NULL), 0);
 
     sentry__path_free(cache_path);
     sentry_close();

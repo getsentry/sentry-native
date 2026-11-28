@@ -82,6 +82,9 @@ target_link_libraries(sentry_test_unit PRIVATE
 
 if(MINGW)
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+		set_source_files_properties(
+			"${PROJECT_SOURCE_DIR}/src/unwinder/sentry_unwinder_dbghelp.c"
+			PROPERTIES COMPILE_OPTIONS -fms-extensions)
 		target_link_options(sentry_test_unit PRIVATE -Wl,-pdb=) # IMPORTANT ! LLD must generate pdb files
 		target_compile_options(sentry_test_unit PRIVATE -gcodeview) # IMPORTANT ! Clang must generate pdb to CodeView format
 	else()
@@ -98,6 +101,9 @@ endif()
 
 if(MSVC)
 	target_compile_options(sentry_test_unit PRIVATE $<BUILD_INTERFACE:/wd5105>)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	# GCC 12 ignores the `-Wmultichar` pragma in the crashpad backend
+	target_compile_options(sentry_test_unit PRIVATE $<BUILD_INTERFACE:-Wno-multichar>)
 endif()
 
 # set static runtime if enabled
@@ -108,6 +114,14 @@ endif()
 target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
 
 target_compile_definitions(sentry_test_unit PRIVATE SENTRY_UNITTEST)
+
+foreach(handler crashpad::handler sentry-crash)
+	if(TARGET ${handler})
+		add_custom_command(TARGET sentry_test_unit POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${handler}>" "$<TARGET_FILE_DIR:sentry_test_unit>"
+			VERBATIM)
+	endif()
+endforeach()
 
 option(SENTRY_CTEST_INDIVIDUAL "Register sentry unit tests as individual tests instead of a single binary" ON)
 
@@ -121,10 +135,12 @@ if(SENTRY_CTEST_INDIVIDUAL)
 			message(WARNING "Failed to extract test name from line: ${line}")
 		else()
 			add_test(NAME sentry/${CMAKE_MATCH_1} COMMAND sentry_test_unit --no-summary ${CMAKE_MATCH_1})
+			set_tests_properties(sentry/${CMAKE_MATCH_1} PROPERTIES RUN_SERIAL TRUE)
 		endif()
 	endforeach()
 else()
 	add_test(NAME sentry/unit-tests COMMAND sentry_test_unit)
+	set_tests_properties(sentry/unit-tests PROPERTIES RUN_SERIAL TRUE)
 endif()
 
 add_executable(sentry_fuzz_json
@@ -144,6 +160,9 @@ target_link_libraries(sentry_fuzz_json PRIVATE
 
 if(MSVC)
 	target_compile_options(sentry_fuzz_json PRIVATE $<BUILD_INTERFACE:/wd5105>)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	# GCC 12 ignores the `-Wmultichar` pragma in the crashpad backend
+	target_compile_options(sentry_fuzz_json PRIVATE $<BUILD_INTERFACE:-Wno-multichar>)
 endif()
 
 # set static runtime if enabled

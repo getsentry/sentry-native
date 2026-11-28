@@ -98,6 +98,26 @@ valid_ptr(uintptr_t p, mem_range_t *cache)
 #endif
 }
 
+static bool
+read_frame(uintptr_t p, uintptr_t record[2], mem_range_t *cache)
+{
+    if (!valid_ptr(p, cache)) {
+        return false;
+    }
+#if defined(SENTRY_PLATFORM_MACOS)
+    mach_vm_size_t size = 0;
+    return mach_vm_read_overwrite(mach_task_self(), p, 2 * sizeof(uintptr_t),
+               (mach_vm_address_t)record, &size)
+        == KERN_SUCCESS
+        && size == 2 * sizeof(uintptr_t);
+#else
+    const uintptr_t *frame = (uintptr_t *)p;
+    record[0] = frame[0];
+    record[1] = frame[1];
+    return true;
+#endif
+}
+
 /**
  * This does the same frame-pointer walk for arm64 and x86_64, with the only
  * difference being which registers value is used as frame-pointer (fp vs rbp)
@@ -107,14 +127,14 @@ fp_walk(
     uintptr_t fp, size_t *n, void **ptrs, size_t max_frames, mem_range_t *cache)
 {
     while (*n < max_frames) {
-        if (!valid_ptr(fp, cache)) {
+        uintptr_t record[2];
+        if (!read_frame(fp, record, cache)) {
             break;
         }
 
         // arm64 frame record layout: [prev_fp, saved_lr] at fp and fp+8
         // x86_64 frame record layout: [prev_rbp, saved_retaddr] at bp and bp+8
-        const uintptr_t *record = (uintptr_t *)fp;
-        const uintptr_t next_fp = record[0];
+        const uintptr_t next_fp = STRIP_PAC(record[0]);
         uintptr_t ret_addr = record[1];
         if (!valid_ptr(next_fp, cache) || !ret_addr) {
             break;
@@ -138,20 +158,20 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 #if defined(__arm64__)
     uintptr_t pc, fp, lr;
 
-#    if defined(__arm64e__)
-    // arm64e uses opaque accessors that handle PAC authentication
+#    if __DARWIN_OPAQUE_ARM_THREAD_STATE64
+    // opaque state uses accessors that handle PAC authentication
     pc = __darwin_arm_thread_state64_get_pc(mctx->__ss);
     fp = __darwin_arm_thread_state64_get_fp(mctx->__ss);
     lr = __darwin_arm_thread_state64_get_lr(mctx->__ss);
 #    else
     // arm64 can access members directly, strip PAC defensively
     pc = STRIP_PAC((uintptr_t)mctx->__ss.__pc);
-    fp = (uintptr_t)mctx->__ss.__fp;
+    fp = STRIP_PAC((uintptr_t)mctx->__ss.__fp);
     lr = STRIP_PAC((uintptr_t)mctx->__ss.__lr);
 #    endif
 
     // top frame: crash PC points to the faulting instruction, no adjustment
-    if (pc && n < max_frames) {
+    if (n < max_frames) {
         ptrs[n++] = (void *)pc;
     }
 
@@ -174,11 +194,11 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
     // it sub-calls (LR is a stale return within the crashing function).
     //
     // In both cases, walking from fp captures the correct remaining frames.
-    if (valid_ptr(fp, &cache)) {
-        const uintptr_t *record = (uintptr_t *)fp;
+    uintptr_t record[2];
+    if (read_frame(fp, record, &cache)) {
         uintptr_t saved_lr = STRIP_PAC(record[1]);
         if (lr == saved_lr) {
-            fp_walk(record[0], &n, ptrs, max_frames, &cache);
+            fp_walk(STRIP_PAC(record[0]), &n, ptrs, max_frames, &cache);
         } else {
             fp_walk(fp, &n, ptrs, max_frames, &cache);
         }
@@ -188,7 +208,7 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
     uintptr_t bp = (uintptr_t)mctx->__ss.__rbp;
 
     // top frame: no adjustment
-    if (ip && n < max_frames) {
+    if (n < max_frames) {
         ptrs[n++] = (void *)ip;
     }
 

@@ -4,6 +4,9 @@ import shutil
 import subprocess
 import sys
 import platform
+import re
+import time
+from collections import Counter, deque
 from pathlib import Path
 
 import pytest
@@ -17,13 +20,45 @@ from .build_config import (
     get_tsan_env,
 )
 
+# give up the whole run when the same build error repeats this many times
+build_error_limit = int(os.environ.get("SENTRY_TEST_BUILD_ERROR_LIMIT") or 0)
+build_errors = Counter()
+
+# build errors as annotated on CI
+with open(Path(__file__).parent.parent / ".github" / "problem-matchers.json") as f:
+    problem_matchers = [
+        [re.compile(p["regexp"]) for p in m["pattern"]]
+        for m in json.load(f)["problemMatcher"]
+    ]
+
+# outlives the session fixture for the terminal summary
+build_stats = dict()
+
+
+def format_build_stats(verbose=False):
+    rows = sorted(
+        build_stats.items(),
+        key=lambda row: (len(row[1]["tests"]), -row[1]["seconds"]),
+    )
+    lines = [f"{'tests':>5}  {'time':>7}  configuration [targets]"]
+    for (source_dir, config), stats in rows:
+        label = f"{config} ({source_dir})" if source_dir else config
+        targets = ", ".join(sorted(stats["targets"]))
+        lines.append(
+            f"{len(stats['tests']):>5}  {stats['seconds']:>6.1f}s  "
+            f"{label or '(default)'} [{targets}]"
+        )
+        if verbose or len(stats["tests"]) == 1:
+            lines.extend(f"{'':16}{test}" for test in sorted(stats["tests"]))
+    return "\n".join(lines) + "\n"
+
 
 class CMake:
     def __init__(self, factory):
         self.runs = dict()
         self.factory = factory
 
-    def compile(self, targets, options=None, cflags=None):
+    def compile(self, targets, options=None, cflags=None, source_dir=None):
         # We build in tmp for all of our tests. Disable the warning MSVC generates to not clutter the build logs.
         if cflags is None:
             cflags = []
@@ -32,14 +67,17 @@ class CMake:
 
         if options is None:
             options = dict()
-        key = ";".join(f"{k}={v}" for k, v in options.items())
+        key = ";".join(f"{k}={v}" for k, v in sorted(options.items()))
         if cflags:
             key += ";" + ";".join(cflags)
+        key = (source_dir, key)
+
+        start = time.monotonic()
 
         # cache the build configuration
         if key not in self.runs:
             cwd = self.factory.mktemp("cmake")
-            cmake_configure(cwd, options, cflags)
+            cmake_configure(cwd, options, cflags, source_dir)
             cmake_build(cwd, targets, options)
             self.runs[key] = (cwd, set(targets))
         else:
@@ -49,6 +87,13 @@ class CMake:
             if new_targets:
                 cmake_build(cwd, new_targets, options)
                 built_targets.update(new_targets)
+
+        stats = build_stats.setdefault(
+            key, {"seconds": 0, "targets": set(), "tests": set()}
+        )
+        stats["seconds"] += time.monotonic() - start
+        stats["targets"].update(targets)
+        stats["tests"].add(os.environ["PYTEST_CURRENT_TEST"].rsplit(" ", 1)[0])
 
         build_tmp_path = cwd
 
@@ -97,6 +142,7 @@ class CMake:
                     exe_name("sentry-crash"),
                     exe_name("sentry_early_init"),
                     exe_name("sentry_test_platform"),
+                    exe_name("sentry_test_pkgconfig"),
                 ]
                 cmd = [
                     os.environ.get("LLVM_COV", "llvm-cov"),
@@ -129,7 +175,7 @@ class CMake:
                 )
 
 
-def cmake_configure(cwd, options, cflags=None):
+def cmake_configure(cwd, options, cflags=None, source_dir=None):
     if cflags is None:
         cflags = []
     __tracebackhide__ = True
@@ -166,7 +212,8 @@ def cmake_configure(cwd, options, cflags=None):
 
     options.update(get_android_config())
 
-    source_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    if source_dir is None:
+        source_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
     cmake = ["cmake"]
     if "scan-build" in os.environ.get("RUN_ANALYZER", ""):
@@ -206,7 +253,7 @@ def cmake_configure(cwd, options, cflags=None):
     env = dict(os.environ)
     env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
 
-    config_cmd.append(source_dir)
+    config_cmd.append(os.fspath(source_dir))
 
     print("\n{} > {}".format(cwd, " ".join(config_cmd)), flush=True)
     try:
@@ -265,9 +312,32 @@ def cmake_build(cwd, targets, options):
         ]
 
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
-    try:
-        subprocess.run(buildcmd, cwd=cwd, env=env, check=True)
-    except subprocess.CalledProcessError:
+    errors = set()
+    if build_error_limit:
+        lines = deque(maxlen=max(map(len, problem_matchers)))
+        with subprocess.Popen(
+            buildcmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        ) as process:
+            for line in process.stdout:
+                sys.stdout.buffer.write(line)
+                sys.stdout.buffer.flush()
+                lines.append(line.decode(errors="replace").rstrip("\r\n"))
+                for patterns in problem_matchers:
+                    if len(lines) < len(patterns):
+                        continue
+                    window = list(lines)[-len(patterns) :]
+                    matches = [p.search(l) for p, l in zip(patterns, window)]
+                    if all(matches):
+                        errors.add(tuple(g for m in matches for g in m.groups()))
+        returncode = process.returncode
+    else:
+        returncode = subprocess.run(buildcmd, cwd=cwd, env=env).returncode
+    if returncode != 0:
+        build_errors.update(errors)
+        if any(build_errors[e] >= build_error_limit for e in errors):
+            reason = f"cmake build failed {build_error_limit} times with the same error"
+            print(f"::error::{reason}", flush=True)
+            pytest.exit(reason, returncode=pytest.ExitCode.TESTS_FAILED)
         raise pytest.fail.Exception("cmake build failed") from None
 
     # check if the DLL and EXE artifacts contain version-information
@@ -323,7 +393,6 @@ def cmake_build(cwd, targets, options):
 
 
 def configure_clang_cl(config_cmd: list[str]):
-    config_cmd.append("-G Visual Studio 17 2022")
     config_cmd.append("-A x64")
     config_cmd.append("-T ClangCL")
 

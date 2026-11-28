@@ -6,6 +6,7 @@ import select
 import socket
 import sys
 import threading
+import time
 from urllib.parse import urlsplit
 
 BUFFER_SIZE = 64 * 1024
@@ -163,7 +164,17 @@ def _read_http_response(server):
     return header + b"\r\n\r\n" + body, status_line
 
 
-def _forward_http(client, proxy_auth):
+def _sendall(sock, data, throttle):
+    if not throttle:
+        sock.sendall(data)
+        return
+    for offset in range(0, len(data), BUFFER_SIZE):
+        chunk = data[offset : offset + BUFFER_SIZE]
+        time.sleep(len(chunk) / throttle)
+        sock.sendall(chunk)
+
+
+def _forward_http(client, proxy_auth, throttle):
     data = _recv_until(client, b"\r\n\r\n")
     header, initial_body = data.split(b"\r\n\r\n", 1)
     lines = header.decode("iso-8859-1").split("\r\n")
@@ -173,6 +184,15 @@ def _forward_http(client, proxy_auth):
 
     if not _auth_matches(headers, proxy_auth):
         _send_proxy_auth_required(client, method)
+        return
+
+    if method == "CONNECT":
+        host, port = _split_host_port(target, 443)
+        with socket.create_connection((host, port), timeout=10) as server:
+            client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            print("CONNECT 200 Connection Established", flush=True)
+            _sendall(server, body, throttle)
+            _relay_tunnel(client, server, throttle)
         return
 
     url = urlsplit(target)
@@ -205,7 +225,7 @@ def _forward_http(client, proxy_auth):
     )
 
     with socket.create_connection((target_host, target_port), timeout=10) as server:
-        server.sendall(request)
+        _sendall(server, request, throttle)
         response, status_line = _read_http_response(server)
         client.sendall(response)
 
@@ -282,7 +302,7 @@ def _forward_socks5(client):
         _relay_tunnel(client, server)
 
 
-def _relay_tunnel(client, server):
+def _relay_tunnel(client, server, throttle=0):
     readable_sockets = [client, server]
     request_method = None
     response_status = None
@@ -304,7 +324,7 @@ def _relay_tunnel(client, server):
                 except OSError:
                     pass
                 continue
-            target.sendall(data)
+            _sendall(target, data, throttle if source is client else 0)
 
             if logged:
                 continue
@@ -326,18 +346,18 @@ def _relay_tunnel(client, server):
                 logged = True
 
 
-def _handle_client(client, proxy_type, proxy_auth):
+def _handle_client(client, proxy_type, proxy_auth, throttle):
     with client:
         try:
             if proxy_type == "socks5-proxy":
                 _forward_socks5(client)
             else:
-                _forward_http(client, proxy_auth)
+                _forward_http(client, proxy_auth, throttle)
         except Exception as exc:
             print(f"proxy error: {exc}", file=sys.stderr, flush=True)
 
 
-def serve(proxy_type, listen_host, port, proxy_auth, output):
+def serve(proxy_type, listen_host, port, proxy_auth, output, throttle=0):
     family = socket.AF_INET6 if ":" in listen_host else socket.AF_INET
     with socket.socket(family, socket.SOCK_STREAM) as listener:
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -351,7 +371,7 @@ def serve(proxy_type, listen_host, port, proxy_auth, output):
             client, _ = listener.accept()
             thread = threading.Thread(
                 target=_handle_client,
-                args=(client, proxy_type, proxy_auth),
+                args=(client, proxy_type, proxy_auth, throttle),
                 daemon=True,
             )
             thread.start()
@@ -363,10 +383,22 @@ def main():
     parser.add_argument("--listen-host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--proxy-auth")
+    parser.add_argument(
+        "--throttle", type=int, default=0, help="Upload bytes per second"
+    )
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
+    if args.throttle < 0:
+        parser.error("--throttle must be non-negative")
 
-    serve(args.type, args.listen_host, args.port, args.proxy_auth, args.output)
+    serve(
+        args.type,
+        args.listen_host,
+        args.port,
+        args.proxy_auth,
+        args.output,
+        args.throttle,
+    )
 
 
 if __name__ == "__main__":

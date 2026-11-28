@@ -72,6 +72,20 @@ jobs:
             echo "mode=BUILD_ONLY" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Resolve console branch
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          ahead() { gh api "repos/$GITHUB_REPOSITORY/compare/$1...$SHA?per_page=1" --jq .ahead_by; }
+          ref=main nearest=$(ahead master)
+          # version branches build against the same console branch
+          for branch in v1; do
+            if n=$(ahead "$branch" 2>/dev/null) && [[ $n -lt $nearest ]]; then ref=$branch nearest=$n; fi
+          done
+          echo "console_ref=$ref" >> "$GITHUB_OUTPUT"
+
       # gh workflow run sends a workflow_dispatch event to the console repo.
       # native-compat-check.yml must exist on the default branch (main) of
       # the console repo for this to work.
@@ -84,11 +98,12 @@ jobs:
           CALLBACK_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CALLBACK_CONTEXT: ${{ matrix.context }}
           MODE: ${{ steps.mode.outputs.mode }}
+          CONSOLE_REF: ${{ steps.ref.outputs.console_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.ref_name }}
         run: |
           gh workflow run native-compat-check.yml \
             --repo "$MATRIX_REPO" \
-            --ref main \
+            --ref "$CONSOLE_REF" \
             -f native_ref="$NATIVE_REF" \
             -f callback_repo="$CALLBACK_REPO" \
             -f callback_sha="$CALLBACK_SHA" \

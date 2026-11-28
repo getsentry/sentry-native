@@ -202,6 +202,7 @@ typedef struct {
 typedef struct {
     FILE *file;
     const sentry_path_t *path;
+    size_t remaining;
 } file_body_t;
 
 static curl_client_t *
@@ -411,10 +412,14 @@ file_read_callback(char *buffer, size_t size, size_t nitems, void *userdata)
         goto fail;
     }
     size_t capacity = size * nitems;
+    if (capacity > body->remaining) {
+        capacity = body->remaining;
+    }
     size_t read = fread(buffer, 1, capacity, body->file);
     if (read < capacity && ferror(body->file)) {
         goto fail;
     }
+    body->remaining -= read;
     return read;
 
 fail:
@@ -470,19 +475,17 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     FILE *body_file = NULL;
     file_body_t file_body = { 0 };
     if (req->body_path) {
-#ifdef SENTRY_PLATFORM_WINDOWS
-        body_file = _wfopen(req->body_path->path_w, L"rb");
-#else
-        body_file = fopen(req->body_path->path, "rb");
-#endif
+        body_file = sentry__path_open(req->body_path, "rb", req->body_offset);
         if (!body_file) {
-            SENTRY_WARNF("failed to open request body file \"%s\"",
-                sentry__path_filename(req->body_path));
+            SENTRY_WARNF("failed to open request body file \"%s\" at offset "
+                         "%zu",
+                sentry__path_filename(req->body_path), req->body_offset);
             g_curl.slist_free_all(headers);
             return false;
         }
         file_body.file = body_file;
         file_body.path = req->body_path;
+        file_body.remaining = req->body_len;
         g_curl.easy_setopt(curl, CURLOPT_UPLOAD, 1L);
         g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
         g_curl.easy_setopt(curl, CURLOPT_READFUNCTION, file_read_callback);
@@ -491,8 +494,11 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
             curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)req->body_len);
     } else if (req->body) {
         g_curl.easy_setopt(curl, CURLOPT_POST, (long)1);
+        g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
         g_curl.easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
         g_curl.easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
+    } else if (sentry__string_eq(req->method, "HEAD")) {
+        g_curl.easy_setopt(curl, CURLOPT_NOBODY, 1L);
     } else {
         g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
     }
@@ -547,7 +553,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
 }
 
 sentry_transport_t *
-sentry__transport_new_default(void)
+sentry_transport_new_default(void)
 {
     SENTRY_INFO("initializing curl transport");
     curl_client_t *client = curl_client_new();

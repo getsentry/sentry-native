@@ -32,8 +32,10 @@
 #endif
 
 /**
- * This function will check the user consent, and return `true` if uploads
- * should *not* be sent to the sentry server, and be discarded instead.
+ * This function will check the user consent and offline mode, and return `true`
+ * if uploads should *not* be sent to the sentry server. Whether a blocked
+ * envelope is cached or discarded is decided by
+ * `sentry__submit_envelope`.
  *
  * Note: This function acquires the options lock internally. Use
  * `sentry__run_should_skip_upload` from worker threads that may run while
@@ -46,6 +48,11 @@ bool sentry__should_skip_upload(void);
  * Defaults to false, which will also be returned if the event is malformed.
  */
 bool sentry__event_is_transaction(sentry_value_t event);
+
+/**
+ * Populates missing `debug_meta.images` with cached modules when available.
+ */
+void sentry__event_ensure_modules(sentry_value_t event);
 
 /**
  * Invokes the configured `on_crash` callback, if any.
@@ -66,8 +73,14 @@ sentry_value_t sentry__invoke_before_send(
     const sentry_options_t *options, sentry_value_t event, sentry_hint_t *hint);
 
 /**
+ * Invokes the configured `before_breadcrumb` callback, if any.
+ */
+sentry_value_t sentry__invoke_before_breadcrumb(
+    const sentry_options_t *options, sentry_value_t breadcrumb);
+
+/**
  * Prepares an event by recording errors on the current session and applying
- * the local and global scopes.
+ * the local, isolation, and global scopes.
  *
  * Returns `event` without transferring ownership.
  */
@@ -123,7 +136,7 @@ void sentry__submit_envelope(sentry_transport_t *transport,
     sentry_envelope_t *envelope, const sentry_options_t *options);
 
 /**
- * Captures the `envelope` on the global scope, recording the last sent event
+ * Captures the `envelope` on the isolation scope, recording the last sent event
  * ID.
  *
  * Note: This is not safe to call from crash handlers; use
@@ -151,6 +164,12 @@ sentry_value_t sentry__ensure_event_id(
 const sentry_options_t *sentry__options_getref(void);
 
 /**
+ * Replaces the global options with a retained reference, or clears them if
+ * NULL.
+ */
+void sentry__options_set(sentry_options_t *options);
+
+/**
  * This will acquire a lock on the global options.
  */
 sentry_options_t *sentry__options_lock(void);
@@ -160,13 +179,12 @@ sentry_options_t *sentry__options_lock(void);
  */
 void sentry__options_unlock(void);
 
-void sentry__set_propagation_context(const char *key, sentry_value_t value);
-
 /*
  * Populates a telemetry item (a log or metric) with attributes and scope data
  * from all available sources. Values are applied in precedence order, where the
  * first write wins: per-call attributes already present in `attributes`, then
- * the passed `scope`, then the global scope, and finally the options.
+ * the passed `scope`, then its isolation and global scopes, and finally the
+ * options.
  */
 void sentry__apply_to_telemetry(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t telemetry,

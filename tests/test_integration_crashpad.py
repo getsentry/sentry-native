@@ -1,3 +1,4 @@
+import json
 import os
 import struct
 import subprocess
@@ -22,8 +23,16 @@ from . import (
     is_replay_envelope,
     lib_name,
     REPLAY_ID,
+    SENTRY_VERSION_BASE,
 )
-from .conditions import has_crashpad, has_files, has_oom, has_system_proxy
+from .conditions import (
+    has_crashpad,
+    has_files,
+    has_oom,
+    has_system_proxy,
+    is_qemu,
+    is_riscv,
+)
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
@@ -47,8 +56,9 @@ from .assertions import (
     wait_for_file,
 )
 
+# ptrace is unavailable under RISC-V user-mode emulation
 pytestmark = pytest.mark.skipif(
-    not has_crashpad,
+    not has_crashpad or (is_riscv and is_qemu),
     reason="Tests need a crashpad backend and a valid environment for it",
 )
 
@@ -164,7 +174,13 @@ def test_crashpad_codeview(cmake, httpserver):
         name.replace("\\", "/").rsplit("/", 1)[-1]: codeview
         for name, codeview in _minidump_modules(attachments.minidump)
     }
-    codeview = codeviews[lib_name("sentry")]
+    library = lib_name("sentry")
+    major = SENTRY_VERSION_BASE.split(".", 1)[0]
+    if sys.platform == "linux":
+        library = f"{library}.{major}"
+    elif sys.platform == "darwin":
+        library = library.replace(".dylib", f".{SENTRY_VERSION_BASE}.dylib")
+    codeview = codeviews[library]
     signature = codeview[:4]
     if sys.platform == "linux":
         assert signature == b"LEpB"
@@ -504,11 +520,9 @@ def wait_for_no_werfault(timeout=30.0, poll_interval=0.5):
 
 
 @pytest.mark.skipif(
-    sys.platform != "win32",
+    sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
     reason="Test covers Windows-specific crashes which can only be covered via the Crashpad WER module",
 )
-# this test currently can't run on CI because the Windows-image doesn't properly support WER, if you want to run the
-# test locally, invoke pytest with the --with_wer option which is matched with this marker in the runtest setup
 @pytest.mark.with_wer
 @pytest.mark.parametrize(
     "run_args",
@@ -656,20 +670,22 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
     envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    expect_attachments = not any(
-        arg in run_args for arg in ("before-send", "on-crash", "clear-attachments")
-    )
+    expect_attachments = not any(arg in run_args for arg in ("before-send", "on-crash"))
+    cleared = "clear-attachments" in run_args
     attachments = assert_crashpad_upload(
         multipart,
         expect_attachment=expect_attachments,
-        expect_view_hierarchy=expect_attachments,
+        expect_view_hierarchy=expect_attachments and not cleared,
         breadcrumb_count=101,
+        expect_byte_attachment=expect_attachments and not cleared,
     )
     callback = next(
         (arg for arg in run_args if arg in ("before-send", "on-crash")), None
     )
-    expected_callback = callback.replace("-", "_").encode() if callback else None
-    assert attachments.callback == expected_callback
+    if callback:
+        assert json.loads(attachments.callback)["level"] == "fatal"
+    else:
+        assert attachments.callback is None
     event_id = attachments.event["event_id"]
     if sys.platform == "win32":
         minidump = tmp_path / ".sentry-native" / "reports" / f"{event_id}.dmp"
@@ -1173,11 +1189,9 @@ def test_crashpad_external_crash_reporter_consent_flush(cmake, httpserver):
 
 
 @pytest.mark.skipif(
-    sys.platform != "win32",
+    sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
     reason="Test covers Windows-specific crashes which can only be covered via the Crashpad WER module",
 )
-# this test currently can't run on CI because the Windows-image doesn't properly support WER, if you want to run the
-# test locally, invoke pytest with the --with_wer option which is matched with this marker in the runtest setup
 @pytest.mark.with_wer
 @pytest.mark.parametrize(
     "run_args",
@@ -1300,6 +1314,47 @@ def test_crashpad_cache_consent(cmake, httpserver):
                 "cache-keep",
                 "no-setup",
             ],
+            env=env,
+        )
+    assert waiting.result
+
+
+def test_crashpad_cache_offline_mode(cmake, httpserver):
+    """Crash while offline mode is enabled + http_retry: the minidump stays in
+    crashpad's pending queue. Once offline mode is disabled, RequestRetry()
+    wakes the handler and the minidump is uploaded."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    db_path = tmp_path.joinpath(".sentry-native")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # 1) Crash while offline. No upload should happen.
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "offline-mode-enable", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    # Give the (out-of-process) handler a moment to write the report.
+    time.sleep(1)
+    assert len(httpserver.log) == 0
+
+    if sys.platform != "win32":
+        pending_dir = db_path.joinpath("pending")
+        completed_dir = db_path.joinpath("completed")
+        assert pending_dir.exists()
+        assert len(list(pending_dir.glob("*.dmp"))) >= 1
+        assert not completed_dir.exists() or not any(completed_dir.glob("*.dmp"))
+
+    # 2) Restart (offline mode is restored from disk) and disable it. The
+    #    handler should wake via RequestRetry() and upload.
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "http-retry", "offline-mode-disable", "no-setup"],
             env=env,
         )
     assert waiting.result
@@ -1547,6 +1602,49 @@ def test_crashpad_breadcrumbs(cmake, httpserver, count, reinstall, crash_arg):
 
     if crash_arg == "fastfail":
         assert wait_for_no_werfault()
+
+
+@pytest.mark.parametrize("clear", [False, True])
+def test_crashpad_acquired_scope(cmake, httpserver, clear):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    args = [
+        "log",
+        "no-setup",
+        "attachment",
+        "acquire-scope",
+        "crashpad-wait-for-upload",
+        "crash",
+    ]
+    if clear:
+        args.append("clear-scope")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            args,
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    attachments = assert_crashpad_upload(
+        httpserver.log[0][0],
+        expect_attachment=True,
+        expect_breadcrumbs=False,
+        expect_default_scope=False,
+        expect_byte_attachment=not clear,
+    )
+    event = attachments.event
+    assert event["release"] == ("test-example-release" if clear else "scope-release")
+    assert event["environment"] == ("development" if clear else "scope-environment")
+    assert ("acquired" in event.get("tags", {})) == (not clear)
+    assert any(
+        crumb.get("message") == "acquired breadcrumb"
+        for crumb in attachments.breadcrumb1 + attachments.breadcrumb2
+    ) == (not clear)
+    if not clear:
+        assert event["user"]["id"] == "scope-user"
 
 
 def start_until_handler(tmp_path, args, env=None):
