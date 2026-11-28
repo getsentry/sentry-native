@@ -315,13 +315,13 @@ def pytest_sessionfinish(session, exitstatus):
 @pytest.hookimpl(optionalhook=True)
 def pytest_testnodedown(node, error):
     rows = getattr(node, "workeroutput", {}).get("build_stats", [])
-    for source_dir, config, seconds, targets, tests in rows:
+    for source_dir, config, seconds, targets, nodeids in rows:
         stats = build_stats.setdefault(
             (source_dir, config), {"seconds": 0, "targets": set(), "tests": set()}
         )
         stats["seconds"] += seconds
         stats["targets"].update(targets)
-        stats["tests"].update(tests)
+        stats["tests"].update(nodeids)
 
 
 def pytest_sessionstart(session):
