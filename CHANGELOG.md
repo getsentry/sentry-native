@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Native: detect daemon startup failure to avoid a 10s stall in `sentry_init` on Windows and Linux. ([#2349](https://github.com/getsentry/sentry-native/pull/2349))
+- Native/Windows: fix minidump failures on CPUs with AMX enabled. ([#2353](https://github.com/getsentry/sentry-native/pull/2353))
 
 ## 1.0.0-beta.2
 

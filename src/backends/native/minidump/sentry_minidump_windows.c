@@ -102,7 +102,16 @@ sentry__write_minidump(
     // Prepare exception information using original pointers from crashed
     // process
     EXCEPTION_POINTERS local_exception_pointers = { 0 };
-    EXCEPTION_RECORD local_exception_record = { 0 };
+    EXCEPTION_RECORD local_exception_record = ctx->platform.exception_record;
+    local_exception_record.ExceptionRecord = NULL;
+    CONTEXT local_context = ctx->platform.context;
+#    ifdef CONTEXT_XSTATE
+    // Only sizeof(CONTEXT) is copied, without the extended state. Clear its
+    // flag but keep the architecture bit that CONTEXT_XSTATE includes.
+    local_context.ContextFlags &= ~(DWORD)(CONTEXT_XSTATE & ~CONTEXT_CONTROL);
+#    endif
+    local_exception_pointers.ExceptionRecord = &local_exception_record;
+    local_exception_pointers.ContextRecord = &local_context;
     MINIDUMP_EXCEPTION_INFORMATION exception_info = { 0 };
     exception_info.ThreadId = ctx->crashed_tid;
     if (ctx->platform.exception_pointers) {
@@ -114,11 +123,6 @@ sentry__write_minidump(
     } else {
         // WER copies exception data into shared memory, so ClientPointers must
         // be false when using the copied record/context.
-        local_exception_record = ctx->platform.exception_record;
-        local_exception_record.ExceptionRecord = NULL;
-        local_exception_pointers.ExceptionRecord = &local_exception_record;
-        local_exception_pointers.ContextRecord
-            = (PCONTEXT)&ctx->platform.context;
         exception_info.ExceptionPointers = &local_exception_pointers;
         exception_info.ClientPointers = FALSE;
     }
@@ -128,6 +132,22 @@ sentry__write_minidump(
         file_handle, dump_type, &exception_info, NULL, NULL);
 
     DWORD error = GetLastError();
+
+    if (!success && exception_info.ClientPointers) {
+        // dbghelp may fail to read the remote context, e.g. when the enabled
+        // XSTATE features (AMX) extend it past the top of the crashed stack.
+        // Retry with the copied record/context.
+        SENTRY_WARNF(
+            "MiniDumpWriteDump failed with client pointers: %lu", error);
+        exception_info.ExceptionPointers = &local_exception_pointers;
+        exception_info.ClientPointers = FALSE;
+        LARGE_INTEGER offset = { 0 };
+        SetFilePointerEx(file_handle, offset, NULL, FILE_BEGIN);
+        SetEndOfFile(file_handle);
+        success = MiniDumpWriteDump(process_handle, ctx->crashed_pid,
+            file_handle, dump_type, &exception_info, NULL, NULL);
+        error = GetLastError();
+    }
 
     CloseHandle(process_handle);
     CloseHandle(file_handle);
