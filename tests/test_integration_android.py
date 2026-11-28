@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from . import adb, run
+from . import adb, android_tmp, run
 from .conditions import has_native, is_android, is_asan, is_tsan
 
 pytestmark = pytest.mark.skipif(
@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(
     reason="Tests need the native backend enabled",
 )
 def test_native_android(cmake):
-    database_path = "/data/local/tmp/.sentry-native"
+    database_path = f"{android_tmp}/.sentry-native"
 
     def find_minidumps(timeout=30 if is_asan or is_tsan else 10):
         deadline = time.time() + timeout

@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from filelock import FileLock
 
-from . import adb, exe_name, lib_name
+from . import adb, android_tmp, exe_name, lib_name
 from .conditions import has_sccache
 from .build_config import (
     get_android_config,
@@ -60,6 +60,7 @@ class CMake:
     def __init__(self, factory):
         self.runs = dict()
         self.factory = factory
+        self.pushed = None
         # xdist workers share builds in the session root
         self.shared = None
         if os.environ.get("PYTEST_XDIST_WORKER"):
@@ -100,6 +101,10 @@ class CMake:
                     start = time.monotonic()
                     cmake_build(build_dir, new_targets, options)
                 built_targets.update(new_targets)
+
+        if self.shared and os.environ.get("ANDROID_API") and self.pushed != key:
+            adb("push", "./", android_tmp, cwd=cwd, check=True)
+            self.pushed = key
 
         stats = build_stats.setdefault(
             key, {"seconds": 0, "targets": set(), "tests": set()}
@@ -429,9 +434,10 @@ def cmake_build(cwd, targets, options):
         print("{} > {}".format(cwd, " ".join(checkcmd)), flush=True)
         subprocess.run(checkcmd, cwd=cwd, check=True)
 
-    if os.environ.get("ANDROID_API"):
+    # xdist workers push their own copy of the output in `compile()`
+    if os.environ.get("ANDROID_API") and not os.environ.get("PYTEST_XDIST_WORKER"):
         # copy the output to the android image via adb
-        adb("push", "./", "/data/local/tmp", cwd=cwd, check=True)
+        adb("push", "./", android_tmp, cwd=cwd, check=True)
 
 
 def configure_clang_cl(config_cmd: list[str]):

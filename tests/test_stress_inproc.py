@@ -8,18 +8,20 @@ import time
 
 import pytest
 
-from . import adb, Envelope
+from . import adb, android_tmp, Envelope
 from .assertions import assert_inproc_crash
 from .build_config import get_test_executable_cmake_args, get_test_executable_env
 from .conditions import is_android, is_tsan, is_wine
 
 fixture_path = pathlib.Path("tests/fixtures/inproc_stress")
 
-pytestmark = pytest.mark.skipif(
-    is_wine, reason="inproc stress test harness does not support Wine"
-)
-
-ANDROID_TMP = "/data/local/tmp"
+pytestmark = [
+    pytest.mark.skipif(
+        is_wine, reason="inproc stress test harness does not support Wine"
+    ),
+    # clears and reads the device-wide logcat
+    *([pytest.mark.xdist_group("android-logcat")] if is_android else []),
+]
 
 
 def compile_test_program(tmp_path):
@@ -55,7 +57,7 @@ def compile_test_program(tmp_path):
 
     # Push executable to Android device
     if is_android:
-        adb("push", str(exe_path), ANDROID_TMP, check=True, capture_output=True)
+        adb("push", str(exe_path), android_tmp, check=True, capture_output=True)
 
     return exe_path
 
@@ -88,7 +90,7 @@ def run_stress_test(tmp_path, test_executable, test_name, database_path=None):
 def run_stress_test_android(test_executable, test_name, database_path):
     """Run the stress test on Android via adb shell."""
     exe_name = test_executable.name
-    remote_db_path = f"{ANDROID_TMP}/{database_path.name}"
+    remote_db_path = f"{android_tmp}/{database_path.name}"
 
     # Clear logcat before running so we limit the capture as close to this run as possible
     adb("logcat", "-c", check=False)
@@ -98,7 +100,7 @@ def run_stress_test_android(test_executable, test_name, database_path):
     # and parse the return code from the output (same approach as tests/__init__.py)
     result = adb(
         "shell",
-        f"cd {ANDROID_TMP} && LD_LIBRARY_PATH=. ./{exe_name} {test_name} {remote_db_path} 2>&1; echo ret:$?",
+        f"cd {android_tmp} && LD_LIBRARY_PATH=. ./{exe_name} {test_name} {remote_db_path} 2>&1; echo ret:$?",
         capture_output=True,
         text=True,
     )

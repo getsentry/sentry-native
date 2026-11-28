@@ -405,6 +405,8 @@ ndk_aar_path = (
         ("coreclr", "preload"),
     ],
 )
+# clears and reads the device-wide logcat
+@pytest.mark.xdist_group("android-logcat")
 def test_android_signals_inproc(cmake, runtime, strategy):
     if shutil.which("dotnet") is None:
         pytest.skip("dotnet is not installed")
