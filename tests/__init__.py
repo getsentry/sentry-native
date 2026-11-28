@@ -31,6 +31,8 @@ def adb(*args, **kwargs):
 
 # xdist workers share the device
 android_tmp = "/data/local/tmp"
+# `scripts/setup-android-sanitizer.sh` pushes the sanitizer runtime here
+android_library_path = f".:{android_tmp}"
 if os.environ.get("PYTEST_XDIST_WORKER"):
     android_tmp += "/" + os.environ["PYTEST_XDIST_WORKER"]
 
@@ -219,8 +221,8 @@ def run(
                 # `LD_LIBRARY_PATH` to force the android dynamic loader to
                 # load `libsentry.so` from the correct library.
                 # See https://android.googlesource.com/platform/bionic/+/master/android-changes-for-ndk-developers.md#dt_runpath-support-available-in-api-level-24
-                "cd {} && LD_LIBRARY_PATH=. ./{} {}; echo -n ret:$?".format(
-                    android_tmp, exe, " ".join(args)
+                "cd {} && LD_LIBRARY_PATH={} ./{} {}; echo -n ret:$?".format(
+                    android_tmp, android_library_path, exe, " ".join(args)
                 ),
             ],
             check=check,

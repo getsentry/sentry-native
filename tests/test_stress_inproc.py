@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from . import adb, android_tmp, Envelope
+from . import adb, android_library_path, android_tmp, Envelope
 from .assertions import assert_inproc_crash
 from .build_config import get_test_executable_cmake_args, get_test_executable_env
 from .conditions import is_android, is_tsan, is_wine
@@ -100,7 +100,7 @@ def run_stress_test_android(test_executable, test_name, database_path):
     # and parse the return code from the output (same approach as tests/__init__.py)
     result = adb(
         "shell",
-        f"cd {android_tmp} && LD_LIBRARY_PATH=. ./{exe_name} {test_name} {remote_db_path} 2>&1; echo ret:$?",
+        f"cd {android_tmp} && LD_LIBRARY_PATH={android_library_path} ./{exe_name} {test_name} {remote_db_path} 2>&1; echo ret:$?",
         capture_output=True,
         text=True,
     )
