@@ -136,6 +136,12 @@ def pytest_runtest_setup(item):
         pytest.skip("need --with_wer to run this test")
 
 
+def pytest_runtest_teardown(item):
+    # unlike `pytest.exit()`, xdist forwards this from its workers
+    if tests.cmake.stop_reason:
+        item.session.shouldfail = tests.cmake.stop_reason
+
+
 # runs before xdist turns `-n` into workers
 @pytest.hookimpl(wrapper=True)
 def pytest_cmdline_main(config):

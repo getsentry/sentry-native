@@ -26,6 +26,7 @@ from .build_config import (
 # give up the whole run when the same build error repeats this many times
 build_error_limit = int(os.environ.get("SENTRY_TEST_BUILD_ERROR_LIMIT") or 0)
 build_errors = Counter()
+stop_reason = None
 
 # build errors as annotated on CI
 with open(Path(__file__).parent.parent / ".github" / "problem-matchers.json") as f:
@@ -317,6 +318,7 @@ def cmake_configure(cwd, options, cflags=None, source_dir=None):
 
 
 def cmake_build(cwd, targets, options):
+    global stop_reason
     __tracebackhide__ = True
 
     source_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -385,9 +387,10 @@ def cmake_build(cwd, targets, options):
     if returncode != 0:
         build_errors.update(errors)
         if any(build_errors[e] >= build_error_limit for e in errors):
-            reason = f"cmake build failed {build_error_limit} times with the same error"
-            print(f"::error::{reason}", flush=True)
-            pytest.exit(reason, returncode=pytest.ExitCode.TESTS_FAILED)
+            stop_reason = (
+                f"cmake build failed {build_error_limit} times with the same error"
+            )
+            print(f"::error::{stop_reason}", flush=True)
         raise pytest.fail.Exception("cmake build failed") from None
 
     # check if the DLL and EXE artifacts contain version-information
