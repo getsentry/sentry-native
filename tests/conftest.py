@@ -139,6 +139,15 @@ def pytest_addoption(parser):
 def pytest_runtest_setup(item):
     if "with_wer" in item.keywords and not item.config.getoption("--with_wer"):
         pytest.skip("need --with_wer to run this test")
+    if sys.platform == "win32" and item.config.getoption("--with_wer"):
+        # WER ignores crashes in processes that inherit SEM_NOGPFAULTERRORBOX,
+        # which keeps the crashes of other tests out of the machine-wide WER
+        SEM_NOGPFAULTERRORBOX = 0x2
+        kernel32 = ctypes.windll.kernel32
+        mode = kernel32.GetErrorMode() | SEM_NOGPFAULTERRORBOX
+        if "with_wer" in item.keywords:
+            mode &= ~SEM_NOGPFAULTERRORBOX
+        kernel32.SetErrorMode(mode)
 
 
 def pytest_runtest_teardown(item):
@@ -175,11 +184,6 @@ def pytest_configure(config):
         "markers",
         "with_wer: mark test to only run when WER testing is enabled",
     )
-    if sys.platform == "win32" and config.getoption("--with_wer"):
-        # WER ignores crashes in processes that inherit SEM_NOGPFAULTERRORBOX
-        SEM_NOGPFAULTERRORBOX = 0x2
-        kernel32 = ctypes.windll.kernel32
-        kernel32.SetErrorMode(kernel32.GetErrorMode() & ~SEM_NOGPFAULTERRORBOX)
     # clear coverage once before xdist workers write their own
     if not hasattr(config, "workerinput") and config.getoption("dist", "no") != "no":
         shutil.rmtree(os.path.join(tests.sourcedir, "coverage"), ignore_errors=True)
