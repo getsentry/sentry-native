@@ -53,12 +53,24 @@ def assert_run_dir_with_envelope(database_path):
     ), f"There is more than one crash envelope ({len(crash_envelopes)}"
 
 
-def run_dotnet(tmp_path, args):
+def copy_project(tmp_path_factory):
+    # keep build outputs and the database out of the source tree
+    project_path = tmp_path_factory.mktemp("dotnet")
+    shutil.copytree(
+        project_fixture_path,
+        project_path,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("bin", "obj", ".sentry-native"),
+    )
+    return project_path
+
+
+def run_dotnet(project_path, tmp_path, args):
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = str(tmp_path) + ":" + env.get("LD_LIBRARY_PATH", "")
     return subprocess.Popen(
         ["dotnet", "run", "-f:net10.0", f"-p:OutDir={tmp_path}/", "--", *args],
-        cwd=str(project_fixture_path),
+        cwd=str(project_path),
         env=env,
         text=True,
         stdout=subprocess.PIPE,
@@ -66,16 +78,16 @@ def run_dotnet(tmp_path, args):
     )
 
 
-def run_dotnet_managed_exception(tmp_path):
-    return run_dotnet(tmp_path, ["managed-exception"])
+def run_dotnet_managed_exception(project_path, tmp_path):
+    return run_dotnet(project_path, tmp_path, ["managed-exception"])
 
 
-def run_dotnet_unhandled_managed_exception(tmp_path):
-    return run_dotnet(tmp_path, ["unhandled-managed-exception"])
+def run_dotnet_unhandled_managed_exception(project_path, tmp_path):
+    return run_dotnet(project_path, tmp_path, ["unhandled-managed-exception"])
 
 
-def run_dotnet_native_crash(tmp_path):
-    return run_dotnet(tmp_path, ["native-crash"])
+def run_dotnet_native_crash(project_path, tmp_path):
+    return run_dotnet(project_path, tmp_path, ["native-crash"])
 
 
 @pytest.mark.skipif(
@@ -101,10 +113,11 @@ def run_dotnet_native_crash(tmp_path):
         ),
     ],
 )
-def test_dotnet_signals(cmake, backend):
+def test_dotnet_signals(cmake, tmp_path_factory, backend):
     if shutil.which("dotnet") is None:
         pytest.skip("dotnet is not installed")
 
+    project_path = copy_project(tmp_path_factory)
     try:
         # build native client library and the example for crash dumping
         tmp_path = cmake(
@@ -130,7 +143,7 @@ def test_dotnet_signals(cmake, backend):
         # this runs the dotnet program with the Native SDK and chain-at-start, when managed code raises a signal that CLR convert to an exception.
         # raising a signal that CLR converts to a managed exception, which is then handled by the managed code and
         # not leaked out to the native code so no crash is registered.
-        dotnet_run = run_dotnet_managed_exception(tmp_path)
+        dotnet_run = run_dotnet_managed_exception(project_path, tmp_path)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program handles the `NullReferenceException`, so the Native SDK won't register a crash.
@@ -138,13 +151,13 @@ def test_dotnet_signals(cmake, backend):
         assert not (
             "NullReferenceException" in dotnet_run_stderr
         ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
-        database_path = project_fixture_path / ".sentry-native"
+        database_path = project_path / ".sentry-native"
         assert database_path.exists(), "No database-path exists"
         assert not (database_path / "last_crash").exists(), "A crash was registered"
         assert_empty_run_dir(database_path)
 
         # this runs the dotnet program with the Native SDK and chain-at-start, when managed code raises a signal that CLR convert to an exception.
-        dotnet_run = run_dotnet_unhandled_managed_exception(tmp_path)
+        dotnet_run = run_dotnet_unhandled_managed_exception(project_path, tmp_path)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program will fail with a `NullReferenceException`, but the Native SDK won't register a crash.
@@ -152,13 +165,13 @@ def test_dotnet_signals(cmake, backend):
         assert (
             "NullReferenceException" in dotnet_run_stderr
         ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
-        database_path = project_fixture_path / ".sentry-native"
+        database_path = project_path / ".sentry-native"
         assert database_path.exists(), "No database-path exists"
         assert not (database_path / "last_crash").exists(), "A crash was registered"
         assert_empty_run_dir(database_path)
 
         # this runs the dotnet program with the Native SDK and chain-at-start, when an actual native crash raises a signal
-        dotnet_run = run_dotnet_native_crash(tmp_path)
+        dotnet_run = run_dotnet_native_crash(project_path, tmp_path)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program will fail with a SIGSEGV, that has been processed by the Native SDK which produced a crash envelope
@@ -171,9 +184,7 @@ def test_dotnet_signals(cmake, backend):
         if backend != "native":
             assert_run_dir_with_envelope(database_path)
     finally:
-        shutil.rmtree(project_fixture_path / ".sentry-native", ignore_errors=True)
-        shutil.rmtree(project_fixture_path / "bin", ignore_errors=True)
-        shutil.rmtree(project_fixture_path / "obj", ignore_errors=True)
+        shutil.rmtree(project_path, ignore_errors=True)
 
 
 def run_aot(tmp_path, args=None):
@@ -214,10 +225,11 @@ def run_aot_native_crash(tmp_path):
     ),
     reason="dotnet AOT signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
-def test_aot_signals_inproc(cmake):
+def test_aot_signals_inproc(cmake, tmp_path_factory):
     if shutil.which("dotnet") is None:
         pytest.skip("dotnet is not installed")
 
+    project_path = copy_project(tmp_path_factory)
     try:
         # build native client library with inproc and the example for crash dumping
         tmp_path = cmake(
@@ -251,7 +263,7 @@ def test_aot_signals_inproc(cmake):
                 "-o",
                 str(tmp_path / "bin"),
             ],
-            cwd=project_fixture_path,
+            cwd=project_path,
             check=True,
         )
 
@@ -300,8 +312,7 @@ def test_aot_signals_inproc(cmake):
         assert_run_dir_with_envelope(database_path)
     finally:
         shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-        shutil.rmtree(project_fixture_path / "bin", ignore_errors=True)
-        shutil.rmtree(project_fixture_path / "obj", ignore_errors=True)
+        shutil.rmtree(project_path, ignore_errors=True)
 
 
 ANDROID_PACKAGE = "io.sentry.ndk.dotnet.signal.test"
