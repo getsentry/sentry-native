@@ -541,6 +541,7 @@ class StallChild:
     """Runs the `native_stall` unit test, which waits for `proceed` at each step."""
 
     def __init__(self, tmp_path, mode, dsn):
+        self.tmp_path = tmp_path
         self.child = subprocess.Popen(
             [
                 *run_command(str(tmp_path / "sentry_test_unit")),
@@ -580,12 +581,17 @@ class StallChild:
         self.child.stdin.flush()
 
     def daemon(self):
-        # Wine reparents the processes it spawns
-        procs = (
-            psutil.process_iter()
-            if is_wine
-            else psutil.Process(self.child.pid).children()
-        )
+        if is_wine:
+            # Wine reparents the processes it spawns, so tell this daemon apart
+            # from those of other xdist workers by its path
+            path = "Z:" + str(self.tmp_path / "sentry-crash.exe").replace("/", "\\")
+            procs = [
+                proc
+                for proc in psutil.process_iter(["cmdline"])
+                if (proc.info["cmdline"] or [])[:1] == [path]
+            ]
+        else:
+            procs = psutil.Process(self.child.pid).children()
         for proc in procs:
             if "sentry-crash" in proc.name():
                 return proc
