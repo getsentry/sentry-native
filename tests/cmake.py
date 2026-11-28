@@ -1,3 +1,5 @@
+import contextlib
+import hashlib
 import json
 import os
 import shutil
@@ -10,6 +12,7 @@ from collections import Counter, deque
 from pathlib import Path
 
 import pytest
+from filelock import FileLock
 
 from . import adb, exe_name, lib_name
 from .conditions import has_sccache
@@ -57,6 +60,10 @@ class CMake:
     def __init__(self, factory):
         self.runs = dict()
         self.factory = factory
+        # xdist workers share builds in the session root
+        self.shared = None
+        if os.environ.get("PYTEST_XDIST_WORKER"):
+            self.shared = factory.getbasetemp().parent / "cmake"
 
     def compile(self, targets, options=None, cflags=None, source_dir=None):
         # We build in tmp for all of our tests. Disable the warning MSVC generates to not clutter the build logs.
@@ -77,15 +84,21 @@ class CMake:
         # cache the build configuration
         if key not in self.runs:
             cwd = self.factory.mktemp("cmake")
-            cmake_configure(cwd, options, cflags, source_dir)
-            cmake_build(cwd, targets, options)
+            with self.build_dir(key, cwd) as (build_dir, configured):
+                # leave out the wait for other workers
+                start = time.monotonic()
+                if not configured:
+                    cmake_configure(build_dir, options, cflags, source_dir)
+                cmake_build(build_dir, targets, options)
             self.runs[key] = (cwd, set(targets))
         else:
             # build missing targets incrementally
             cwd, built_targets = self.runs[key]
             new_targets = [t for t in targets if t not in built_targets]
             if new_targets:
-                cmake_build(cwd, new_targets, options)
+                with self.build_dir(key, cwd) as (build_dir, _):
+                    start = time.monotonic()
+                    cmake_build(build_dir, new_targets, options)
                 built_targets.update(new_targets)
 
         stats = build_stats.setdefault(
@@ -109,6 +122,30 @@ class CMake:
             return utf8_subpath
 
         return build_tmp_path
+
+    @contextlib.contextmanager
+    def build_dir(self, key, cwd):
+        if self.shared is None:
+            yield cwd, False
+            return
+
+        build_dir = self.shared / hashlib.sha256(repr(key).encode()).hexdigest()[:16]
+        self.shared.mkdir(exist_ok=True)
+        with FileLock(f"{build_dir}.lock"):
+            configured = build_dir.exists()
+            build_dir.mkdir(exist_ok=True)
+            try:
+                yield build_dir, configured
+            except BaseException:
+                # let the next worker configure from scratch
+                if not configured:
+                    shutil.rmtree(build_dir, ignore_errors=True)
+                raise
+            # run from a copy of the outputs to keep the databases apart
+            for src in build_dir.iterdir():
+                dst = cwd / src.name
+                if not src.is_dir() and not os.path.lexists(dst):
+                    shutil.copy2(src, dst, follow_symlinks=False)
 
     def destroy(self):
         sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -299,6 +336,11 @@ def cmake_build(cwd, targets, options):
     for target in targets:
         buildcmd.extend(["--target", target])
     buildcmd.append("--parallel")
+    workers = os.environ.get("PYTEST_XDIST_WORKER_COUNT")
+    if workers:
+        # share the CPUs between workers that build at the same time
+        cpus = getattr(os, "process_cpu_count", os.cpu_count)() or 1
+        buildcmd.append(str(max(1, cpus // int(workers))))
     if "CMAKE_BUILD_TYPE" in options:
         buildcmd.extend(["--config", options["CMAKE_BUILD_TYPE"]])
     if "code-checker" in os.environ.get("RUN_ANALYZER", ""):

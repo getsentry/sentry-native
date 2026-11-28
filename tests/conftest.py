@@ -267,6 +267,30 @@ def pytest_sessionfinish(session, exitstatus):
         with open(json_path, "w") as f:
             benchmarks = [_get_benchmark(name, "\n") for name in gbenchmarks.keys()]
             json.dump(benchmarks, f, indent=2)
+    # hand the build stats of xdist workers to the controller
+    if hasattr(session.config, "workeroutput"):
+        session.config.workeroutput["build_stats"] = [
+            (
+                source_dir and str(source_dir),
+                config,
+                stats["seconds"],
+                sorted(stats["targets"]),
+                sorted(stats["tests"]),
+            )
+            for (source_dir, config), stats in build_stats.items()
+        ]
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node, error):
+    rows = getattr(node, "workeroutput", {}).get("build_stats", [])
+    for source_dir, config, seconds, targets, tests in rows:
+        stats = build_stats.setdefault(
+            (source_dir, config), {"seconds": 0, "targets": set(), "tests": set()}
+        )
+        stats["seconds"] += seconds
+        stats["targets"].update(targets)
+        stats["tests"].update(tests)
 
 
 def pytest_sessionstart(session):
