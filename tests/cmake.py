@@ -155,8 +155,11 @@ class CMake:
     def destroy(self):
         sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
         coveragedir = os.path.join(sourcedir, "coverage")
+        # xdist workers write to their own subdirectory
+        if os.environ.get("PYTEST_XDIST_WORKER"):
+            coveragedir = os.path.join(coveragedir, os.environ["PYTEST_XDIST_WORKER"])
         shutil.rmtree(coveragedir, ignore_errors=True)
-        os.mkdir(coveragedir)
+        os.makedirs(coveragedir)
 
         if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
 

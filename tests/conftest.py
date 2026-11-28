@@ -4,6 +4,7 @@ import os
 import subprocess
 import pytest
 import re
+import shutil
 import statistics
 import sys
 import socket
@@ -147,6 +148,9 @@ def pytest_configure(config):
         SEM_NOGPFAULTERRORBOX = 0x2
         kernel32 = ctypes.windll.kernel32
         kernel32.SetErrorMode(kernel32.GetErrorMode() & ~SEM_NOGPFAULTERRORBOX)
+    # clear coverage once before xdist workers write their own
+    if not hasattr(config, "workerinput") and config.getoption("dist", "no") != "no":
+        shutil.rmtree(os.path.join(tests.sourcedir, "coverage"), ignore_errors=True)
 
 
 @pytest.fixture
