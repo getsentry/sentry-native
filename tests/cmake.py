@@ -365,13 +365,25 @@ def cmake_build(cwd, targets, options):
             "--build",
             " ".join(buildcmd),
         ]
+    priority = {}
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        # keep builds from starving the tests of other xdist workers
+        if sys.platform == "win32":
+            priority["creationflags"] = subprocess.BELOW_NORMAL_PRIORITY_CLASS
+        else:
+            buildcmd = ["nice", *buildcmd]
 
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
     errors = set()
     if build_error_limit:
         lines = deque(maxlen=max(map(len, problem_matchers)))
         with subprocess.Popen(
-            buildcmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            buildcmd,
+            cwd=cwd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            **priority,
         ) as process:
             for line in process.stdout:
                 sys.stdout.buffer.write(line)
@@ -386,7 +398,7 @@ def cmake_build(cwd, targets, options):
                         errors.add(tuple(g for m in matches for g in m.groups()))
         returncode = process.returncode
     else:
-        returncode = subprocess.run(buildcmd, cwd=cwd, env=env).returncode
+        returncode = subprocess.run(buildcmd, cwd=cwd, env=env, **priority).returncode
     if returncode != 0:
         build_errors.update(errors)
         if any(build_errors[e] >= build_error_limit for e in errors):
