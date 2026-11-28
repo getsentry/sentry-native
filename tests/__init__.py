@@ -300,10 +300,10 @@ def run(
                 result.returncode == 0
             ), f"command failed unexpectedly: {cmd} {" ".join(args)}"
         return result
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
         raise pytest.fail.Exception(
-            "running command failed: {cmd} {args}".format(
-                cmd=" ".join(cmd), args=" ".join(args)
+            "running command failed with exit status {rc}: {cmd} {args}".format(
+                rc=e.returncode, cmd=" ".join(cmd), args=" ".join(args)
             )
         ) from None
 
