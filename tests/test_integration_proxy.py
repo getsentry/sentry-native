@@ -18,7 +18,11 @@ from .proxy import (
     system_proxy,
 )
 
-pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
+pytestmark = [
+    pytest.mark.skipif(not has_http, reason="tests need http"),
+    # the system proxy tests change the machine-wide proxy
+    pytest.mark.xdist_group("proxy"),
+]
 
 
 def _setup_http_proxy_test(

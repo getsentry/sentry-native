@@ -2172,6 +2172,7 @@ def test_native_shutdown_during_crash(cmake):
     )
 
 
+@pytest.mark.xdist_group("proxy")
 def test_native_proxy_set_empty(cmake, httpserver):
     proxy_process = None  # store the proxy process to terminate it later
     try:
@@ -2207,6 +2208,7 @@ def test_native_proxy_set_empty(cmake, httpserver):
     reason="only the WinHTTP transport reads the system proxy",
 )
 @pytest.mark.parametrize("proxy_empty", [False, True])
+@pytest.mark.xdist_group("proxy")
 def test_native_proxy_system(cmake, httpserver, proxy_empty):
     proxy_process = None  # store the proxy process to terminate it later
     try:

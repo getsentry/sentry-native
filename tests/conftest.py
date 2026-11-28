@@ -136,6 +136,27 @@ def pytest_runtest_setup(item):
         pytest.skip("need --with_wer to run this test")
 
 
+# runs before xdist turns `-n` into workers
+@pytest.hookimpl(wrapper=True)
+def pytest_cmdline_main(config):
+    if hasattr(config, "workerinput"):
+        # workers parse the original args, which lack the implied `--dist`
+        config.option.loadgroup = config.workerinput["loadgroup"]
+    elif config.pluginmanager.hasplugin("xdist") and config.option.numprocesses:
+        files = [os.path.basename(arg.split("::")[0]) for arg in config.args]
+        if "benchmark.py" in files:
+            # benchmarks report from the process that runs them
+            config.option.numprocesses = 0
+        elif config.option.dist in ("no", "load"):
+            config.option.dist = "loadgroup"
+    return (yield)
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_configure_node(node):
+    node.workerinput["loadgroup"] = node.config.option.dist == "loadgroup"
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
     config.option.flaky_success_report = False

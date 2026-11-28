@@ -250,6 +250,7 @@ def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
     return env, proxy_process, tmp_path, port
 
 
+@pytest.mark.xdist_group("proxy")
 def test_crashpad_crash_proxy_env(cmake, httpserver):
     proxy_process = None  # store the proxy process to terminate it later
     try:
@@ -274,6 +275,7 @@ def test_crashpad_crash_proxy_env(cmake, httpserver):
         proxy_test_finally(1, httpserver, proxy_process)
 
 
+@pytest.mark.xdist_group("proxy")
 def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
     proxy_process = None  # store the proxy process to terminate it later
     try:
@@ -298,6 +300,7 @@ def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
         proxy_test_finally(0, httpserver, proxy_process)
 
 
+@pytest.mark.xdist_group("proxy")
 def test_crashpad_proxy_set_empty(cmake, httpserver):
     proxy_process = None  # store the proxy process to terminate it later
     try:
@@ -331,6 +334,7 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
     reason="system proxy discovery requires macOS or non-MinGW Windows builds",
 )
 @pytest.mark.parametrize("proxy_empty", [False, True])
+@pytest.mark.xdist_group("proxy")
 def test_crashpad_proxy_system(cmake, httpserver, proxy_empty):
     proxy_process = None  # store the proxy process to terminate it later
     try:
@@ -358,6 +362,7 @@ def test_crashpad_proxy_system(cmake, httpserver, proxy_empty):
         )
 
 
+@pytest.mark.xdist_group("proxy")
 def test_crashpad_proxy_https_not_http(cmake, httpserver):
     proxy_process = None  # store the proxy process to terminate it later
     # we start the proxy but expect it to remain unused (dsn is http, so shouldn't use https proxy)
@@ -397,6 +402,7 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
     ],
 )
 @pytest.mark.parametrize("proxy_running", [True, False])
+@pytest.mark.xdist_group("proxy")
 def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
     proxy_process = None  # store the proxy process to terminate it later
     expected_logsize = 0
