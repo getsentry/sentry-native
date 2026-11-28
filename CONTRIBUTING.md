@@ -72,6 +72,8 @@ can also be invoked directly.
 The `maxfail` parameter will abort after the first failure, and `capture=no`
 will print the complete compiler output, and test log.
 
+Pass `-n auto`, or set `PYTEST_ADDOPTS="-n auto"`, to run the tests in parallel.
+
 **Running unit tests**:
 
     $ make test-unit

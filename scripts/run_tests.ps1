@@ -11,7 +11,7 @@ param (
     [switch]$Clean = $false,
     ## Lets you limit the test discovery to part of a name (default: all)
     [string]$Keyword = "",
-    ## Defines the number of parallel runners via pytest-xdist. This is highly experimental since tests remove database paths. (default: 1)
+    ## Defines the number of parallel runners via pytest-xdist. (default: 1)
     [int]$Parallelism = 1,
     ## Disables tests that require WER modules. (default: false)
     [switch]$WithoutWer = $false,
