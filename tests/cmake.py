@@ -102,6 +102,7 @@ class CMake:
                     start = time.monotonic()
                     cmake_build(build_dir, new_targets, options)
                 built_targets.update(new_targets)
+                self.pushed = None
 
         if self.shared and os.environ.get("ANDROID_API") and self.pushed != key:
             adb("push", "./", android_tmp, cwd=cwd, check=True)
