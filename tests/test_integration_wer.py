@@ -465,7 +465,6 @@ def test_wer_compatibility(cmake, httpserver, backend, crash_arg):
 
 @pytest.mark.skipif(not has_native or is_qemu, reason="native backend not available")
 @pytest.mark.parametrize("crash_arg", ["crash", "fastfail"])
-@pytest.mark.xdist_group("appx")
 def test_wer_appx(cmake, httpserver, crash_arg):
     report = run_wer_crash(cmake, "native", crash_arg, httpserver, appx=True)
 

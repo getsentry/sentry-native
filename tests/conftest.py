@@ -43,15 +43,20 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("unittest", enumerate_unittests())
 
 
-# retry known intermittent deadlocks in Breakpad tests (#1502)
+# runs before xdist reads `xdist_group`
+@pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(items):
     for item in items:
         params = getattr(getattr(item, "callspec", None), "params", {})
+        # retry known intermittent deadlocks in Breakpad tests (#1502)
         if "breakpad" in item.name or any(
             isinstance(value, dict) and value.get("SENTRY_BACKEND") == "breakpad"
             for value in params.values()
         ):
             item.add_marker(pytest.mark.flaky(max_runs=3))
+        # WER and its `WerFault.exe` processes are machine-wide
+        if "with_wer" in item.keywords:
+            item.add_marker(pytest.mark.xdist_group("wer"))
 
 
 @pytest.fixture(scope="session")
