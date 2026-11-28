@@ -91,7 +91,8 @@ class CMake:
                 start = time.monotonic()
                 if not configured:
                     cmake_configure(build_dir, options, cflags, source_dir)
-                cmake_build(build_dir, targets, options)
+                with self.build_jobs() as jobs:
+                    cmake_build(build_dir, targets, options, jobs)
             self.runs[key] = (cwd, set(targets))
         else:
             # build missing targets incrementally
@@ -100,7 +101,8 @@ class CMake:
             if new_targets:
                 with self.build_dir(key, cwd) as (build_dir, _):
                     start = time.monotonic()
-                    cmake_build(build_dir, new_targets, options)
+                    with self.build_jobs() as jobs:
+                        cmake_build(build_dir, new_targets, options, jobs)
                 built_targets.update(new_targets)
                 self.pushed = None
 
@@ -155,6 +157,21 @@ class CMake:
                 dst = cwd / src.name
                 if not src.is_dir() and not os.path.lexists(dst):
                     shutil.copy2(src, dst, follow_symlinks=False)
+
+    @contextlib.contextmanager
+    def build_jobs(self):
+        if self.shared is None:
+            yield None
+            return
+        # share the CPUs with the builds that other xdist workers are running
+        marker = self.shared / f"{os.environ['PYTEST_XDIST_WORKER']}.building"
+        others = len(list(self.shared.glob("*.building")))
+        marker.touch()
+        try:
+            cpus = getattr(os, "process_cpu_count", os.cpu_count)() or 1
+            yield max(1, cpus // (others + 1))
+        finally:
+            marker.unlink(missing_ok=True)
 
     def destroy(self):
         sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -320,7 +337,7 @@ def cmake_configure(cwd, options, cflags=None, source_dir=None):
             raise pytest.fail.Exception("cmake configure failed") from None
 
 
-def cmake_build(cwd, targets, options):
+def cmake_build(cwd, targets, options, jobs=None):
     global stop_reason
     __tracebackhide__ = True
 
@@ -349,11 +366,8 @@ def cmake_build(cwd, targets, options):
     for target in targets:
         buildcmd.extend(["--target", target])
     buildcmd.append("--parallel")
-    workers = os.environ.get("PYTEST_XDIST_WORKER_COUNT")
-    if workers:
-        # share the CPUs between workers that build at the same time
-        cpus = getattr(os, "process_cpu_count", os.cpu_count)() or 1
-        buildcmd.append(str(max(1, cpus // int(workers))))
+    if jobs:
+        buildcmd.append(str(jobs))
     if "CMAKE_BUILD_TYPE" in options:
         buildcmd.extend(["--config", options["CMAKE_BUILD_TYPE"]])
     if "code-checker" in os.environ.get("RUN_ANALYZER", ""):
