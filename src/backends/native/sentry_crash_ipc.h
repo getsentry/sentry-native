@@ -10,11 +10,7 @@
 #include <stdint.h>
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-#    if defined(SENTRY_PLATFORM_ANDROID)
-#        include "sentry_sync.h"
-#    else
-#        include <semaphore.h>
-#    endif
+#    include "sentry_sync.h"
 #    include <sys/eventfd.h>
 #    include <sys/mman.h>
 #elif defined(SENTRY_PLATFORM_MACOS)
@@ -146,12 +142,10 @@ typedef struct {
     int message_fd[2];
 #    if defined(SENTRY_PLATFORM_ANDROID)
     char shm_name[SENTRY_CRASH_MAX_PATH]; // File path, bionic has no shm_open()
-    sentry_mutex_t *init_mutex; // Process-wide initialization mutex
 #    else
     char shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
-    sem_t *init_sem; // Named semaphore for initialization synchronization
-    char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];
 #    endif
+    sentry_mutex_t *init_mutex; // Process-wide initialization mutex
 #elif defined(SENTRY_PLATFORM_MACOS)
     int shm_fd;
     int notify_pipe[2]; // Pipe for crash notifications (fork-safe)
@@ -184,9 +178,7 @@ typedef struct {
  * Initialize IPC for application process.
  * Creates shared memory and notification mechanism.
  * @param database_path Android-only directory for the file-backed mapping
- * @param init_sem Optional semaphore for synchronizing init (can be NULL)
- * @param init_mutex Optional mutex for synchronizing init on Windows (can be
- * NULL)
+ * @param init_mutex Optional mutex for synchronizing init (can be NULL)
  */
 #if defined(SENTRY_PLATFORM_ANDROID)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(
@@ -201,7 +193,7 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app_with_fds(int shm_fd,
 bool sentry__crash_ipc_reattach(
     sentry_crash_ipc_t *ipc, int notify_fd, int ready_fd, int message_fd);
 #elif defined(SENTRY_PLATFORM_LINUX)
-sentry_crash_ipc_t *sentry__crash_ipc_init_app(sem_t *init_sem);
+sentry_crash_ipc_t *sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex);
 #elif defined(SENTRY_PLATFORM_MACOS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex);
 #elif defined(SENTRY_PLATFORM_WINDOWS)

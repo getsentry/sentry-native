@@ -53,15 +53,11 @@
 // This lives for the entire backend lifetime and is shared across all threads
 #if defined(SENTRY_PLATFORM_WINDOWS)
 static HANDLE g_ipc_mutex = NULL;
-#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
-// macOS/Android use a plain pthread mutex instead of named semaphores
-// (sem_open) because App Sandbox blocks POSIX named semaphores and Android has
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_LINUX)
+// macOS/Linux use a plain pthread mutex instead of named semaphores
+// (sem_open) because sandboxes block POSIX named semaphores and Android has
 // no shm_open.
 static sentry_mutex_t g_ipc_sync_mutex = SENTRY__MUTEX_INIT;
-#else
-#    include <semaphore.h>
-static sem_t *g_ipc_init_sem = SEM_FAILED;
-static char g_ipc_sem_name[64] = { 0 };
 #endif
 
 #if defined(SENTRY_PLATFORM_ANDROID)
@@ -197,12 +193,9 @@ resolve_handler_path(const sentry_options_t *options)
 #endif
 }
 
-// Mutex to protect IPC initialization (Windows and Linux only, not macOS/iOS or
-// Android) macOS/Android use g_ipc_sync_mutex directly; iOS has no
-// out-of-process daemon.
-#if defined(SENTRY_PLATFORM_WINDOWS)                                           \
-    || (!defined(SENTRY_PLATFORM_MACOS) && !defined(SENTRY_PLATFORM_ANDROID)   \
-        && !defined(SENTRY_PLATFORM_IOS))
+// Mutex to protect IPC initialization (Windows only). macOS/Linux use
+// g_ipc_sync_mutex directly, and iOS has no out-of-process daemon.
+#if defined(SENTRY_PLATFORM_WINDOWS)
 #    ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_ipc_init_mutex)
 #    else
@@ -864,32 +857,6 @@ native_backend_startup(
     }
 
     sentry__mutex_unlock(&g_ipc_init_mutex);
-#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
-    // macOS/Android use a plain pthread mutex (no sem_open/shm_open which is
-    // blocked by App Sandbox, or missing on Android). The mutex is statically
-    // initialized - no setup needed.
-    (void)0;
-#elif !defined(SENTRY_PLATFORM_IOS)
-    // Create process-wide IPC initialization semaphore (singleton pattern)
-    // Protected by mutex to handle concurrent backend startups
-    SENTRY__MUTEX_INIT_DYN_ONCE(g_ipc_init_mutex);
-    sentry__mutex_lock(&g_ipc_init_mutex);
-
-    if (g_ipc_init_sem == SEM_FAILED) {
-        snprintf(g_ipc_sem_name, sizeof(g_ipc_sem_name), "/sentry-init-%d",
-            (int)getpid());
-        // Unlink any stale semaphore from previous runs
-        sem_unlink(g_ipc_sem_name);
-        // Create fresh semaphore with initial value 1
-        g_ipc_init_sem = sem_open(g_ipc_sem_name, O_CREAT | O_EXCL, 0600, 1);
-        if (g_ipc_init_sem == SEM_FAILED) {
-            sentry__mutex_unlock(&g_ipc_init_mutex);
-            SENTRY_WARNF("failed to create IPC semaphore: %s", strerror(errno));
-            return 1;
-        }
-    }
-
-    sentry__mutex_unlock(&g_ipc_init_mutex);
 #endif
 
     native_backend_state_t *state = SENTRY_MAKE(native_backend_state_t);
@@ -923,10 +890,8 @@ native_backend_startup(
             options->database_path ? options->database_path->path : NULL,
             &g_ipc_sync_mutex);
     }
-#elif defined(SENTRY_PLATFORM_MACOS)
-    state->ipc = sentry__crash_ipc_init_app(&g_ipc_sync_mutex);
 #else
-    state->ipc = sentry__crash_ipc_init_app(g_ipc_init_sem);
+    state->ipc = sentry__crash_ipc_init_app(&g_ipc_sync_mutex);
 #endif
     if (!state->ipc) {
         SENTRY_WARN("failed to initialize crash IPC");
@@ -951,18 +916,8 @@ native_backend_startup(
             return 1;
         }
     }
-#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_LINUX)
     sentry__mutex_lock(&g_ipc_sync_mutex);
-#elif !defined(SENTRY_PLATFORM_IOS)
-    if (g_ipc_init_sem && sem_wait(g_ipc_init_sem) < 0) {
-        SENTRY_WARNF("failed to acquire semaphore for context setup: %s",
-            strerror(errno));
-        sentry__crash_ipc_free(state->ipc);
-        sentry__path_free(state->run_path);
-        sentry_free(state);
-        backend->data = NULL;
-        return 1;
-    }
 #endif
 
     sentry_crash_context_t *ctx = state->ipc->shmem;
@@ -1102,13 +1057,8 @@ native_backend_startup(
     if (g_ipc_mutex) {
         ReleaseMutex(g_ipc_mutex);
     }
-#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_LINUX)
     sentry__mutex_unlock(&g_ipc_sync_mutex);
-#elif !defined(SENTRY_PLATFORM_IOS)
-    // Release semaphore after context configuration
-    if (g_ipc_init_sem) {
-        sem_post(g_ipc_init_sem);
-    }
 #endif
 
     // Install crash handlers (signal handlers on Linux/macOS, Mach exception
@@ -1429,11 +1379,6 @@ native_backend_shutdown(sentry_backend_t *backend)
         sentry__crash_ipc_free(state->ipc);
         state->ipc = NULL; // Prevent use-after-free
     }
-
-#if !defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_IOS)
-    // Don't clean up semaphore here - it persists for the process lifetime
-    // and may be reused if backend is restarted within same process
-#endif
 
     SENTRY_DEBUG("native backend shutdown complete");
 }
